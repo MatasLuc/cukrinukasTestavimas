@@ -1,0 +1,21 @@
+{
+  "name": "Cukrinukas",
+  "short_name": "Cukrinukas",
+  "start_url": "/index.php",
+  "display": "standalone",
+  "background_color": "#f7f7fb",
+  "theme_color": "#829ed6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/uploads/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/uploads/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

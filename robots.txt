@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /cart.php
+Disallow: /checkout.php
+Disallow: /login.php
+Disallow: /register.php
+Disallow: /account.php
+Disallow: /messages.php
+Disallow: /*?action=*
+Sitemap: https://cukrinukas.lt/sitemap.xml
