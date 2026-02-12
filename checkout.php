@@ -1,8 +1,9 @@
 <?php
 session_start();
-require __DIR__ . '/db.php';
-require __DIR__ . '/layout.php';
-require __DIR__ . '/shipping_helper.php'; // Įkeliame mūsų helperį
+// Naudojame require_once, kad išvengtume dvigubo failų įtraukimo klaidų
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/layout.php';
+require_once __DIR__ . '/shipping_helper.php'; 
 
 $pdo = getPdo();
 
@@ -17,8 +18,19 @@ if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
     exit;
 }
 
-// 1. Gauname nustatymus iš DB
-$shippingSettings = getShippingSettings($pdo);
+// 1. Gauname nustatymus iš DB su apsauga (jei lentelė dar nesukurta)
+try {
+    $shippingSettings = getShippingSettings($pdo);
+} catch (Exception $e) {
+    // Jei įvyko klaida (pvz., nėra lentelės), naudojame numatytuosius nustatymus
+    $shippingSettings = [
+        'base_price' => 0,
+        'courier_price' => 4.99,
+        'locker_price' => 2.99,
+        'free_over' => 50.00
+    ];
+    // Galima įrašyti klaidą į logą: error_log($e->getMessage());
+}
 
 // 2. Skaičiuojame krepšelio sumą (Prekės)
 $cartItemsTotal = 0;
@@ -26,6 +38,7 @@ $productsInCart = [];
 $ids = array_keys($_SESSION['cart']);
 
 if (!empty($ids)) {
+    // Saugus placeholderių generavimas
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $stmt = $pdo->prepare("SELECT id, title, price FROM products WHERE id IN ($placeholders)");
     $stmt->execute($ids);
@@ -72,10 +85,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'phone' => $phone,
                 'email' => $email,
                 'notes' => $notes,
-                'locker_address' => $_POST['locker_address'] ?? '' // Jei turite paštomatų pasirinkimą
+                'locker_address' => $_POST['locker_address'] ?? ''
             ]);
 
             // Įrašome užsakymą
+            // Pastaba: Įsitikinkite, kad 'orders' lentelė turi stulpelį 'delivery_details'
             $stmtOrder = $pdo->prepare("
                 INSERT INTO orders 
                 (user_id, total, status, created_at, customer_name, customer_address, delivery_method, delivery_details, customer_email) 
@@ -108,8 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         } catch (Exception $e) {
-            $pdo->rollBack();
-            $errors[] = "Klaida: " . $e->getMessage();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errors[] = "Klaida apdorojant užsakymą: " . $e->getMessage();
         }
     }
 }
@@ -156,6 +172,7 @@ $user = $userStmt->fetch();
 
         <?php 
             // Paskaičiuojame kainas JS'ui
+            // Naudojame number_format, kad užtikrintume teisingą formatą (pvz. 2.99)
             $courierCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'courier');
             $lockerCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'locker');
             $isFree = ($shippingSettings['free_over'] > 0 && $cartItemsTotal >= $shippingSettings['free_over']);
@@ -242,11 +259,12 @@ $user = $userStmt->fetch();
 
     <script>
         // PHP kintamieji į JS
-        const cartTotal = <?php echo $cartItemsTotal; ?>;
+        // Naudojame number_format su '.' skyrikliu, kad JS nesutriktų dėl kablelių
+        const cartTotal = <?php echo number_format($cartItemsTotal, 2, '.', ''); ?>;
         const prices = {
             pickup: 0.00,
-            locker: <?php echo $isFree ? 0 : $lockerCost; ?>,
-            courier: <?php echo $isFree ? 0 : $courierCost; ?>
+            locker: <?php echo $isFree ? '0.00' : number_format($lockerCost, 2, '.', ''); ?>,
+            courier: <?php echo $isFree ? '0.00' : number_format($courierCost, 2, '.', ''); ?>
         };
 
         function updateUI(method) {
@@ -264,7 +282,7 @@ $user = $userStmt->fetch();
             }
 
             // Kainų atnaujinimas
-            const shipPrice = prices[method];
+            const shipPrice = parseFloat(prices[method] || 0);
             const finalPrice = cartTotal + shipPrice;
 
             shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
