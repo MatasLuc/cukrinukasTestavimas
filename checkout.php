@@ -1,12 +1,12 @@
 <?php
-// Įjungiame klaidų rodymą testavimui
+// Įjungiame klaidų rodymą, kad matytume, jei kas negerai (galima išjungti production aplinkoje)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 session_start();
 
-// Generuojame CSRF tokeną, jei jo nėra
+// 1. Generuojame CSRF tokeną apsaugai
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -17,33 +17,35 @@ require_once __DIR__ . '/shipping_helper.php';
 
 $pdo = getPdo();
 
-// Patikriname prisijungimą
+// 2. Patikriname, ar vartotojas prisijungęs
 if (empty($_SESSION['user_id'])) {
     $_SESSION['redirect_after_login'] = 'checkout.php';
     header('Location: /login.php');
     exit;
 }
 
-// Patikriname krepšelį
+// 3. Patikriname, ar krepšelis nėra tuščias
 if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
     header('Location: /products.php');
     exit;
 }
 
-// 1. Gauname pristatymo nustatymus
+// 4. Gauname pristatymo kainų nustatymus
 $shippingSettings = getShippingSettings($pdo);
 
-// Išskaidome paštomatų sąrašą iš nustatymų (jei įvesta admin dalyje)
-// Tikimės, kad stulpelis vadinasi 'locker_networks' arba 'terminals'.
-// Jei duomenų bazėje stulpelis vadinasi kitaip, pakoreguokite 'locker_networks' raktą.
-$rawLockers = $shippingSettings['locker_networks'] ?? $shippingSettings['terminals'] ?? '';
+// 5. GAUNAME PAŠTOMATUS IŠ DB (Pataisyta dalis)
 $lockerList = [];
-if (!empty($rawLockers)) {
-    // Skaidome pagal naują eilutę (PHP_EOL)
-    $lockerList = array_filter(array_map('trim', explode("\n", $rawLockers)));
+try {
+    // Tikriname, ar egzistuoja lentelė ir traukiame duomenis
+    // Rūšiuojame pagal miestą ir adresą patogumui
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city ASC, address ASC");
+    $lockerList = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Jei lentelės nėra ar kita klaida, sąrašas liks tuščias
+    // error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
 
-// 2. Skaičiuojame krepšelio sumą
+// 6. Skaičiuojame krepšelio sumą
 $cartItemsTotal = 0;
 $productsInCart = [];
 $ids = array_keys($_SESSION['cart']);
@@ -65,7 +67,7 @@ if (!empty($ids)) {
     }
 }
 
-// FORMOS PATEIKIMAS
+// 7. FORMOS PATEIKIMAS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = [];
     
@@ -82,21 +84,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notes = trim($_POST['notes'] ?? '');
     $selectedLocker = trim($_POST['locker_select'] ?? '');
 
-    // Validacija
+    // Laukų validacija
     if (empty($name)) $errors[] = 'Būtina įvesti vardą.';
     if (empty($phone)) $errors[] = 'Būtina įvesti telefoną.';
-    if ($method === 'courier' && empty($address)) $errors[] = 'Kurjeriui būtinas adresas.';
-    if ($method === 'locker' && empty($selectedLocker)) $errors[] = 'Pasirinkite paštomatą.';
+    
+    if ($method === 'courier' && empty($address)) {
+        $errors[] = 'Pasirinkus kurjerį, būtina nurodyti adresą.';
+    }
+    
+    if ($method === 'locker' && empty($selectedLocker)) {
+        $errors[] = 'Būtina pasirinkti paštomatą iš sąrašo.';
+    }
 
     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
 
+            // Perskaičiuojame kainas serverio pusėje
             $shippingPrice = calculateShippingPrice($shippingSettings, $cartItemsTotal, $method);
             $finalTotal = $cartItemsTotal + $shippingPrice;
 
             // Formuojame delivery details JSON
-            // Jei tai paštomatas, įrašome pasirinktą paštomatą į 'locker_address'
             $deliveryDetailsData = [
                 'method' => $method,
                 'shipping_price' => $shippingPrice,
@@ -105,9 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notes' => $notes
             ];
 
+            // Jei pasirinktas paštomatas, įrašome jį
             if ($method === 'locker') {
                 $deliveryDetailsData['locker_address'] = $selectedLocker;
-                // Galime įrašyti ir į pagrindinį adreso lauką, kad matytųsi užsakymų sąraše
+                // Kad būtų patogiau admin panelėje, galime į pagrindinį adreso lauką įrašyti paštomatą
                 $address = "Paštomatas: " . $selectedLocker;
             }
 
@@ -139,9 +148,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+            
+            // Išvalome krepšelį
             unset($_SESSION['cart']);
 
-            // Nukreipiame į Stripe
+            // Nukreipiame į Stripe apmokėjimą
             header("Location: /stripe_checkout.php?order_id=" . $orderId);
             exit;
 
@@ -261,10 +272,22 @@ $user = $userStmt->fetch();
                     <option value="">-- Pasirinkite paštomatą --</option>
                     <?php if (!empty($lockerList)): ?>
                         <?php foreach($lockerList as $locker): ?>
-                            <option value="<?php echo htmlspecialchars($locker); ?>"><?php echo htmlspecialchars($locker); ?></option>
+                            <?php 
+                                // Bandome suformuoti aiškų pavadinimą. 
+                                // Jei DB stulpeliai skiriasi, pakeiskite 'city', 'address', 'name' pagal savo DB.
+                                $city = htmlspecialchars($locker['city'] ?? '');
+                                $address = htmlspecialchars($locker['address'] ?? '');
+                                $name = htmlspecialchars($locker['name'] ?? ''); // arba 'title'
+                                
+                                // Suformuojame matomą tekstą
+                                $displayText = "$city - $address ($name)";
+                                // Suformuojame reikšmę (kas bus įrašyta į DB)
+                                $valueText = "$city - $address ($name)"; 
+                            ?>
+                            <option value="<?php echo $valueText; ?>"><?php echo $displayText; ?></option>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <option value="" disabled>Paštomatų sąrašas tuščias. Susisiekite su administracija.</option>
+                        <option value="" disabled>Paštomatų sąrašas nerastas arba tuščias.</option>
                     <?php endif; ?>
                 </select>
             </div>
@@ -313,13 +336,13 @@ $user = $userStmt->fetch();
             const addrInput = document.getElementById('address-input');
             const lockerSelect = document.getElementById('locker-select');
 
-            // Reset visibility
+            // 1. Reset (paslepiame viską, nuimame required)
             addrField.style.display = 'none';
             lockerField.style.display = 'none';
             addrInput.removeAttribute('required');
             lockerSelect.removeAttribute('required');
 
-            // Logic
+            // 2. Logic (rodome ko reikia pagal pasirinkimą)
             if (method === 'courier') {
                 addrField.style.display = 'block';
                 addrInput.setAttribute('required', 'required');
@@ -328,13 +351,22 @@ $user = $userStmt->fetch();
                 lockerSelect.setAttribute('required', 'required');
             }
 
-            // Price update
+            // 3. Price update
             const shipPrice = parseFloat(prices[method] || 0);
             const finalPrice = cartTotal + shipPrice;
 
             shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
             totalDisplay.textContent = finalPrice.toFixed(2) + ' €';
         }
+
+        // Paleidžiame funkciją užsikrovus, kad nustatytų pradinę būseną
+        document.addEventListener('DOMContentLoaded', function() {
+            // Randame pažymėtą radio mygtuką
+            const selected = document.querySelector('input[name="delivery_method"]:checked');
+            if (selected) {
+                updateUI(selected.value);
+            }
+        });
     </script>
 </body>
 </html>
