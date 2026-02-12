@@ -1,7 +1,7 @@
 <?php
 // stripe_webhook.php
 
-// 1. Logging funkcija klaidų paieškai
+// Logging funkcija
 function webhook_log($msg) {
     $logFile = __DIR__ . '/webhook_log.txt';
     $entry = date('Y-m-d H:i:s') . " - " . $msg . "\n";
@@ -10,49 +10,35 @@ function webhook_log($msg) {
 
 webhook_log("--- Webhook gautas ---");
 
-// Įjungiame klaidų rodymą (tik logui, ne į outputą)
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/webhook_php_errors.log');
 
-// 2. Įkeliame priklausomybes
 try {
     require_once __DIR__ . '/db.php';
     require_once __DIR__ . '/env.php';
     
-    // Įkeliame Stripe
     if (file_exists(__DIR__ . '/lib/stripe/init.php')) {
         require_once __DIR__ . '/lib/stripe/init.php';
     } else {
         throw new Exception("Stripe lib nerasta");
     }
     
-    // Įkeliame funkcijas laiškams
     if (file_exists(__DIR__ . '/order_functions.php')) {
         require_once __DIR__ . '/order_functions.php';
-    } else {
-        webhook_log("ĮSPĖJIMAS: order_functions.php nerastas");
     }
 
 } catch (Exception $e) {
-    webhook_log("CRITICAL ERROR kraunant failus: " . $e->getMessage());
+    webhook_log("CRITICAL ERROR: " . $e->getMessage());
     http_response_code(500);
     exit();
 }
 
-// 3. Konfigūracija
 $stripeSecret = $_ENV['STRIPE_SECRET_KEY'] ?? '';
 $endpointSecret = $_ENV['STRIPE_WEBHOOK_SECRET'] ?? '';
 
-if (empty($stripeSecret) || empty($endpointSecret)) {
-    webhook_log("Klaida: Nėra API raktų .env faile");
-    http_response_code(500);
-    exit();
-}
-
 \Stripe\Stripe::setApiKey($stripeSecret);
 
-// 4. Skaitome duomenis
 $payload = @file_get_contents('php://input');
 $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
 $event = null;
@@ -70,67 +56,93 @@ try {
     http_response_code(400); exit();
 }
 
-// 5. Vykdome logiką
+// ---------------------------------------------------
+// LOGIKA: Bandome gauti Order ID priklausomai nuo įvykio
+// ---------------------------------------------------
+
+$orderId = null;
+
 if ($event->type == 'checkout.session.completed') {
     $session = $event->data->object;
-    $orderId = $session->client_reference_id; // Čia turi būti mūsų ID
+    // Pirmumas: client_reference_id
+    if (!empty($session->client_reference_id)) {
+        $orderId = $session->client_reference_id;
+    } 
+    // Atsarginis variantas: metadata
+    elseif (!empty($session->metadata->order_id)) {
+        $orderId = $session->metadata->order_id;
+    }
+    webhook_log("Checkout Session Completed. Order ID: " . ($orderId ?? 'NERASTAS'));
+} 
+elseif ($event->type == 'payment_intent.succeeded') {
+    $intent = $event->data->object;
+    // Payment intent ID slepiasi metadata lauke (kurį įdėjome stripe_checkout.php)
+    if (!empty($intent->metadata->order_id)) {
+        $orderId = $intent->metadata->order_id;
+    }
+    webhook_log("Payment Intent Succeeded. Order ID iš metadata: " . ($orderId ?? 'NERASTAS'));
+} 
+else {
+    webhook_log("Ignoruojamas eventas: " . $event->type);
+    http_response_code(200);
+    exit();
+}
 
-    webhook_log("Mokėjimas pavyko. Order ID: " . $orderId);
+// ---------------------------------------------------
+// UŽSAKYMO TVARKYMAS
+// ---------------------------------------------------
 
-    if ($orderId) {
-        $pdo = getPdo();
-        
-        // Patikriname esamą statusą
-        $stmt = $pdo->prepare("SELECT status, customer_email FROM orders WHERE id = ?");
-        $stmt->execute([$orderId]);
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($orderId) {
+    $pdo = getPdo();
+    
+    // Tikriname esamą būseną
+    $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $orderStatus = $stmt->fetchColumn();
 
-        if ($order && $order['status'] !== 'Apmokėta') {
-            try {
-                $pdo->beginTransaction();
+    if ($orderStatus && $orderStatus !== 'Apmokėta') {
+        try {
+            $pdo->beginTransaction();
 
-                // A. Atnaujiname statusą
-                $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', updated_at = NOW() WHERE id = ?");
-                $stmtUpdate->execute([$orderId]);
-                webhook_log("Statusas atnaujintas į 'Apmokėta'");
+            // 1. Atnaujiname statusą
+            $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', updated_at = NOW() WHERE id = ?");
+            $stmtUpdate->execute([$orderId]);
+            webhook_log("Užsakymas #$orderId pažymėtas kaip Apmokėta.");
 
-                // B. Sumažiname likučius
-                $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
-                $stmtItems->execute([$orderId]);
-                $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            // 2. Sumažiname likučius
+            $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+            $stmtItems->execute([$orderId]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
+            if ($items) {
                 $stmtStock = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ?");
                 foreach ($items as $item) {
                     $stmtStock->execute([$item['quantity'], $item['product_id']]);
                 }
-                webhook_log("Likučiai sumažinti " . count($items) . " prekėms");
-
-                $pdo->commit();
-                webhook_log("DB Transakcija sėkminga");
-
-                // C. Siunčiame laiškus (PO COMMIT, kad jei fail'ins, užsakymas liktų apmokėtas)
-                if (function_exists('sendOrderConfirmationEmail')) {
-                    webhook_log("Bandome siųsti laišką...");
-                    sendOrderConfirmationEmail($orderId, $pdo);
-                    webhook_log("Laiško siuntimo funkcija įvykdyta");
-                } else {
-                    webhook_log("KLAIDA: sendOrderConfirmationEmail funkcija nerasta");
-                }
-
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                webhook_log("DB KLAIDA: " . $e->getMessage());
-                http_response_code(500);
-                exit();
+                webhook_log("Likučiai sumažinti.");
             }
-        } else {
-            webhook_log("Užsakymas nerastas arba jau apmokėtas. Status: " . ($order['status'] ?? 'N/A'));
+
+            $pdo->commit();
+
+            // 3. Siunčiame laiškus
+            if (function_exists('sendOrderConfirmationEmail')) {
+                sendOrderConfirmationEmail($orderId, $pdo);
+                webhook_log("Laiškai išsiųsti.");
+            } else {
+                webhook_log("DĖMESIO: Funkcija sendOrderConfirmationEmail nerasta.");
+            }
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            webhook_log("DB KLAIDA: " . $e->getMessage());
+            http_response_code(500);
+            exit();
         }
     } else {
-        webhook_log("Klaida: Negautas order_id iš Stripe sesijos");
+        webhook_log("Užsakymas #$orderId nerastas arba jau apmokėtas (Statusas: $orderStatus).");
     }
 } else {
-    webhook_log("Ignoruojamas eventas: " . $event->type);
+    webhook_log("Klaida: Iš Stripe duomenų nepavyko nustatyti Order ID.");
 }
 
 http_response_code(200);
