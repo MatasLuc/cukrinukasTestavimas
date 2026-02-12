@@ -18,13 +18,6 @@ require_once __DIR__ . '/helpers.php';
 
 $pdo = getPdo();
 
-// 2. Patikriname, ar vartotojas prisijungęs
-if (empty($_SESSION['user_id'])) {
-    $_SESSION['redirect_after_login'] = 'checkout.php';
-    header('Location: /login.php');
-    exit;
-}
-
 // 3. Patikriname, ar krepšelis nėra tuščias
 if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
     header('Location: /products.php');
@@ -278,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ");
             
             $stmtOrder->execute([
-                $_SESSION['user_id'],
+                $_SESSION['user_id'] ?? null,
                 $finalTotal,
                 $name,
                 $address,
@@ -317,9 +310,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 }
 
 // User info autofill
-$userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-$userStmt->execute([$_SESSION['user_id']]);
-$user = $userStmt->fetch();
+$user = null;
+if (!empty($_SESSION['user_id'])) {
+    $userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $userStmt->execute([$_SESSION['user_id']]);
+    $user = $userStmt->fetch();
+}
 
 // UI Calculation
 $courierCost = calculateShippingPrice($shippingSettings, $totalAfterDiscount, 'courier', $hasFreeShippingProduct);
