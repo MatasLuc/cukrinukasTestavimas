@@ -90,13 +90,25 @@ try {
         'payment_method_types' => ['card'],
         'line_items' => $lineItems,
         'mode' => 'payment',
-        // SVARBU: Tai perduoda ID webhookui
-        'client_reference_id' => $orderId,
+        
+        // 1. Pagrindinis ID sesijai
+        'client_reference_id' => $orderId, 
+        
         'customer_email' => $order['customer_email'],
+        
+        // 2. Metadata sesijai
         'metadata' => [
             'order_id' => $orderId,
             'customer_name' => $order['customer_name']
         ],
+        
+        // 3. SVARBU: Metadata pačiam mokėjimui (PaymentIntent), kad veiktų payment_intent.succeeded
+        'payment_intent_data' => [
+            'metadata' => [
+                'order_id' => $orderId
+            ]
+        ],
+
         'success_url' => $domain . '/order_success.php?session_id={CHECKOUT_SESSION_ID}',
         'cancel_url' => $domain . '/checkout.php',
     ]);
