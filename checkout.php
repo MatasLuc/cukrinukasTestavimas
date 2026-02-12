@@ -36,13 +36,12 @@ $shippingSettings = getShippingSettings($pdo);
 // 5. GAUNAME PAŠTOMATUS IŠ DB (Pataisyta dalis)
 $lockerList = [];
 try {
-    // Tikriname, ar egzistuoja lentelė ir traukiame duomenis
-    // Rūšiuojame pagal miestą ir adresą patogumui
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city ASC, address ASC");
+    // Rūšiuojame pagal pavadinimą (title), nes 'city' stulpelio DB nėra
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY title ASC");
     $lockerList = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Jei lentelės nėra ar kita klaida, sąrašas liks tuščias
-    // error_log("Klaida gaunant paštomatus: " . $e->getMessage());
+    error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
 
 // 6. Skaičiuojame krepšelio sumą
@@ -273,16 +272,14 @@ $user = $userStmt->fetch();
                     <?php if (!empty($lockerList)): ?>
                         <?php foreach($lockerList as $locker): ?>
                             <?php 
-                                // Bandome suformuoti aiškų pavadinimą. 
-                                // Jei DB stulpeliai skiriasi, pakeiskite 'city', 'address', 'name' pagal savo DB.
-                                $city = htmlspecialchars($locker['city'] ?? '');
+                                // NAUDOJAME TAVO DB STULPELIUS: title, address
+                                $title = htmlspecialchars($locker['title'] ?? '');
                                 $address = htmlspecialchars($locker['address'] ?? '');
-                                $name = htmlspecialchars($locker['name'] ?? ''); // arba 'title'
                                 
                                 // Suformuojame matomą tekstą
-                                $displayText = "$city - $address ($name)";
+                                $displayText = "$title ($address)";
                                 // Suformuojame reikšmę (kas bus įrašyta į DB)
-                                $valueText = "$city - $address ($name)"; 
+                                $valueText = "$title - $address"; 
                             ?>
                             <option value="<?php echo $valueText; ?>"><?php echo $displayText; ?></option>
                         <?php endforeach; ?>
