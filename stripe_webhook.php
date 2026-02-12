@@ -24,8 +24,11 @@ try {
         throw new Exception("Stripe lib nerasta");
     }
     
+    // Čia būtinai įtraukiame order_functions su nauja completeOrder funkcija
     if (file_exists(__DIR__ . '/order_functions.php')) {
         require_once __DIR__ . '/order_functions.php';
+    } else {
+        throw new Exception("order_functions.php nerastas");
     }
 
 } catch (Exception $e) {
@@ -57,26 +60,22 @@ try {
 }
 
 // ---------------------------------------------------
-// LOGIKA: Bandome gauti Order ID priklausomai nuo įvykio
+// LOGIKA: Bandome gauti Order ID
 // ---------------------------------------------------
 
 $orderId = null;
 
 if ($event->type == 'checkout.session.completed') {
     $session = $event->data->object;
-    // Pirmumas: client_reference_id
     if (!empty($session->client_reference_id)) {
         $orderId = $session->client_reference_id;
-    } 
-    // Atsarginis variantas: metadata
-    elseif (!empty($session->metadata->order_id)) {
+    } elseif (!empty($session->metadata->order_id)) {
         $orderId = $session->metadata->order_id;
     }
     webhook_log("Checkout Session Completed. Order ID: " . ($orderId ?? 'NERASTAS'));
 } 
 elseif ($event->type == 'payment_intent.succeeded') {
     $intent = $event->data->object;
-    // Payment intent ID slepiasi metadata lauke (kurį įdėjome stripe_checkout.php)
     if (!empty($intent->metadata->order_id)) {
         $orderId = $intent->metadata->order_id;
     }
@@ -95,54 +94,20 @@ else {
 if ($orderId) {
     $pdo = getPdo();
     
-    // Tikriname esamą būseną
-    $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
-    $stmt->execute([$orderId]);
-    $orderStatus = $stmt->fetchColumn();
-
-    if ($orderStatus && $orderStatus !== 'Apmokėta') {
-        try {
-            $pdo->beginTransaction();
-
-            // 1. Atnaujiname statusą
-            $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', updated_at = NOW() WHERE id = ?");
-            $stmtUpdate->execute([$orderId]);
-            webhook_log("Užsakymas #$orderId pažymėtas kaip Apmokėta.");
-
-            // 2. Sumažiname likučius
-            $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
-            $stmtItems->execute([$orderId]);
-            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
-
-            if ($items) {
-                $stmtStock = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ?");
-                foreach ($items as $item) {
-                    $stmtStock->execute([$item['quantity'], $item['product_id']]);
-                }
-                webhook_log("Likučiai sumažinti.");
-            }
-
-            $pdo->commit();
-
-            // 3. Siunčiame laiškus
-            if (function_exists('sendOrderConfirmationEmail')) {
-                sendOrderConfirmationEmail($orderId, $pdo);
-                webhook_log("Laiškai išsiųsti.");
-            } else {
-                webhook_log("DĖMESIO: Funkcija sendOrderConfirmationEmail nerasta.");
-            }
-
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            webhook_log("DB KLAIDA: " . $e->getMessage());
-            http_response_code(500);
-            exit();
+    // Naudojame centralizuotą funkciją
+    if (function_exists('completeOrder')) {
+        $result = completeOrder($pdo, $orderId);
+        if ($result) {
+            webhook_log("Užsakymas #$orderId sėkmingai užbaigtas (Webhooks inicijavo).");
+        } else {
+            webhook_log("Užsakymas #$orderId jau buvo sutvarkytas arba nerastas.");
         }
     } else {
-        webhook_log("Užsakymas #$orderId nerastas arba jau apmokėtas (Statusas: $orderStatus).");
+        webhook_log("CRITICAL: Funkcija completeOrder nerasta.");
     }
 } else {
     webhook_log("Klaida: Iš Stripe duomenų nepavyko nustatyti Order ID.");
 }
 
 http_response_code(200);
+?>
