@@ -1,12 +1,10 @@
 <?php
 // stripe_checkout.php
 session_start();
-
-// Svarbu: Nurodome kelią iki tavo rankiniu būdu įkeltos bibliotekos
 require_once __DIR__ . '/lib/stripe/init.php';
 require_once __DIR__ . '/db.php';
 
-// Funkcija aplinkos kintamųjų gavimui (iš tavo db.php arba env.php)
+// Pagalbinė funkcija env.php kintamiesiems
 if (!function_exists('requireEnv')) {
     function requireEnv($key) {
         $envPath = __DIR__ . '/.env';
@@ -23,32 +21,22 @@ if (!function_exists('requireEnv')) {
 }
 
 $stripeSecret = requireEnv('STRIPE_SECRET_KEY');
-$domain = requireEnv('DOMAIN'); 
+$domain = requireEnv('DOMAIN');
 
-if (!$stripeSecret || !$domain) {
-    die('Klaida: Nerasti Stripe nustatymai .env faile');
-}
-
-if (empty($_SESSION['user_id'])) {
-    header('Location: /login.php');
+if (empty($_SESSION['user_id']) || !isset($_GET['order_id'])) {
+    header('Location: /orders.php');
     exit;
 }
 
-$orderId = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
-if (!$orderId) {
-    die('Neteisingas užsakymo ID');
-}
-
+$orderId = (int)$_GET['order_id'];
 $pdo = getPdo();
 
-// Patikriname ar užsakymas priklauso vartotojui
+// 1. Gauname užsakymo informaciją (Total jau yra su pristatymu)
 $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?');
 $stmt->execute([$orderId, $_SESSION['user_id']]);
 $order = $stmt->fetch();
 
-if (!$order) {
-    die('Užsakymas nerastas.');
-}
+if (!$order) die("Užsakymas nerastas");
 
 // Jei jau apmokėta
 if (stripos($order['status'], 'apmokėta') !== false) {
@@ -56,23 +44,18 @@ if (stripos($order['status'], 'apmokėta') !== false) {
     exit;
 }
 
-// Gauname prekes Stripe formatui
-$itemStmt = $pdo->prepare('
-    SELECT oi.*, p.title 
-    FROM order_items oi 
-    JOIN products p ON p.id = oi.product_id 
-    WHERE oi.order_id = ?
-');
+// 2. Gauname prekes sąrašui sugeneruoti
+$itemStmt = $pdo->prepare('SELECT oi.*, p.title FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?');
 $itemStmt->execute([$orderId]);
 $items = $itemStmt->fetchAll();
 
 $lineItems = [];
-$calculatedTotal = 0;
+$itemsTotal = 0;
 
 foreach ($items as $item) {
-    // Stripe kaina centais (int)
-    $priceInCents = (int)(round((float)$item['price'], 2) * 100);
-    $calculatedTotal += (float)$item['price'] * (int)$item['quantity'];
+    $price = (float)$item['price'];
+    $qty = (int)$item['quantity'];
+    $itemsTotal += $price * $qty;
     
     $lineItems[] = [
         'price_data' => [
@@ -80,24 +63,26 @@ foreach ($items as $item) {
             'product_data' => [
                 'name' => $item['title'],
             ],
-            'unit_amount' => $priceInCents,
+            'unit_amount' => (int)(round($price, 2) * 100),
         ],
-        'quantity' => (int)$item['quantity'],
+        'quantity' => $qty,
     ];
 }
 
-// Pristatymo mokestis (skirtumas tarp užsakymo sumos ir prekių sumos)
+// 3. Apskaičiuojame pristatymo kainą kaip skirtumą
+// (Order Total DB) - (Items Total) = Shipping Cost
 $orderTotal = (float)$order['total'];
-$diff = $orderTotal - $calculatedTotal;
+$shippingCost = $orderTotal - $itemsTotal;
 
-if ($diff > 0.01) {
+// Jei yra teigiamas skirtumas, pridedame eilutę pristatymui
+if ($shippingCost > 0.01) {
     $lineItems[] = [
         'price_data' => [
             'currency' => 'eur',
             'product_data' => [
-                'name' => 'Pristatymas / Pakavimas',
+                'name' => 'Pristatymas',
             ],
-            'unit_amount' => (int)(round($diff, 2) * 100),
+            'unit_amount' => (int)(round($shippingCost, 2) * 100),
         ],
         'quantity' => 1,
     ];
@@ -109,28 +94,20 @@ try {
     $checkout_session = \Stripe\Checkout\Session::create([
         'line_items' => $lineItems,
         'mode' => 'payment',
-        // Čia nurodome, kur grįžti po apmokėjimo
         'success_url' => $domain . '/stripe_return.php?session_id={CHECKOUT_SESSION_ID}',
         'cancel_url' => $domain . '/orders.php',
         'metadata' => [
-            'order_id' => $orderId,
-            'user_id' => $_SESSION['user_id']
+            'order_id' => $orderId
         ],
-        // Jei turime email, perduodame jį Stripe
-        'customer_email' => $_SESSION['user_email'] ?? null,
+        'customer_email' => $order['customer_email'] ?? null,
     ]);
 
-    // Išsaugome sesijos ID (jei reikia debuginti vėliau)
-    $updateStmt = $pdo->prepare('UPDATE orders SET stripe_session_id = ? WHERE id = ?');
-    $updateStmt->execute([$checkout_session->id, $orderId]);
+    // Išsaugome sesijos ID
+    $pdo->prepare("UPDATE orders SET stripe_session_id = ? WHERE id = ?")->execute([$checkout_session->id, $orderId]);
 
-    // Nukreipiame į Stripe
-    header("HTTP/1.1 303 See Other");
     header("Location: " . $checkout_session->url);
     exit;
-    
 } catch (Exception $e) {
-    http_response_code(500);
-    echo "Klaida inicijuojant mokėjimą: " . $e->getMessage();
+    echo "Stripe klaida: " . $e->getMessage();
 }
 ?>
