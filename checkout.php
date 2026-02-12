@@ -1,39 +1,34 @@
 <?php
+// Įjungiame klaidų rodymą (galite ištrinti šias 3 eilutes, kai viskas veiks)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
 session_start();
-// Naudojame require_once, kad išvengtume dvigubo failų įtraukimo klaidų
+
+// Naudojame require_once, kad išvengtume dvigubo failų įkėlimo
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/shipping_helper.php'; 
 
 $pdo = getPdo();
 
+// Jei vartotojas neprisijungęs
 if (empty($_SESSION['user_id'])) {
     $_SESSION['redirect_after_login'] = 'checkout.php';
     header('Location: /login.php');
     exit;
 }
 
+// Jei krepšelis tuščias
 if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
     header('Location: /products.php');
     exit;
 }
 
-// 1. Gauname nustatymus iš DB su apsauga (jei lentelė dar nesukurta)
-try {
-    $shippingSettings = getShippingSettings($pdo);
-} catch (Exception $e) {
-    // Jei įvyko klaida (pvz., nėra lentelės), naudojame numatytuosius nustatymus
-    $shippingSettings = [
-        'base_price' => 0,
-        'courier_price' => 4.99,
-        'locker_price' => 2.99,
-        'free_over' => 50.00
-    ];
-    // Galima įrašyti klaidą į logą: error_log($e->getMessage());
-}
+// 1. Gauname pristatymo nustatymus
+// Dabar saugu kviesti, nes shipping_helper.php sutvarkytas
+$shippingSettings = getShippingSettings($pdo);
 
 // 2. Skaičiuojame krepšelio sumą (Prekės)
 $cartItemsTotal = 0;
@@ -41,7 +36,7 @@ $productsInCart = [];
 $ids = array_keys($_SESSION['cart']);
 
 if (!empty($ids)) {
-    // Saugus placeholderių generavimas
+    // Saugus užklausos formavimas
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $stmt = $pdo->prepare("SELECT id, title, price FROM products WHERE id IN ($placeholders)");
     $stmt->execute($ids);
@@ -77,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 3. Galutinis kainos skaičiavimas serverio pusėje (saugumas)
+            // 3. Galutinis kainos skaičiavimas serverio pusėje
             $shippingPrice = calculateShippingPrice($shippingSettings, $cartItemsTotal, $method);
             $finalTotal = $cartItemsTotal + $shippingPrice;
 
@@ -92,7 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             // Įrašome užsakymą
-            // Pastaba: Įsitikinkite, kad 'orders' lentelė turi stulpelį 'delivery_details'
+            // PASTABA: Įsitikinkite, kad jūsų 'orders' lentelė turi stulpelį 'delivery_details'
+            // Jei neturi, laikinai išimkite 'delivery_details' iš SQL užklausos
             $stmtOrder = $pdo->prepare("
                 INSERT INTO orders 
                 (user_id, total, status, created_at, customer_name, customer_address, delivery_method, delivery_details, customer_email) 
@@ -103,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_id'],
                 $finalTotal,
                 $name,
-                $address, // Adresas
+                $address,
                 $method,
                 $deliveryDetails,
                 $email
@@ -118,9 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+            
+            // Išvalome krepšelį
             unset($_SESSION['cart']);
 
-            // 4. Nukreipiame į Stripe
+            // 4. Nukreipiame į Stripe apmokėjimą
             header("Location: /stripe_checkout.php?order_id=" . $orderId);
             exit;
 
@@ -133,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// User info autofill
+// Vartotojo informacijos užpildymas
 $userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $userStmt->execute([$_SESSION['user_id']]);
 $user = $userStmt->fetch();
@@ -175,7 +173,6 @@ $user = $userStmt->fetch();
 
         <?php 
             // Paskaičiuojame kainas JS'ui
-            // Naudojame number_format, kad užtikrintume teisingą formatą (pvz. 2.99)
             $courierCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'courier');
             $lockerCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'locker');
             $isFree = ($shippingSettings['free_over'] > 0 && $cartItemsTotal >= $shippingSettings['free_over']);
@@ -261,9 +258,10 @@ $user = $userStmt->fetch();
     <?php renderFooter($pdo); ?>
 
     <script>
-        // PHP kintamieji į JS
-        // Naudojame number_format su '.' skyrikliu, kad JS nesutriktų dėl kablelių
+        // PHP kintamieji į JS su apsauga nuo formatavimo klaidų
         const cartTotal = <?php echo number_format($cartItemsTotal, 2, '.', ''); ?>;
+        
+        // Kainos iš PHP
         const prices = {
             pickup: 0.00,
             locker: <?php echo $isFree ? '0.00' : number_format($lockerCost, 2, '.', ''); ?>,
@@ -275,7 +273,7 @@ $user = $userStmt->fetch();
             const shipDisplay = document.getElementById('shipping-display');
             const totalDisplay = document.getElementById('total-display');
 
-            // Adreso lauko rodymas
+            // Adreso lauko valdymas
             if (method === 'courier') {
                 addrField.style.display = 'block';
                 addrField.querySelector('input').setAttribute('required', 'required');
