@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 session_start();
 // Naudojame require_once, kad išvengtume dvigubo failų įtraukimo klaidų
 require_once __DIR__ . '/db.php';
