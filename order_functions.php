@@ -1,67 +1,59 @@
 <?php
 // order_functions.php
-require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/mailer.php'; 
 
 function sendOrderConfirmationEmail($orderId, $pdo) {
-    // Gauname užsakymo info
     $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
     $stmt->execute([$orderId]);
     $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$order) return;
 
-    // Gauname prekes
+    // Gauname prekes su pavadinimais
     $stmtItems = $pdo->prepare("
         SELECT oi.*, p.title 
         FROM order_items oi
-        JOIN products p ON oi.product_id = p.id
+        LEFT JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = ?
     ");
     $stmtItems->execute([$orderId]);
     $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
-    // Formuojame HTML lentelę
-    $itemsHtml = '<table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
-                    <tr style="background: #f8f8f8;">
-                        <th style="padding: 10px; text-align: left;">Prekė</th>
-                        <th style="padding: 10px; text-align: center;">Kiekis</th>
-                        <th style="padding: 10px; text-align: right;">Kaina</th>
-                    </tr>';
+    // HTML lentelė
+    $itemsHtml = '<table cellpadding="5" border="1" style="border-collapse:collapse; width:100%;">';
+    $itemsHtml .= '<tr style="background:#eee;"><th>Prekė</th><th>Kiekis</th><th>Kaina</th></tr>';
     
     foreach ($items as $item) {
-        $rowTotal = number_format($item['price'] * $item['quantity'], 2);
+        $name = htmlspecialchars($item['title'] ?? 'Prekė');
+        $qty = $item['quantity'];
+        $price = number_format($item['price'], 2);
+        $totalRow = number_format($item['price'] * $qty, 2);
+        
         $itemsHtml .= "<tr>
-                        <td style='padding: 10px; border-bottom: 1px solid #eee;'>{$item['title']}</td>
-                        <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: center;'>{$item['quantity']}</td>
-                        <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: right;'>{$rowTotal} €</td>
-                       </tr>";
+            <td>$name</td>
+            <td align='center'>$qty</td>
+            <td align='right'>$totalRow €</td>
+        </tr>";
     }
     $itemsHtml .= '</table>';
 
-    // Pagrindinis laiško tekstas
     $subject = "Užsakymo patvirtinimas #" . $orderId;
     $body = "
-        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;'>
-            <h1 style='color: #2c3e50;'>Ačiū už jūsų užsakymą!</h1>
-            <p>Sveiki, <strong>{$order['customer_name']}</strong>,</p>
-            <p>Jūsų užsakymas <strong>#{$orderId}</strong> sėkmingai gautas ir apmokėtas.</p>
-            
-            <h3>Užsakymo detalės:</h3>
-            {$itemsHtml}
-            
-            <p style='text-align: right; font-size: 18px;'><strong>Iš viso: " . number_format($order['total'], 2) . " €</strong></p>
-            
-            <hr style='border: 0; border-top: 1px solid #eee; margin: 20px 0;'>
-            <p><strong>Pristatymo informacija:</strong><br>
-            {$order['delivery_method']}<br>
-            {$order['customer_address']}</p>
-        </div>
+        <h2>Ačiū už užsakymą, {$order['customer_name']}!</h2>
+        <p>Jūsų užsakymas <strong>#{$orderId}</strong> gautas ir apmokėtas.</p>
+        <p>Būsena: <strong>Apmokėta</strong></p>
+        <br>
+        $itemsHtml
+        <br>
+        <p><strong>Bendra suma: {$order['total']} €</strong></p>
+        <hr>
+        <p>Pristatymo adresas: {$order['customer_address']}</p>
+        <p>Pristatymo būdas: {$order['delivery_method']}</p>
     ";
 
-    // Siunčiame pirkėjui
+    // Siunčiame klientui
     sendEmail($order['customer_email'], $order['customer_name'], $subject, $body);
-
+    
     // Siunčiame administratoriui
-    $adminSubject = "Naujas užsakymas #" . $orderId . " (" . $order['total'] . " €)";
-    sendEmail('labas@cukrinukas.lt', 'Cukrinukas Admin', $adminSubject, $body);
+    sendEmail('labas@cukrinukas.lt', 'Admin', "Naujas užsakymas #$orderId", $body);
 }
