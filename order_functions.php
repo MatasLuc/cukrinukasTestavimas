@@ -3,6 +3,66 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
 
+/**
+ * Pagrindinė funkcija užsakymo užbaigimui.
+ * Atlieka statuso atnaujinimą, likučių nurašymą ir laiško siuntimą.
+ * Grąžina true, jei veiksmai atlikti sėkmingai (pirmą kartą).
+ * Grąžina false, jei užsakymas jau buvo apmokėtas anksčiau arba įvyko klaida.
+ */
+function completeOrder($pdo, $orderId) {
+    try {
+        // 1. Patikriname dabartinį statusą
+        $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Jei užsakymas nerastas arba jau apmokėtas, nieko nedarome
+        if (!$order) {
+            logMailer("completeOrder: Užsakymas #$orderId nerastas.");
+            return false;
+        }
+        if ($order['status'] === 'Apmokėta') {
+            // Jau sutvarkytas, todėl grąžiname false (kad nekartotume veiksmų)
+            return false;
+        }
+
+        // 2. Pradedame transakciją
+        $pdo->beginTransaction();
+
+        // Atnaujiname statusą
+        $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', updated_at = NOW() WHERE id = ?");
+        $stmtUpdate->execute([$orderId]);
+
+        // Sumažiname likučius
+        $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+        $stmtItems->execute([$orderId]);
+        $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($items) {
+            $stmtStock = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ?");
+            foreach ($items as $item) {
+                $stmtStock->execute([$item['quantity'], $item['product_id']]);
+            }
+        }
+
+        $pdo->commit();
+        
+        // 3. Siunčiame patvirtinimo laišką
+        // Tai darome tik po sėkmingo commit, kad nesiųstume laiško, jei DB lūžo
+        sendOrderConfirmationEmail($orderId, $pdo);
+        
+        logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas ir laiškai išsiųsti.");
+        return true;
+
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        logMailer("completeOrder CRITICAL ERROR: " . $e->getMessage());
+        return false;
+    }
+}
+
 function sendOrderConfirmationEmail($orderId, $pdo) {
     try {
         // 1. Gauname užsakymo informaciją
@@ -126,7 +186,6 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
 
         // Adminui
         $adminSubject = "[NAUJAS UŽSAKYMAS] #$orderId - " . number_format($order['total'], 2) . " €";
-        // Pakeista: siunčiame pačiam sau, todėl 'To' ir 'From' bus tas pats - tai dažnai sumažina SPAM tikimybę
         $adminEmail = requireEnv('SMTP_USER'); 
         $adminSent = sendEmail($adminEmail, $adminSubject, $emailContent);
 
@@ -138,7 +197,6 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
     }
 }
 
-// Papildoma logging funkcija
 function logMailer($msg) {
     $logFile = __DIR__ . '/mailer_log.txt';
     $entry = date('Y-m-d H:i:s') . " - " . $msg . "\n";
