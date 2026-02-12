@@ -4,10 +4,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
 
 /**
- * Pagrindinė funkcija užsakymo užbaigimui.
- * Atlieka statuso atnaujinimą, likučių nurašymą ir laiško siuntimą.
- * Grąžina true, jei veiksmai atlikti sėkmingai (pirmą kartą).
- * Grąžina false, jei užsakymas jau buvo apmokėtas anksčiau arba įvyko klaida.
+ * Pagrindinė funkcija užsakymo užbaigimui (apmokėjimo patvirtinimas).
  */
 function completeOrder($pdo, $orderId) {
     try {
@@ -22,7 +19,6 @@ function completeOrder($pdo, $orderId) {
             return false;
         }
         if ($order['status'] === 'Apmokėta') {
-            // Jau sutvarkytas, todėl grąžiname false (kad nekartotume veiksmų)
             return false;
         }
 
@@ -48,7 +44,6 @@ function completeOrder($pdo, $orderId) {
         $pdo->commit();
         
         // 3. Siunčiame patvirtinimo laišką
-        // Tai darome tik po sėkmingo commit, kad nesiųstume laiško, jei DB lūžo
         sendOrderConfirmationEmail($orderId, $pdo);
         
         logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas ir laiškai išsiųsti.");
@@ -63,19 +58,17 @@ function completeOrder($pdo, $orderId) {
     }
 }
 
+/**
+ * Siunčia laišką apie gautą užsakymą (adminui ir klientui).
+ */
 function sendOrderConfirmationEmail($orderId, $pdo) {
     try {
-        // 1. Gauname užsakymo informaciją
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$order) {
-            logMailer("Klaida: Užsakymas #$orderId nerastas DB.");
-            return;
-        }
+        if (!$order) return;
 
-        // 2. Gauname prekes
         $stmtItems = $pdo->prepare("
             SELECT oi.*, p.title, p.image_url 
             FROM order_items oi
@@ -85,7 +78,6 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
-        // 3. Ištraukiame pristatymo informaciją
         $deliveryMethod = $order['delivery_method'] == 'locker' ? 'Paštomatas' : 
                          ($order['delivery_method'] == 'courier' ? 'Kurjeris' : 'Atsiėmimas');
         
@@ -93,13 +85,14 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $lockerAddress = isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '';
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
-        // 4. Formuojame HTML laiško turinį
         $itemsRows = '';
+        $itemsTotal = 0;
         foreach ($items as $item) {
             $title = htmlspecialchars($item['title'] ?? 'Prekė');
             $qty = $item['quantity'];
             $price = number_format($item['price'], 2);
             $totalItem = number_format($item['price'] * $qty, 2);
+            $itemsTotal += $item['price'] * $item['quantity'];
             
             $itemsRows .= "
             <tr>
@@ -110,12 +103,8 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
             </tr>";
         }
 
-        // Apskaičiuojame pristatymo kainą laiško atvaizdavimui
-        $itemsTotal = 0;
-        foreach($items as $i) $itemsTotal += $i['price'] * $i['quantity'];
         $shippingPrice = $order['total'] - $itemsTotal;
         $shippingRow = '';
-        
         if ($shippingPrice > 0.001) {
             $shippingRow = "
             <tr>
@@ -128,16 +117,13 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         <html>
         <body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;'>
             <div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
-                
                 <div style='background-color: #e91e63; padding: 20px; text-align: center; color: white;'>
                     <h1 style='margin: 0; font-size: 24px;'>Užsakymas #$orderId patvirtintas!</h1>
                 </div>
-
                 <div style='padding: 30px;'>
                     <p>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
                     <p>Ačiū, kad perkate „Cukrinukas“. Gavome jūsų apmokėjimą ir pradedame ruošti užsakymą.</p>
                     
-                    <h3 style='border-bottom: 2px solid #e91e63; padding-bottom: 10px; color: #333;'>Užsakymo detalės</h3>
                     <table style='width: 100%; border-collapse: collapse; margin-top: 10px;'>
                         <thead>
                             <tr style='background-color: #f9f9f9;'>
@@ -147,9 +133,7 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
                                 <th style='padding: 10px; text-align: right;'>Suma</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            $itemsRows
-                        </tbody>
+                        <tbody>$itemsRows</tbody>
                         <tfoot>
                             $shippingRow
                             <tr>
@@ -158,42 +142,85 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
                             </tr>
                         </tfoot>
                     </table>
-
                     <div style='background-color: #f9f9f9; padding: 15px; margin-top: 20px; border-radius: 5px;'>
                         <p style='margin: 5px 0;'><strong>Pristatymo būdas:</strong> $deliveryMethod</p>
                         <p style='margin: 5px 0;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
                         <p style='margin: 5px 0;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? '-') . "</p>
                     </div>
                 </div>
-
                 <div style='background-color: #333; color: #aaa; padding: 20px; text-align: center; font-size: 12px;'>
                     <p>Cukrinukas © " . date('Y') . ". Visos teisės saugomos.</p>
-                    <p>Kilus klausimams, kreipkitės: <a href='mailto:labas@cukrinukas.lt' style='color: #e91e63;'>labas@cukrinukas.lt</a></p>
+                </div>
+            </div>
+        </body>
+        </html>";
+
+        // Siunčiame
+        if (!empty($order['customer_email'])) {
+            sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId gautas", $emailContent);
+        }
+        
+        $adminEmail = requireEnv('SMTP_USER'); 
+        sendEmail($adminEmail, "[NAUJAS UŽSAKYMAS] #$orderId", $emailContent);
+
+    } catch (Exception $e) {
+        logMailer("CRITICAL MAILER ERROR: " . $e->getMessage());
+    }
+}
+
+/**
+ * Siunčia laišką, kai užsakymo statusas pakeičiamas į "išsiųsta".
+ * Įtraukia sekimo numerį.
+ */
+function sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$order || empty($order['customer_email'])) return;
+
+        $trackingHtml = '';
+        if (!empty($trackingNumber)) {
+            $trackingHtml = "
+            <div style='background-color: #ecfdf5; border: 1px solid #d1fae5; color: #065f46; padding: 15px; margin: 20px 0; border-radius: 6px; text-align: center;'>
+                <p style='margin: 0; font-size: 14px;'>Jūsų siuntos sekimo numeris:</p>
+                <p style='margin: 5px 0 0 0; font-size: 20px; font-weight: bold; letter-spacing: 1px;'>$trackingNumber</p>
+            </div>";
+        }
+
+        $emailContent = "
+        <html>
+        <body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;'>
+            <div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
+                
+                <div style='background-color: #4caf50; padding: 20px; text-align: center; color: white;'>
+                    <h1 style='margin: 0; font-size: 24px;'>Jūsų užsakymas #$orderId išsiųstas!</h1>
+                </div>
+
+                <div style='padding: 30px;'>
+                    <p>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
+                    <p>Džiugios naujienos! Jūsų užsakymas buvo supakuotas ir perduotas kurjerių tarnybai.</p>
+                    
+                    $trackingHtml
+
+                    <p>Prekės jus turėtų pasiekti artimiausiu metu.</p>
+                    <p>Jei turite klausimų, galite atsakyti į šį laišką.</p>
+                </div>
+
+                <div style='background-color: #333; color: #aaa; padding: 20px; text-align: center; font-size: 12px;'>
+                    <p>Cukrinukas © " . date('Y') . ". Ačiū, kad perkate!</p>
                 </div>
             </div>
         </body>
         </html>
         ";
 
-        // 5. Siunčiame laiškus
-        $subject = "Jūsų užsakymas #$orderId gautas";
-
-        // Klientui
-        $clientSent = false;
-        if (!empty($order['customer_email'])) {
-            $clientSent = sendEmail($order['customer_email'], $subject, $emailContent);
-        }
-
-        // Adminui
-        $adminSubject = "[NAUJAS UŽSAKYMAS] #$orderId - " . number_format($order['total'], 2) . " €";
-        $adminEmail = requireEnv('SMTP_USER'); 
-        $adminSent = sendEmail($adminEmail, $adminSubject, $emailContent);
-
-        // Loginame rezultatą
-        logMailer("Bandymas siųsti laišką Order #$orderId. Klientui ({$order['customer_email']}): " . ($clientSent ? 'OK' : 'FAIL') . ", Adminui ($adminEmail): " . ($adminSent ? 'OK' : 'FAIL'));
+        sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId išsiųstas!", $emailContent);
+        logMailer("Išsiųstas 'Shipped' laiškas užsakymui #$orderId (Tracking: $trackingNumber)");
 
     } catch (Exception $e) {
-        logMailer("CRITICAL MAILER ERROR: " . $e->getMessage());
+        logMailer("Shipping Email Error: " . $e->getMessage());
     }
 }
 
