@@ -29,10 +29,16 @@ if (!function_exists('getShippingSettings')) {
 
 /**
  * Paskaičiuoja pristatymo kainą pagal krepšelio sumą ir metodą.
+ * Pridėtas $forceFree parametras specialioms prekėms.
  */
 if (!function_exists('calculateShippingPrice')) {
-    function calculateShippingPrice($settings, $cartTotal, $method) {
-        // Ar taikomas nemokamas pristatymas?
+    function calculateShippingPrice($settings, $cartTotal, $method, $forceFree = false) {
+        // Jei yra speciali prekė suteikianti nemokamą pristatymą
+        if ($forceFree) {
+            return 0.00;
+        }
+
+        // Ar taikomas nemokamas pristatymas pagal sumą?
         if (isset($settings['free_over']) && $settings['free_over'] > 0 && $cartTotal >= $settings['free_over']) {
             return 0.00;
         }
