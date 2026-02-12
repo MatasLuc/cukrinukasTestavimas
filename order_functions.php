@@ -33,7 +33,7 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $lockerAddress = isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '';
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
-        // 4. Formuojame HTML laiško turinį (Profesionalus dizainas)
+        // 4. Formuojame HTML laiško turinį
         $itemsRows = '';
         foreach ($items as $item) {
             $title = htmlspecialchars($item['title'] ?? 'Prekė');
@@ -121,24 +121,27 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         // Klientui
         $clientSent = false;
         if (!empty($order['customer_email'])) {
-            $clientSent = sendEmail($order['customer_email'], $order['customer_name'], $subject, $emailContent);
+            $clientSent = sendEmail($order['customer_email'], $subject, $emailContent);
         }
 
-        // Adminui (pridedame prierašą temoje)
+        // Adminui
         $adminSubject = "[NAUJAS UŽSAKYMAS] #$orderId - " . number_format($order['total'], 2) . " €";
-        $adminSent = sendEmail('labas@cukrinukas.lt', 'Cukrinukas Admin', $adminSubject, $emailContent);
+        // Pakeista: siunčiame pačiam sau, todėl 'To' ir 'From' bus tas pats - tai dažnai sumažina SPAM tikimybę
+        $adminEmail = requireEnv('SMTP_USER'); 
+        $adminSent = sendEmail($adminEmail, $adminSubject, $emailContent);
 
-        // Loginame rezultatą į atskirą failą debugginimui
-        logMailer("Bandymas siųsti laišką Order #$orderId. Klientui: " . ($clientSent ? 'OK' : 'FAIL') . ", Adminui: " . ($adminSent ? 'OK' : 'FAIL'));
+        // Loginame rezultatą
+        logMailer("Bandymas siųsti laišką Order #$orderId. Klientui ({$order['customer_email']}): " . ($clientSent ? 'OK' : 'FAIL') . ", Adminui ($adminEmail): " . ($adminSent ? 'OK' : 'FAIL'));
 
     } catch (Exception $e) {
         logMailer("CRITICAL MAILER ERROR: " . $e->getMessage());
     }
 }
 
-// Papildoma logging funkcija, kad matytumėte, ar laiškai tikrai išeina
+// Papildoma logging funkcija
 function logMailer($msg) {
     $logFile = __DIR__ . '/mailer_log.txt';
     $entry = date('Y-m-d H:i:s') . " - " . $msg . "\n";
     file_put_contents($logFile, $entry, FILE_APPEND);
 }
+?>
