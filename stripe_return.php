@@ -34,20 +34,33 @@ try {
     $session = \Stripe\Checkout\Session::retrieve($sessionId);
 
     if ($session->payment_status === 'paid') {
-        $orderId = (int)$session->metadata->order_id;
+        $orderId = (int)($session->metadata->order_id ?? 0);
+        if (!$orderId && !empty($session->client_reference_id)) {
+            $orderId = (int)$session->client_reference_id;
+        }
+
         $pdo = getPdo();
 
-        // UŽBAIGIAME UŽSAKYMĄ
-        if (completeOrder($pdo, $orderId, 'Stripe')) {
+        // Bandome užbaigti užsakymą (siųsti laiškus, nurašyti likučius)
+        // Funkcija grąžina true tik jei ji pati atliko veiksmą.
+        completeOrder($pdo, $orderId);
+
+        // Patikriname, ar užsakymas sėkmingai pažymėtas kaip Apmokėta (nesvarbu ar čia, ar per webhook)
+        $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $status = $stmt->fetchColumn();
+
+        if ($status === 'Apmokėta') {
             $_SESSION['flash_success'] = 'Apmokėjimas sėkmingas!';
             header('Location: /order_success.php');
             exit;
         }
     }
 } catch (Exception $e) {
-    // Log error
+    error_log("Stripe return error: " . $e->getMessage());
 }
 
+// Jei kažkas nepavyko
 header('Location: /orders.php');
 exit;
 ?>
