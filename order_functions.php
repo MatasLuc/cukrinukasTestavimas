@@ -1,56 +1,67 @@
 <?php
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/mailer.php'; 
+// order_functions.php
+require_once __DIR__ . '/mailer.php';
 
-function completeOrder(PDO $pdo, int $orderId, string $paymentMethod = 'Stripe'): bool {
+function sendOrderConfirmationEmail($orderId, $pdo) {
+    // Gauname užsakymo info
     $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
     $stmt->execute([$orderId]);
-    $order = $stmt->fetch();
+    $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$order) return false;
+    if (!$order) return;
 
-    // Apsauga nuo dubliavimo
-    if (stripos($order['status'], 'apmokėta') !== false || stripos($order['status'], 'patvirtintas') !== false) {
-        return true;
+    // Gauname prekes
+    $stmtItems = $pdo->prepare("
+        SELECT oi.*, p.title 
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = ?
+    ");
+    $stmtItems->execute([$orderId]);
+    $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+    // Formuojame HTML lentelę
+    $itemsHtml = '<table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <tr style="background: #f8f8f8;">
+                        <th style="padding: 10px; text-align: left;">Prekė</th>
+                        <th style="padding: 10px; text-align: center;">Kiekis</th>
+                        <th style="padding: 10px; text-align: right;">Kaina</th>
+                    </tr>';
+    
+    foreach ($items as $item) {
+        $rowTotal = number_format($item['price'] * $item['quantity'], 2);
+        $itemsHtml .= "<tr>
+                        <td style='padding: 10px; border-bottom: 1px solid #eee;'>{$item['title']}</td>
+                        <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: center;'>{$item['quantity']}</td>
+                        <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: right;'>{$rowTotal} €</td>
+                       </tr>";
     }
+    $itemsHtml .= '</table>';
 
-    try {
-        $pdo->beginTransaction();
+    // Pagrindinis laiško tekstas
+    $subject = "Užsakymo patvirtinimas #" . $orderId;
+    $body = "
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;'>
+            <h1 style='color: #2c3e50;'>Ačiū už jūsų užsakymą!</h1>
+            <p>Sveiki, <strong>{$order['customer_name']}</strong>,</p>
+            <p>Jūsų užsakymas <strong>#{$orderId}</strong> sėkmingai gautas ir apmokėtas.</p>
+            
+            <h3>Užsakymo detalės:</h3>
+            {$itemsHtml}
+            
+            <p style='text-align: right; font-size: 18px;'><strong>Iš viso: " . number_format($order['total'], 2) . " €</strong></p>
+            
+            <hr style='border: 0; border-top: 1px solid #eee; margin: 20px 0;'>
+            <p><strong>Pristatymo informacija:</strong><br>
+            {$order['delivery_method']}<br>
+            {$order['customer_address']}</p>
+        </div>
+    ";
 
-        // Atnaujiname statusą
-        $updateStmt = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', payment_method = ?, updated_at = NOW() WHERE id = ?");
-        $updateStmt->execute([$paymentMethod, $orderId]);
+    // Siunčiame pirkėjui
+    sendEmail($order['customer_email'], $order['customer_name'], $subject, $body);
 
-        // Sumažiname likučius
-        $itemsStmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
-        $itemsStmt->execute([$orderId]);
-        $items = $itemsStmt->fetchAll();
-
-        $deductStmt = $pdo->prepare("UPDATE products SET quantity = GREATEST(0, quantity - ?) WHERE id = ?");
-        foreach ($items as $item) {
-            $deductStmt->execute([(int)$item['quantity'], (int)$item['product_id']]);
-        }
-
-        // Siunčiame laišką
-        $userEmail = !empty($order['customer_email']) ? $order['customer_email'] : '';
-        if (!$userEmail) {
-             $uStmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
-             $uStmt->execute([$order['user_id']]);
-             $userEmail = $uStmt->fetchColumn();
-        }
-
-        if ($userEmail && function_exists('sendEmail')) {
-            $subject = "Užsakymas #{$orderId} patvirtintas";
-            $body = "<h1>Ačiū!</h1><p>Jūsų užsakymas #{$orderId} gautas. Suma: {$order['total']} EUR. Statusas: Apmokėta.</p>";
-            sendEmail($userEmail, $subject, $body);
-        }
-
-        $pdo->commit();
-        return true;
-
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        return false;
-    }
+    // Siunčiame administratoriui
+    $adminSubject = "Naujas užsakymas #" . $orderId . " (" . $order['total'] . " €)";
+    sendEmail('labas@cukrinukas.lt', 'Cukrinukas Admin', $adminSubject, $body);
 }
-?>
