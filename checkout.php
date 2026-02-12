@@ -1,5 +1,5 @@
 <?php
-// Įjungiame klaidų rodymą
+// Įjungiame klaidų rodymą (testavimo metu)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -174,20 +174,34 @@ $shippingSettings = getShippingSettings($pdo);
 // 8. GAUNAME PAŠTOMATUS IR PARUOŠIAME JS
 $lockersForJs = [];
 try {
-    // Svarbu: imame provider stulpelį
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city ASC, title ASC");
+    // Pataisyta: nenaudojame ORDER BY city, nes tokio stulpelio nėra.
+    // Rikiuosime PHP pusėje pagal iš adreso ištrauktą miestą.
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers");
     $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
     
     foreach ($allLockers as $l) {
+        // Bandome gauti miestą iš adreso (paprastai tekstas iki pirmo kablelio)
+        $addressParts = explode(',', $l['address']);
+        $derivedCity = trim($addressParts[0] ?? '');
+        
         $lockersForJs[] = [
             'title' => $l['title'],
             'address' => $l['address'],
-            'city' => $l['city'],
-            // Normalizuojame provider reikšmę (pvz., 'omniva', 'lpexpress')
-            'type' => strtolower($l['provider'] ?? 'other'), 
-            'full' => $l['city'] . ' - ' . $l['title'] . ' (' . $l['address'] . ')'
+            'city' => $derivedCity,
+            'type' => strtolower(trim($l['provider'] ?? 'other')), 
+            'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')'
         ];
     }
+
+    // Surikiuojame masyvą: Pirmiausia Miestas, tada Pavadinimas
+    usort($lockersForJs, function($a, $b) {
+        $cityCmp = strcmp($a['city'], $b['city']);
+        if ($cityCmp === 0) {
+            return strcmp($a['title'], $b['title']);
+        }
+        return $cityCmp;
+    });
+
 } catch (Exception $e) {
     error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
@@ -346,7 +360,7 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .card h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .card h3 svg { color: var(--accent); }
 
-        /* Promo Banner - NEW STYLE (About.php Hero) */
+        /* Promo Banner */
         .promo-banner {
             background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
             border: 1px solid #dbeafe;
