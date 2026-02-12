@@ -4,7 +4,6 @@ require_once __DIR__ . '/mailer.php';
 
 function sendOrderConfirmationEmail($orderId, $pdo) {
     try {
-        // 1. Gauname duomenis
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -20,7 +19,6 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
-        // 2. Formuojame HTML
         $itemsHtml = '<table cellpadding="5" border="1" style="border-collapse: collapse; width: 100%;">';
         $itemsHtml .= '<tr style="background: #f0f0f0;"><th>Prekė</th><th>Kiekis</th><th>Kaina</th></tr>';
         
@@ -48,27 +46,30 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $body = "
             <h2>Ačiū už užsakymą!</h2>
             <p>Sveiki, {$order['customer_name']},</p>
-            <p>Jūsų užsakymas <strong>#{$orderId}</strong> apmokėtas.</p>
+            <p>Jūsų užsakymas <strong>#{$orderId}</strong> sėkmingai apmokėtas.</p>
             <h3>Užsakymo informacija:</h3>
             {$itemsHtml}
             <p><strong>Iš viso: " . number_format($order['total'], 2) . " €</strong></p>
             <hr>
-            <p><strong>Pristatymo adresas:</strong> {$order['customer_address']}</p>
+            <p><strong>Pristatymo informacija:</strong><br>
+            Metodas: {$order['delivery_method']}<br>
+            Adresas: {$order['customer_address']}</p>
             {$deliveryInfo}
         ";
 
-        // 3. Siunčiame pirkėjui
-        sendEmail($order['customer_email'], $order['customer_name'], $subject, $body);
+        // Siunčiame pirkėjui
+        if (!empty($order['customer_email'])) {
+            sendEmail($order['customer_email'], $order['customer_name'], $subject, $body);
+        }
 
-        // 4. Siunčiame adminui
-        $adminBody = "<h1>Gautas naujas užsakymas #$orderId</h1>" . $body;
+        // Siunčiame adminui
+        $adminBody = "<h1>Gautas naujas apmokėtas užsakymas #$orderId</h1>" . $body;
         sendEmail('labas@cukrinukas.lt', 'Admin', "Naujas užsakymas #$orderId", $adminBody);
 
     } catch (Exception $e) {
-        // Tik registruojame klaidą, bet nestabdome skripto, nes pinigai jau sumokėti
+        // Loguojame, bet nestabdome proceso
         error_log("Klaida siunčiant laišką (Order #$orderId): " . $e->getMessage());
-        if (function_exists('webhook_log')) {
-            webhook_log("Mailer Error: " . $e->getMessage());
-        }
+        $logFile = __DIR__ . '/webhook_log.txt';
+        file_put_contents($logFile, date('Y-m-d H:i:s') . " - Mailer Error: " . $e->getMessage() . "\n", FILE_APPEND);
     }
 }
