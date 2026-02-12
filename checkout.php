@@ -19,7 +19,6 @@ require_once __DIR__ . '/helpers.php';
 $pdo = getPdo();
 
 // 2. Patikriname, ar vartotojas prisijungęs
-// Pastaba: Jei norėsite leisti pirkti be registracijos, šią dalį reikės pakoreguoti.
 if (empty($_SESSION['user_id'])) {
     $_SESSION['redirect_after_login'] = 'checkout.php';
     header('Location: /login.php');
@@ -172,11 +171,23 @@ $totalAfterDiscount = max(0, $cartItemsTotal - $discountAmount);
 // 7. Gauname pristatymo nustatymus
 $shippingSettings = getShippingSettings($pdo);
 
-// 8. GAUNAME PAŠTOMATUS
-$lockerList = [];
+// 8. GAUNAME PAŠTOMATUS IR PARUOŠIAME JS
+$lockersForJs = [];
 try {
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY title ASC");
-    $lockerList = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
+    // Svarbu: imame provider stulpelį
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city ASC, title ASC");
+    $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($allLockers as $l) {
+        $lockersForJs[] = [
+            'title' => $l['title'],
+            'address' => $l['address'],
+            'city' => $l['city'],
+            // Normalizuojame provider reikšmę (pvz., 'omniva', 'lpexpress')
+            'type' => strtolower($l['provider'] ?? 'other'), 
+            'full' => $l['city'] . ' - ' . $l['title'] . ' (' . $l['address'] . ')'
+        ];
+    }
 } catch (Exception $e) {
     error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
@@ -193,7 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     
-    // Nustatymai pagal nutylėjimą - locker, nes atsiėmimo nebėra
     $method = $_POST['delivery_method'] ?? 'locker';
     $notes = trim($_POST['notes'] ?? '');
     $selectedLocker = trim($_POST['locker_select'] ?? '');
@@ -213,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         if (empty($house)) $errors[] = 'Įveskite namo numerį.';
         if (empty($zip)) $errors[] = 'Įveskite pašto kodą.';
 
-        // Sujungiame į vieną eilutę (kad nereiktų keisti DB struktūros)
+        // Sujungiame į vieną eilutę
         $address = "$street g. $house" . (!empty($flat) ? "-$flat" : "") . ", $city, LT-$zip";
     }
 
@@ -242,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             if ($method === 'locker') {
                 $deliveryDetailsData['locker_address'] = $selectedLocker;
-                $address = "Paštomatas: " . $selectedLocker; // Įrašome į db address stulpelį info tikslais
+                $address = "Paštomatas: " . $selectedLocker;
             }
 
             $deliveryDetails = json_encode($deliveryDetailsData);
@@ -321,7 +331,6 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
             --accent-hover: #1d4ed8;
             --success: #10b981;
             --danger: #ef4444;
-            --gold: #f59e0b;
         }
         body { margin:0; background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; }
         
@@ -337,38 +346,49 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .card h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .card h3 svg { color: var(--accent); }
 
-        /* Promo Banner */
+        /* Promo Banner - NEW STYLE (About.php Hero) */
         .promo-banner {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            border-radius: 16px;
-            padding: 24px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #dbeafe;
+            border-radius: 20px;
+            padding: 32px;
             margin-bottom: 32px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
-            position: relative;
-            overflow: hidden;
+            text-align: left;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
         }
-        .promo-banner::before {
-            content: ''; position: absolute; top: -50px; left: -50px; width: 100px; height: 100px;
-            background: rgba(255,255,255,0.1); border-radius: 50%;
+        .promo-content { max-width: 600px; flex: 1; }
+        .promo-banner h2 { margin: 0 0 12px 0; font-size: 24px; font-weight: 700; color: #1e3a8a; letter-spacing: -0.5px; }
+        .promo-banner p { margin: 0; color: #1e40af; line-height: 1.6; font-size: 15px; }
+        
+        .pill { 
+            display:inline-flex; align-items:center; gap:8px; 
+            padding:6px 12px; border-radius:999px; 
+            background:#fff; border:1px solid #bfdbfe; 
+            font-weight:600; font-size:13px; color:#1e40af; 
+            margin-bottom: 12px;
         }
-        .promo-banner h2 { margin: 0 0 8px 0; font-size: 22px; font-weight: 800; }
-        .promo-banner p { margin: 0; font-size: 15px; opacity: 0.9; }
+
         .promo-code-box {
             display: inline-block;
-            background: rgba(255,255,255,0.2);
-            padding: 6px 14px;
-            border-radius: 8px;
+            background: #ffffff;
+            padding: 10px 18px;
+            border-radius: 10px;
             font-weight: 700;
-            margin-top: 10px;
-            border: 1px dashed rgba(255,255,255,0.5);
+            color: #1e40af;
+            border: 1px dashed #3b82f6;
             letter-spacing: 1px;
+            font-size: 14px;
+            white-space: nowrap;
         }
 
         /* Forms */
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; } /* Gatve, Namo, Buto */
+        .form-grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; } 
         @media(max-width: 600px) { .form-grid-3 { grid-template-columns: 1fr; } }
 
         .form-group { margin-bottom: 16px; }
@@ -385,8 +405,8 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
         textarea.form-control { resize: vertical; min-height: 80px; }
 
-        /* Custom Radio Cards for Shipping */
-        .shipping-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        /* Shipping & Locker Providers */
+        .shipping-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
         @media(max-width: 600px) { .shipping-options { grid-template-columns: 1fr; } }
 
         .radio-card { 
@@ -417,13 +437,76 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .radio-price { font-weight: 600; font-size: 14px; color: var(--text-main); background: #fff; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); }
         .radio-price.free { color: var(--success); border-color: #bbf7d0; background: #f0fdf4; }
 
+        /* Provider Selection Buttons */
+        .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .provider-btn {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fff;
+        }
+        .provider-btn:hover { background: #f8fafc; }
+        .provider-btn.active {
+            border-color: var(--accent);
+            background: #eff6ff;
+            color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        /* CUSTOM SELECT - SEARCHABLE DROPDOWN */
+        .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
+        .custom-select-trigger {
+            position: relative;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px;
+            font-size: 14px; font-weight: 400; color: var(--text-main);
+            background: #fff; border: 1px solid var(--border); border-radius: 8px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .custom-select-trigger:hover { border-color: #cbd5e1; }
+        .custom-select-wrapper.open .custom-select-trigger { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .custom-select-trigger span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .custom-options-container {
+            position: absolute; display: none; top: 100%; left: 0; right: 0;
+            background: #fff; border: 1px solid var(--border); border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            z-index: 100; margin-top: 4px;
+            max-height: 300px; overflow: hidden;
+            flex-direction: column;
+        }
+        .custom-select-wrapper.open .custom-options-container { display: flex; }
+        
+        .sticky-search { padding: 8px; background: #fff; border-bottom: 1px solid var(--border); }
+        .sticky-search input {
+            width: 100%; padding: 8px;
+            border: 1px solid var(--border); border-radius: 6px;
+            font-size: 13px; box-sizing: border-box;
+        }
+        .sticky-search input:focus { outline: none; border-color: var(--accent); }
+        
+        .options-list { overflow-y: auto; flex: 1; }
+        .custom-option {
+            padding: 10px 12px; font-size: 13px; color: var(--text-main);
+            cursor: pointer; transition: background 0.1s;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .custom-option:last-child { border-bottom: none; }
+        .custom-option:hover { background: #f1f5f9; }
+        .custom-option.selected { background: #eff6ff; color: var(--accent); font-weight: 500; }
+        .custom-option.no-results { text-align: center; color: var(--text-muted); cursor: default; }
+
         /* Sidebar & Summary */
         .sidebar { position: sticky; top: 20px; }
         .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; color: var(--text-muted); }
         .summary-row.total { border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 16px; font-weight: 700; font-size: 18px; color: var(--text-main); }
         .summary-row.discount { color: var(--success); font-weight: 500; }
         
-        /* Buttons */
         .btn-primary { 
             width: 100%; padding: 14px; 
             background: var(--accent); color: white; 
@@ -434,31 +517,17 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         }
         .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); }
         
-        /* Discount Form in Sidebar */
+        /* Discount Form */
         .discount-form { display: flex; gap: 8px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
         .btn-apply { padding: 0 16px; background: #0f172a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-        .btn-apply:hover { background: #1e293b; }
         .active-discount { background: #ecfdf5; border: 1px solid #6ee7b7; padding: 10px; border-radius: 8px; font-size: 13px; color: #065f46; display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
         .btn-remove { background: none; border: none; color: var(--danger); font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
-        /* Alerts & Notices */
         .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
         .alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
         .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
         
-        .free-shipping-notice { 
-            background: linear-gradient(135deg, #ecfdf5, #d1fae5); 
-            color: #064e3b; padding: 12px; border-radius: 8px; 
-            margin-bottom: 16px; font-size: 13px; font-weight: 500; 
-            border: 1px solid #6ee7b7; display: flex; align-items: center; gap: 8px; 
-        }
-
         .hidden-field { display: none; margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--border); }
-        
-        /* Search Input for Lockers */
-        .search-container { position: relative; margin-bottom: 10px; }
-        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 16px; height: 16px; }
-        .search-input { padding-left: 32px; }
     </style>
 </head>
 <body>
@@ -468,15 +537,12 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         
         <?php if (!empty($_SESSION['user_id'])): ?>
             <div class="promo-banner">
-                <h2>AČIŪ, kad esate su mumis! 🎉</h2>
-                <p>Kaip registruotam nariui, dovanojame Jums <strong>5% nuolaidą</strong> šiam krepšeliui.</p>
+                <div class="promo-content">
+                    <div class="pill">🎉 Jūs esate klubo narys</div>
+                    <h2>AČIŪ, kad esate su mumis!</h2>
+                    <p>Kaip registruotam nariui, dovanojame Jums išskirtinę <strong>5% nuolaidą</strong> šiam krepšeliui.</p>
+                </div>
                 <div class="promo-code-box">KODAS: ACIU</div>
-            </div>
-        <?php else: ?>
-            <div class="promo-banner" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                <h2>Norite gauti nuolaidą? 🎁</h2>
-                <p>Prisijunkite arba užsiregistruokite dabar ir gaukite išskirtinę nuolaidą savo pirmam užsakymui!</p>
-                <a href="/login.php" style="display:inline-block; margin-top:10px; color:white; font-weight:700; text-decoration:underline;">Prisijungti</a>
             </div>
         <?php endif; ?>
 
@@ -530,8 +596,8 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                         </h3>
                         
                         <?php if($isFree): ?>
-                            <div class="free-shipping-notice">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                 Jums taikomas nemokamas pristatymas!
                             </div>
                         <?php elseif($shippingSettings['free_over'] > 0): ?>
@@ -569,28 +635,36 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                         </div>
 
                         <div class="hidden-field" id="locker-field" style="display:block;">
-                            <label class="form-label">Pasirinkite paštomatą</label>
+                            <label class="form-label" style="margin-bottom:10px;">1. Pasirinkite tiekėją:</label>
                             
-                            <div class="search-container">
-                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                <input type="text" id="locker-search" class="form-control search-input" placeholder="Ieškoti paštomato (miestas, adresas)...">
+                            <div class="provider-grid">
+                                <div class="provider-btn" onclick="filterLockers('lpexpress', this)">
+                                    LP EXPRESS
+                                </div>
+                                <div class="provider-btn" onclick="filterLockers('omniva', this)">
+                                    OMNIVA
+                                </div>
                             </div>
 
-                            <select name="locker_select" id="locker-select" class="form-control" required>
-                                <option value="">-- Pasirinkite iš sąrašo --</option>
-                                <?php if (!empty($lockerList)): ?>
-                                    <?php foreach($lockerList as $locker): ?>
-                                        <?php 
-                                            $title = htmlspecialchars($locker['title'] ?? '');
-                                            $address = htmlspecialchars($locker['address'] ?? '');
-                                            $valueText = "$title - $address"; 
-                                        ?>
-                                        <option value="<?php echo $valueText; ?>"><?php echo "$title ($address)"; ?></option>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <option value="" disabled>Paštomatų sąrašas nerastas.</option>
-                                <?php endif; ?>
-                            </select>
+                            <div id="locker-selection-area" style="display:none;">
+                                <label class="form-label">2. Pasirinkite paštomatą:</label>
+                                
+                                <input type="hidden" name="locker_select" id="locker-select-input">
+                                
+                                <div class="custom-select-wrapper" id="custom-select-wrapper">
+                                    <div class="custom-select-trigger" onclick="toggleDropdown()">
+                                        <span id="selected-locker-text">-- Pasirinkite iš sąrašo --</span>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </div>
+                                    <div class="custom-options-container" id="custom-options-container">
+                                        <div class="sticky-search">
+                                            <input type="text" id="locker-search-input" placeholder="Rašykite miestą arba adresą..." onkeyup="filterCustomOptions()" autocomplete="off">
+                                        </div>
+                                        <div class="options-list" id="options-list">
+                                            </div>
+                                    </div>
+                                </div>
+                                </div>
                         </div>
 
                         <div class="hidden-field" id="address-field">
@@ -698,12 +772,17 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
     <?php renderFooter($pdo); ?>
 
     <script>
+        // Data from PHP
         const totalAfterDiscount = <?php echo number_format($totalAfterDiscount, 2, '.', ''); ?>;
-        
         const prices = {
             locker: <?php echo $isFree ? '0.00' : number_format($lockerCost, 2, '.', ''); ?>,
             courier: <?php echo $isFree ? '0.00' : number_format($courierCost, 2, '.', ''); ?>
         };
+        const allLockers = <?php echo json_encode($lockersForJs); ?>;
+
+        // UI State
+        let currentProvider = '';
+        let currentFilteredLockers = [];
 
         function selectShipping(element, method) {
             // Visual Update
@@ -723,14 +802,14 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
             const shipDisplay = document.getElementById('shipping-display');
             const totalDisplay = document.getElementById('total-display');
             
-            // Required inputs
+            // Required inputs IDs
             const reqInputs = ['input-city', 'input-street', 'input-house', 'input-zip'];
-            const lockerSelect = document.getElementById('locker-select');
+            const lockerInput = document.getElementById('locker-select-input');
 
-            // Reset
+            // Reset visibility & requirements
             addrField.style.display = 'none';
             lockerField.style.display = 'none';
-            lockerSelect.removeAttribute('required');
+            lockerInput.removeAttribute('required');
             reqInputs.forEach(id => document.getElementById(id).removeAttribute('required'));
 
             // Logic
@@ -739,7 +818,7 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                 reqInputs.forEach(id => document.getElementById(id).setAttribute('required', 'required'));
             } else if (method === 'locker') {
                 lockerField.style.display = 'block';
-                lockerSelect.setAttribute('required', 'required');
+                lockerInput.setAttribute('required', 'required');
             }
 
             // Price update
@@ -750,52 +829,106 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
             totalDisplay.textContent = finalPrice.toFixed(2) + ' €';
         }
 
-        // --- PAŠTOMATŲ PAIEŠKA (Filtravimas) ---
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('locker-search');
-            const select = document.getElementById('locker-select');
+        // --- PAŠTOMATŲ LOGIKA (CUSTOM SELECT) ---
+
+        function filterLockers(provider, btnElement) {
+            currentProvider = provider;
             
-            // Išsaugome visas originalias opcijas
-            const originalOptions = Array.from(select.options);
+            // Update buttons visual state
+            document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
 
-            searchInput.addEventListener('input', function(e) {
-                const term = e.target.value.toLowerCase();
-                
-                // Išvalome selectą
-                select.innerHTML = '';
+            // Show selection area
+            document.getElementById('locker-selection-area').style.display = 'block';
 
-                // Filtruojame ir pridedame atgal tik atitinkamas
-                let foundAny = false;
-                originalOptions.forEach(opt => {
-                    if (opt.value === "") return; // Skip placeholder logic here
-                    
-                    const text = opt.text.toLowerCase();
-                    if (text.includes(term)) {
-                        select.appendChild(opt);
-                        foundAny = true;
-                    }
-                });
+            // Reset selection
+            document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
+            document.getElementById('locker-select-input').value = '';
+            document.getElementById('locker-search-input').value = '';
 
-                // Jei nieko nerado arba paieška tuščia, pridedame "Pasirinkite" placeholderį viršuje
-                if (!foundAny && term.length > 0) {
-                    const noRes = document.createElement('option');
-                    noRes.text = "Nerasta paštomatų pagal užklausą";
-                    noRes.disabled = true;
-                    select.prepend(noRes);
-                } else {
-                    // Visada pridedame default pasirinkimą viršuje, jei filtruojam
-                    const def = originalOptions[0]; // "-- Pasirinkite --"
-                    select.prepend(def);
-                    // Jei tik vienas variantas rastas, jį ir parenkam
-                    if(select.options.length === 2) {
-                        select.selectedIndex = 1;
-                    } else {
-                        select.selectedIndex = 0;
-                    }
-                }
+            // Generate list
+            generateCustomOptions(provider);
+        }
+
+        function generateCustomOptions(provider) {
+            const list = document.getElementById('options-list');
+            list.innerHTML = '';
+            
+            // Filter by provider only
+            currentFilteredLockers = allLockers.filter(l => l.type === provider);
+
+            if(currentFilteredLockers.length === 0) {
+                const div = document.createElement('div');
+                div.className = 'custom-option no-results';
+                div.textContent = 'Šio tiekėjo paštomatų nerasta.';
+                list.appendChild(div);
+                return;
+            }
+
+            currentFilteredLockers.forEach(locker => {
+                createOptionElement(locker);
             });
+        }
 
-            // Initial UI check
+        function createOptionElement(locker) {
+            const list = document.getElementById('options-list');
+            const div = document.createElement('div');
+            div.className = 'custom-option';
+            div.textContent = locker.full;
+            div.dataset.value = locker.full; // What gets sent to DB
+            
+            div.onclick = function() {
+                selectOption(locker.full);
+            };
+            
+            list.appendChild(div);
+        }
+
+        function toggleDropdown() {
+            const wrapper = document.getElementById('custom-select-wrapper');
+            wrapper.classList.toggle('open');
+            
+            // If opening, focus search
+            if (wrapper.classList.contains('open')) {
+                setTimeout(() => document.getElementById('locker-search-input').focus(), 100);
+            }
+        }
+
+        function selectOption(value) {
+            document.getElementById('locker-select-input').value = value;
+            document.getElementById('selected-locker-text').textContent = value;
+            document.getElementById('custom-select-wrapper').classList.remove('open');
+        }
+
+        function filterCustomOptions() {
+            const term = document.getElementById('locker-search-input').value.toLowerCase();
+            const list = document.getElementById('options-list');
+            list.innerHTML = '';
+
+            const filtered = currentFilteredLockers.filter(locker => 
+                locker.full.toLowerCase().includes(term)
+            );
+
+            if (filtered.length === 0) {
+                const div = document.createElement('div');
+                div.className = 'custom-option no-results';
+                div.textContent = 'Nerasta atitikmenų';
+                list.appendChild(div);
+            } else {
+                filtered.forEach(locker => createOptionElement(locker));
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('custom-select-wrapper');
+            if (!wrapper.contains(e.target)) {
+                wrapper.classList.remove('open');
+            }
+        });
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
             const selected = document.querySelector('input[name="delivery_method"]:checked');
             if (selected) {
                 updateUI(selected.value);
