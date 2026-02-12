@@ -1,5 +1,5 @@
 <?php
-// Įjungiame klaidų rodymą
+// Įjungiame klaidų rodymą (testavimo metu)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -18,8 +18,12 @@ require_once __DIR__ . '/helpers.php';
 
 $pdo = getPdo();
 
-// Pakeitimas: Panaikintas priverstinis tikrinimas ar vartotojas prisijungęs.
-// Leidžiame tęsti ir svečiams.
+// 2. Patikriname, ar vartotojas prisijungęs
+if (empty($_SESSION['user_id'])) {
+    $_SESSION['redirect_after_login'] = 'checkout.php';
+    header('Location: /login.php');
+    exit;
+}
 
 // 3. Patikriname, ar krepšelis nėra tuščias
 if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
@@ -170,20 +174,34 @@ $shippingSettings = getShippingSettings($pdo);
 // 8. GAUNAME PAŠTOMATUS IR PARUOŠIAME JS
 $lockersForJs = [];
 try {
-    // Svarbu: imame provider stulpelį
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city ASC, title ASC");
+    // Pataisyta: nenaudojame ORDER BY city, nes tokio stulpelio nėra.
+    // Rikiuosime PHP pusėje pagal iš adreso ištrauktą miestą.
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers");
     $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
     
     foreach ($allLockers as $l) {
+        // Bandome gauti miestą iš adreso (paprastai tekstas iki pirmo kablelio)
+        $addressParts = explode(',', $l['address']);
+        $derivedCity = trim($addressParts[0] ?? '');
+        
         $lockersForJs[] = [
             'title' => $l['title'],
             'address' => $l['address'],
-            'city' => $l['city'],
-            // Normalizuojame provider reikšmę (pvz., 'omniva', 'lpexpress')
-            'type' => strtolower($l['provider'] ?? 'other'), 
-            'full' => $l['city'] . ' - ' . $l['title'] . ' (' . $l['address'] . ')'
+            'city' => $derivedCity,
+            'type' => strtolower(trim($l['provider'] ?? 'other')), 
+            'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')'
         ];
     }
+
+    // Surikiuojame masyvą: Pirmiausia Miestas, tada Pavadinimas
+    usort($lockersForJs, function($a, $b) {
+        $cityCmp = strcmp($a['city'], $b['city']);
+        if ($cityCmp === 0) {
+            return strcmp($a['title'], $b['title']);
+        }
+        return $cityCmp;
+    });
+
 } catch (Exception $e) {
     error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
@@ -253,9 +271,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $deliveryDetails = json_encode($deliveryDetailsData);
 
-            // Nustatome user_id. Jei svečias - null.
-            $userId = !empty($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
-
             $stmtOrder = $pdo->prepare("
                 INSERT INTO orders 
                 (user_id, total, status, created_at, customer_name, customer_address, delivery_method, delivery_details, customer_email) 
@@ -263,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ");
             
             $stmtOrder->execute([
-                $userId,
+                $_SESSION['user_id'],
                 $finalTotal,
                 $name,
                 $address,
@@ -301,13 +316,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     }
 }
 
-// User info autofill - Tik jei vartotojas prisijungęs
-$user = [];
-if (!empty($_SESSION['user_id'])) {
-    $userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-    $userStmt->execute([$_SESSION['user_id']]);
-    $user = $userStmt->fetch();
-}
+// User info autofill
+$userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$userStmt->execute([$_SESSION['user_id']]);
+$user = $userStmt->fetch();
 
 // UI Calculation
 $courierCost = calculateShippingPrice($shippingSettings, $totalAfterDiscount, 'courier', $hasFreeShippingProduct);
@@ -348,7 +360,7 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .card h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .card h3 svg { color: var(--accent); }
 
-        /* Promo Banner - NEW STYLE (About.php Hero) */
+        /* Promo Banner */
         .promo-banner {
             background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
             border: 1px solid #dbeafe;
