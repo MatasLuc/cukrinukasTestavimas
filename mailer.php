@@ -1,4 +1,5 @@
 <?php
+// mailer.php
 require_once __DIR__ . '/env.php';
 loadEnvFile(); // Užkrauname kintamuosius iš .env
 
@@ -12,6 +13,7 @@ use PHPMailer\PHPMailer\Exception;
 function sendEmail(string $to, string $subject, string $bodyHtml): bool {
     $mail = new PHPMailer(true);
     try {
+        // Server settings
         $mail->isSMTP();
         $mail->Host       = requireEnv('SMTP_HOST');
         $mail->SMTPAuth   = true;
@@ -22,51 +24,51 @@ function sendEmail(string $to, string $subject, string $bodyHtml): bool {
         $mail->Port = $port;
         $mail->CharSet = 'UTF-8';
 
-        // AUTOMATINIS ŠIFRAVIMO PARINKIMAS
-        // Jei portas 587 (dažniausias Gmail/Outlook), naudojame TLS.
-        // Jei 465, naudojame SSL.
+        // Šifravimo nustatymai
         if ($port === 587) {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         } elseif ($port === 465) {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         } else {
-            // Kitiems portams bandome automatinį, arba paliekame be šifravimo (jei localhost)
             $mail->SMTPSecure = ''; 
             $mail->SMTPAutoTLS = true; 
         }
 
+        // Recipients
         $mail->setFrom(requireEnv('SMTP_FROM_EMAIL'), requireEnv('SMTP_FROM_NAME'));
         $mail->addAddress($to);
 
+        // Content
         $mail->isHTML(true);
         $mail->Subject = $subject;
         $mail->Body    = $bodyHtml;
-        // Sukuriame tekstinę versiją be HTML žymių
         $mail->AltBody = strip_tags(str_replace(['<br>', '</p>'], ["\n", "\n\n"], $bodyHtml));
 
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // Įrašome klaidą į serverio logus, kad matytumėte, kas nutiko
+        // Įrašome tikslią klaidą į failą 'mailer_errors.log', kad galėtumėte debugginti
+        $errorMessage = date('Y-m-d H:i:s') . " - Mailer Error: {$mail->ErrorInfo}\n";
+        file_put_contents(__DIR__ . '/mailer_errors.log', $errorMessage, FILE_APPEND);
+        
+        // Taip pat paliekame ir error_log
         error_log("Mailer Error: {$mail->ErrorInfo}");
         return false;
     }
 }
 
 /**
- * Sukuria gražų HTML laiško šabloną, atitinkantį Cukrinukas.lt dizainą (account.php stilius)
+ * Sukuria gražų HTML laiško šabloną, atitinkantį Cukrinukas.lt dizainą
  */
 function getEmailTemplate(string $title, string $content, ?string $btnUrl = null, ?string $btnText = null): string {
     $year = date('Y');
     
-    // Spalvų paletė pagal account.php
-    $accentColor = '#2563eb'; // --accent
-    $accentHover = '#1d4ed8'; // --accent-hover
-    $bgBody = '#f7f7fb';      // --bg
-    $bgCard = '#ffffff';      // --card
-    $textMain = '#0f172a';    // --text-main
-    $textMuted = '#475467';   // --text-muted
-    $border = '#e4e7ec';      // --border
+    $accentColor = '#2563eb';
+    $bgBody = '#f7f7fb';
+    $bgCard = '#ffffff';
+    $textMain = '#0f172a';
+    $textMuted = '#475467';
+    $border = '#e4e7ec';
     
     $buttonHtml = '';
     if ($btnUrl && $btnText) {
@@ -96,9 +98,7 @@ function getEmailTemplate(string $title, string $content, ?string $btnUrl = null
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
     <tr>
       <td style="padding: 40px 15px;" align="center">
-        
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: {$bgCard}; border-radius: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid {$border};">
-          
           <tr>
             <td style="padding: 40px 40px 20px 40px; text-align: center; background-color: #ffffff;">
                <div style="font-size: 26px; font-weight: 700; color: #1e3a8a; letter-spacing: -0.5px;">
@@ -106,27 +106,21 @@ function getEmailTemplate(string $title, string $content, ?string $btnUrl = null
                </div>
             </td>
           </tr>
-
           <tr>
             <td style="padding: 20px 48px 48px 48px; color: {$textMuted}; font-size: 16px; line-height: 1.6; text-align: left;">
-              
               <h1 style="margin-top: 0; margin-bottom: 24px; font-size: 22px; font-weight: 700; color: {$textMain}; text-align: center;">
                 {$title}
               </h1>
-              
               <div style="color: {$textMuted};">
                 {$content}
               </div>
-
               {$buttonHtml}
-
               <div style="border-top: 1px solid {$border}; margin-top: 32px; padding-top: 24px; font-size: 14px; color: #64748b;">
                 Pagarbiai,<br>
                 <strong style="color: {$textMain};">Cukrinukas komanda</strong>
               </div>
             </td>
           </tr>
-          
           <tr>
             <td style="background-color: #f8fafc; padding: 24px; text-align: center; font-size: 13px; color: #94a3b8; border-top: 1px solid {$border};">
               <p style="margin: 0;">&copy; {$year} Cukrinukas.lt. Visos teisės saugomos.</p>
@@ -135,11 +129,8 @@ function getEmailTemplate(string $title, string $content, ?string $btnUrl = null
               </p>
             </td>
           </tr>
-
         </table>
-        
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" height="40"><tr><td>&nbsp;</td></tr></table>
-      
       </td>
     </tr>
   </table>
