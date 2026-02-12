@@ -1,11 +1,10 @@
 <?php
-// stripe_return.php
 session_start();
 require_once __DIR__ . '/lib/stripe/init.php';
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/order_functions.php'; // Mūsų sukurta funkcija
+require_once __DIR__ . '/order_functions.php';
 
-// Pagalbinė funkcija env kintamiesiems (kad nereiktų dubliuoti kodo)
+// Pagalbinė funkcija env
 if (!function_exists('requireEnv')) {
     function requireEnv($key) {
         $envPath = __DIR__ . '/.env';
@@ -39,20 +38,16 @@ try {
         $pdo = getPdo();
 
         // UŽBAIGIAME UŽSAKYMĄ
-        $success = completeOrder($pdo, $orderId, 'Stripe');
-
-        if ($success) {
-            $_SESSION['flash_success'] = 'Apmokėjimas sėkmingas! Užsakymas vykdomas.';
+        if (completeOrder($pdo, $orderId, 'Stripe')) {
+            $_SESSION['flash_success'] = 'Apmokėjimas sėkmingas!';
             header('Location: /order_success.php');
             exit;
         }
     }
 } catch (Exception $e) {
-    // Klaida gaunant sesiją
+    // Log error
 }
 
-// Jei kažkas nepavyko
-$_SESSION['flash_error'] = 'Nepavyko patvirtinti mokėjimo. Jei pinigai nuskaičiuoti, susisiekite su mumis.';
 header('Location: /orders.php');
 exit;
 ?>
