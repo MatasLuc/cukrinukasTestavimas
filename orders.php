@@ -380,7 +380,7 @@ $itemStmt = $pdo->prepare('
                       <div class="card-footer">
                          <div style="flex-grow:1;">
                              <?php if ($canPay): ?>
-                                <a class="btn" href="/libwebtopay/redirect.php?order_id=<?php echo (int)$order['id']; ?>">Apmokėti užsakymą</a>
+                                <a class="btn" href="/stripe_checkout.php?order_id=<?php echo (int)$order['id']; ?>">Apmokėti užsakymą</a>
                              <?php else: ?>
                                 <a class="btn-outline" href="/products.php">Pirkti vėl</a>
                              <?php endif; ?>
