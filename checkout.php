@@ -83,34 +83,74 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
     }
 }
 
-// 4. Skaičiuojame krepšelio sumą
+// 4. Skaičiuojame krepšelio sumą (SUTVARKYTA LOGIKA)
 $cartItemsTotal = 0;
 $productsInCart = [];
-$ids = array_keys($_SESSION['cart']);
-$hasFreeShippingProduct = false; 
 
+// Gauname tikrus produktų ID iš krepšelio raktų (kurie gali būti pvz. "7_a1b2...")
+$cartKeys = array_keys($_SESSION['cart']);
+$cleanIds = [];
+foreach ($cartKeys as $key) {
+    $parts = explode('_', (string)$key);
+    $cleanIds[] = (int)$parts[0];
+}
+$cleanIds = array_unique($cleanIds);
+
+$hasFreeShippingProduct = false; 
 $fsProducts = getFreeShippingProducts($pdo);
 $fsIds = array_column($fsProducts, 'product_id');
 
-if (!empty($ids)) {
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $pdo->prepare("SELECT id, title, price FROM products WHERE id IN ($placeholders)");
-    $stmt->execute($ids);
-    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if (!empty($cleanIds)) {
+    $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+    
+    // Įtraukiame ir sale_price
+    $stmt = $pdo->prepare("SELECT id, title, price, sale_price FROM products WHERE id IN ($placeholders)");
+    $stmt->execute($cleanIds);
+    $productsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    foreach ($products as $p) {
-        $qty = $_SESSION['cart'][$p['id']];
-        $cartItemsTotal += $p['price'] * $qty;
-        
-        if (in_array($p['id'], $fsIds)) {
-            $hasFreeShippingProduct = true;
+    // Sukuriame žemėlapį ID => Prekės duomenys, kad nereiktų sukti ciklo cikle
+    $productsMap = [];
+    foreach ($productsRaw as $row) {
+        $productsMap[$row['id']] = $row;
+    }
+
+    // Iteruojame per KREPŠELIO elementus, o ne per DB rezultatus
+    foreach ($_SESSION['cart'] as $cartKey => $qty) {
+        $parts = explode('_', (string)$cartKey);
+        $pId = (int)$parts[0];
+
+        if (isset($productsMap[$pId])) {
+            $p = $productsMap[$pId];
+            
+            // 1. Nustatome bazinę kainą (Akcija vs Įprasta)
+            $basePrice = (float)$p['price'];
+            if (!empty($p['sale_price']) && $p['sale_price'] > 0 && $p['sale_price'] < $p['price']) {
+                $basePrice = (float)$p['sale_price'];
+            }
+
+            // 2. Pridedame variacijų kainų skirtumus (jei yra)
+            $variationDelta = 0;
+            if (isset($_SESSION['cart_variations'][$cartKey]) && is_array($_SESSION['cart_variations'][$cartKey])) {
+                foreach ($_SESSION['cart_variations'][$cartKey] as $var) {
+                    $variationDelta += (float)($var['delta'] ?? 0);
+                }
+            }
+
+            $finalPrice = $basePrice + $variationDelta;
+
+            // 3. Skaičiuojame sumą
+            $cartItemsTotal += $finalPrice * $qty;
+            
+            if (in_array($pId, $fsIds)) {
+                $hasFreeShippingProduct = true;
+            }
+
+            $productsInCart[] = [
+                'id' => $pId,
+                'price' => $finalPrice,
+                'qty' => $qty
+            ];
         }
-
-        $productsInCart[] = [
-            'id' => $p['id'],
-            'price' => $p['price'],
-            'qty' => $qty
-        ];
     }
 }
 
@@ -296,6 +336,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             
             unset($_SESSION['cart']);
             unset($_SESSION['applied_discount']);
+            // Taip pat išvalome variacijas
+            unset($_SESSION['cart_variations']);
 
             header("Location: /stripe_checkout.php?order_id=" . $orderId);
             exit;
