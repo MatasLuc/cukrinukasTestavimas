@@ -1,6 +1,37 @@
 <?php
 // admin/orders.php
 
+// 0. POST užklausos apdorojimas (Atnaujinimas)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'order_status') {
+    $orderId = (int)$_POST['order_id'];
+    $newStatus = $_POST['status'];
+    $trackingNumber = isset($_POST['tracking_number']) ? trim($_POST['tracking_number']) : '';
+
+    // Patikriname, ar statusas keičiasi į "išsiųsta"
+    // Pirmiausia gauname seną statusą, kad žinotume ar siųsti laišką
+    $stmtCheck = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+    $stmtCheck->execute([$orderId]);
+    $oldOrder = $stmtCheck->fetch();
+    $oldStatus = $oldOrder ? $oldOrder['status'] : '';
+
+    // Atnaujiname DB
+    $stmt = $pdo->prepare("UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?");
+    $stmt->execute([$newStatus, $trackingNumber, $orderId]);
+
+    // Jei statusas pasikeitė į "išsiųsta" (arba jau yra "išsiųsta", bet įvedėme/keitėme tracking kodą)
+    // Saugiau siųsti tik tada, kai pasirenkamas "išsiųsta".
+    // Kad nespamintume, galima tikrinti ar senas != 'išsiųsta', bet kartais norisi persiųsti laišką.
+    // Šiuo atveju siųsime, jei statusas yra 'išsiųsta' ir buvo paspaustas atnaujinimas.
+    if (strtolower($newStatus) === 'išsiųsta') {
+        require_once __DIR__ . '/../order_functions.php';
+        sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo);
+    }
+
+    // Perkrauname puslapį, kad matytume pokyčius
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 // 1. Surenkame duomenis
 // Prijungiame ir delivery_details, kad galėtume rodyti paštomatą
 $allOrders = $pdo->query('
@@ -122,6 +153,11 @@ unset($order); // Nutraukiame nuorodą
         align-items: center;
     }
 
+    /* Input style for tracking */
+    .form-control {
+        padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%;
+    }
+
     @media (max-width: 700px) {
         .modal-grid { grid-template-columns: 1fr; }
         .modal-footer { flex-direction: column; gap: 10px; }
@@ -163,6 +199,9 @@ unset($order); // Nutraukiame nuorodą
             <span class="status-badge <?php echo $statusClass; ?>">
                 <?php echo ucfirst($order['status']); ?>
             </span>
+            <?php if(!empty($order['tracking_number'])): ?>
+                <div style="font-size:10px; color:#666; margin-top:2px;">📦 <?php echo htmlspecialchars($order['tracking_number']); ?></div>
+            <?php endif; ?>
           </td>
           <td style="text-align:right;">
             <button class="btn secondary open-order-modal" 
@@ -187,6 +226,7 @@ unset($order); // Nutraukiame nuorodą
             <button type="button" class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         
+        <form method="post" style="display:contents;">
         <div class="modal-body">
             <div class="modal-grid">
                 <div class="info-group">
@@ -199,6 +239,12 @@ unset($order); // Nutraukiame nuorodą
                     <h4>Pristatymo informacija</h4>
                     <p id="m_address" style="white-space: pre-line;"></p>
                     <div id="m_deliveryMethod" style="margin-top:5px; font-size:13px; color:#2563eb; font-weight:600;"></div>
+                    
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #eee;">
+                        <label style="font-size:12px; font-weight:700; color:#444; display:block; margin-bottom:4px;">Siuntos sekimo numeris:</label>
+                        <input type="text" name="tracking_number" id="m_trackingInput" class="form-control" placeholder="Įveskite kodą...">
+                        <div style="font-size:11px; color:#888; margin-top:2px;">Keičiant būseną į "Išsiųsta", šis kodas bus išsiųstas klientui.</div>
+                    </div>
                 </div>
             </div>
 
@@ -212,7 +258,6 @@ unset($order); // Nutraukiame nuorodą
         </div>
 
         <div class="modal-footer">
-            <form method="post" style="display:flex; gap:10px; align-items:center; width:100%;">
                 <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="order_status">
                 <input type="hidden" name="order_id" id="m_formOrderId">
@@ -230,9 +275,9 @@ unset($order); // Nutraukiame nuorodą
                     </select>
                     <button class="btn" type="submit">Atnaujinti</button>
                 </div>
-            </form>
-            <button class="btn secondary" onclick="closeModal()">Uždaryti</button>
+            <button type="button" class="btn secondary" onclick="closeModal()">Uždaryti</button>
         </div>
+        </form>
     </div>
 </div>
 
@@ -254,6 +299,9 @@ unset($order); // Nutraukiame nuorodą
             document.getElementById('m_customerName').innerText = data.customer_name;
             document.getElementById('m_customerEmail').innerText = data.customer_email;
             document.getElementById('m_customerPhone').innerText = data.customer_phone || '-';
+            
+            // Sekimo numeris
+            document.getElementById('m_trackingInput').value = data.tracking_number || '';
             
             // Adresas ir paštomatas
             let addressText = data.customer_address;
