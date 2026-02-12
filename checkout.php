@@ -14,6 +14,8 @@ if (empty($_SESSION['csrf_token'])) {
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/shipping_helper.php';
+// Reikalingas helpers.php, kad gautume getFreeShippingProducts funkciją
+require_once __DIR__ . '/helpers.php'; 
 
 $pdo = getPdo();
 
@@ -33,7 +35,11 @@ if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
 // 4. Gauname pristatymo kainų nustatymus
 $shippingSettings = getShippingSettings($pdo);
 
-// 5. GAUNAME PAŠTOMATUS IŠ DB (Pataisyta dalis)
+// 4.1 Gauname produktus, kurie suteikia nemokamą pristatymą
+$fsProducts = getFreeShippingProducts($pdo);
+$fsIds = array_column($fsProducts, 'product_id');
+
+// 5. GAUNAME PAŠTOMATUS IŠ DB
 $lockerList = [];
 try {
     // Rūšiuojame pagal pavadinimą (title), nes 'city' stulpelio DB nėra
@@ -44,10 +50,11 @@ try {
     error_log("Klaida gaunant paštomatus: " . $e->getMessage());
 }
 
-// 6. Skaičiuojame krepšelio sumą
+// 6. Skaičiuojame krepšelio sumą ir tikriname specialias prekes
 $cartItemsTotal = 0;
 $productsInCart = [];
 $ids = array_keys($_SESSION['cart']);
+$hasFreeShippingProduct = false; // Flagas nemokamam pristatymui
 
 if (!empty($ids)) {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -58,6 +65,12 @@ if (!empty($ids)) {
     foreach ($products as $p) {
         $qty = $_SESSION['cart'][$p['id']];
         $cartItemsTotal += $p['price'] * $qty;
+        
+        // Tikriname, ar ši prekė suteikia nemokamą pristatymą
+        if (in_array($p['id'], $fsIds)) {
+            $hasFreeShippingProduct = true;
+        }
+
         $productsInCart[] = [
             'id' => $p['id'],
             'price' => $p['price'],
@@ -99,8 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // Perskaičiuojame kainas serverio pusėje
-            $shippingPrice = calculateShippingPrice($shippingSettings, $cartItemsTotal, $method);
+            // Perskaičiuojame kainas serverio pusėje, perduodame $hasFreeShippingProduct
+            $shippingPrice = calculateShippingPrice($shippingSettings, $cartItemsTotal, $method, $hasFreeShippingProduct);
             $finalTotal = $cartItemsTotal + $shippingPrice;
 
             // Formuojame delivery details JSON
@@ -206,12 +219,17 @@ $user = $userStmt->fetch();
         <?php endif; ?>
 
         <?php 
-            $courierCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'courier');
-            $lockerCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'locker');
-            $isFree = ($shippingSettings['free_over'] > 0 && $cartItemsTotal >= $shippingSettings['free_over']);
+            // Skaičiuojame kainas, perduodami $hasFreeShippingProduct
+            $courierCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'courier', $hasFreeShippingProduct);
+            $lockerCost = calculateShippingPrice($shippingSettings, $cartItemsTotal, 'locker', $hasFreeShippingProduct);
+            
+            // Ar nemokamas pristatymas (pagal sumą ARBA pagal prekę)
+            $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $cartItemsTotal >= $shippingSettings['free_over']));
         ?>
 
-        <?php if($isFree): ?>
+        <?php if($hasFreeShippingProduct): ?>
+             <div class="free-shipping-notice">🎉 Jums taikomas nemokamas pristatymas (dovanos prekė)!</div>
+        <?php elseif($isFree): ?>
             <div class="free-shipping-notice">🎉 Jums taikomas nemokamas pristatymas!</div>
         <?php elseif($shippingSettings['free_over'] > 0): ?>
             <div style="text-align:center; font-size:13px; color:#64748b; margin-bottom:20px;">
@@ -318,6 +336,7 @@ $user = $userStmt->fetch();
 
     <script>
         const cartTotal = <?php echo number_format($cartItemsTotal, 2, '.', ''); ?>;
+        // JS gauna jau paskaičiuotas PHP reikšmes (kurios bus 0.00, jei $isFree = true)
         const prices = {
             pickup: 0.00,
             locker: <?php echo $isFree ? '0.00' : number_format($lockerCost, 2, '.', ''); ?>,
