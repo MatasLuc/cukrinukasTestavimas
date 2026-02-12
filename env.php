@@ -1,11 +1,12 @@
 <?php
-// Lightweight environment loader to read variables from a local .env file when present.
-// This avoids hardcoding secrets in the repository and keeps configuration in the environment.
+// env.php
+// Lightweight environment loader
 
 if (!function_exists('loadEnvFile')) {
     function loadEnvFile(string $path = __DIR__ . '/.env'): void
     {
         static $loaded = false;
+        // Leidžiame krauti iš naujo tik jei reikia, bet paprastai užtenka vieną kartą
         if ($loaded) {
             return;
         }
@@ -38,6 +39,7 @@ if (!function_exists('loadEnvFile')) {
                 continue;
             }
 
+            // Nuimame kabutes jei jos yra
             $valueLength = strlen($value);
             if ($valueLength >= 2) {
                 $firstChar = $value[0];
@@ -47,11 +49,10 @@ if (!function_exists('loadEnvFile')) {
                 }
             }
 
-            if (getenv($name) === false) {
-                putenv("{$name}={$value}");
-                $_ENV[$name] = $value;
-                $_SERVER[$name] = $value;
-            }
+            // Priverstinai nustatome kintamuosius, kad .env failas turėtų pirmenybę
+            putenv("{$name}={$value}");
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
         }
     }
 }
@@ -59,11 +60,13 @@ if (!function_exists('loadEnvFile')) {
 if (!function_exists('requireEnv')) {
     function requireEnv(string $name): string
     {
-        $value = getenv($name);
-        if ($value === false || $value === '') {
+        // Pirmiausia tikriname $_ENV, nes putenv ne visada veikia patikimai kai kuriuose serveriuose
+        $value = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
+        
+        if ($value === false || $value === '' || $value === null) {
             throw new RuntimeException("Missing required environment variable: {$name}");
         }
 
-        return $value;
+        return (string)$value;
     }
 }
