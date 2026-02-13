@@ -3,6 +3,11 @@
 
 // 0. IŠTRYNIMO LOGIKA
 if (isset($_POST['delete_id'])) {
+    // Saugumo patikrinimas: ar tai validi užklausa
+    if (function_exists('validateCsrf')) {
+        validateCsrf();
+    }
+
     $deleteId = (int)$_POST['delete_id'];
     try {
         // Ištriname užsakymą
@@ -14,7 +19,7 @@ if (isset($_POST['delete_id'])) {
         $stmtDelItems->execute([$deleteId]);
 
         // Perkrovimas, kad dingtų iš sąrašo
-        echo "<script>window.location.href=window.location.href;</script>";
+        echo "<script>window.location.href='index.php?page=orders';</script>";
         exit;
     } catch (PDOException $e) {
         echo "<div class='alert alert-danger'>Klaida trinant: " . $e->getMessage() . "</div>";
@@ -22,8 +27,8 @@ if (isset($_POST['delete_id'])) {
 }
 
 // 1. Surenkame duomenis
-// PATAISYMAS: Pašalintas u.phone, nes jo nėra users lentelėje. Naudojame orders.customer_phone
 try {
+    // PATAISYMAS: Pašalintas u.phone, nes jo nėra users lentelėje. Naudojame orders.customer_phone
     $allOrders = $pdo->query('
         SELECT o.*, 
                u.name AS user_name, 
@@ -44,12 +49,12 @@ $orderItemsStmt = $pdo->prepare('
     WHERE order_id = ?
 ');
 
-// Iš anksto paruošiame prekes kiekvienam užsakymui, kad galėtume perduoti į Modalą
+// Iš anksto paruošiame prekes kiekvienam užsakymui
 foreach ($allOrders as &$order) {
     $orderItemsStmt->execute([$order['id']]);
     $order['items'] = $orderItemsStmt->fetchAll(PDO::FETCH_ASSOC);
 }
-unset($order); // Nutraukiame nuorodą
+unset($order); 
 ?>
 
 <style>
@@ -79,7 +84,7 @@ unset($order); // Nutraukiame nuorodą
         background: rgba(0,0,0,0.5);
         backdrop-filter: blur(4px);
         z-index: 1000;
-        display: none; /* Paslėpta pagal nutylėjimą */
+        display: none; 
         align-items: center;
         justify-content: center;
         padding: 20px;
@@ -158,12 +163,10 @@ unset($order); // Nutraukiame nuorodą
         align-items: center;
     }
 
-    /* Input style for tracking */
     .form-control {
         padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%;
     }
 
-    /* Mygtukas ištrynimui */
     .btn-delete {
         background: #fee2e2; 
         color: #b91c1c; 
@@ -174,11 +177,8 @@ unset($order); // Nutraukiame nuorodą
         cursor: pointer;
         border-radius: 4px;
     }
-    .btn-delete:hover {
-        background: #fecaca;
-    }
+    .btn-delete:hover { background: #fecaca; }
     
-    /* Bool badges */
     .badge-bool { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     .badge-yes { background: #dcfce7; color: #166534; }
     .badge-no { background: #f3f4f6; color: #6b7280; }
@@ -238,10 +238,14 @@ unset($order); // Nutraukiame nuorodą
                         data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
                   Peržiūrėti
                 </button>
+                
                 <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
+                    <?php if(function_exists('csrfField')) echo csrfField(); ?>
+                    
                     <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
                     <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
                 </form>
+                
               </td>
             </tr>
           <?php endforeach; ?>
@@ -411,7 +415,6 @@ unset($order); // Nutraukiame nuorodą
             const detailsText = document.getElementById('m_deliveryDetailsText');
             if (data.delivery_details) {
                 detailsBox.style.display = 'block';
-                // Jei tai JSON, pabandom gražiau atvaizduoti, jei ne - tiesiog tekstą
                 try {
                     let obj = JSON.parse(data.delivery_details);
                     detailsText.innerText = JSON.stringify(obj, null, 2); 
