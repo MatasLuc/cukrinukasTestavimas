@@ -1,10 +1,34 @@
 <?php
 // admin/orders.php
 
+// 0. IŠTRYNIMO LOGIKA
+if (isset($_POST['delete_id'])) {
+    $deleteId = (int)$_POST['delete_id'];
+    try {
+        // Ištriname užsakymą
+        $stmtDel = $pdo->prepare("DELETE FROM orders WHERE id = ?");
+        $stmtDel->execute([$deleteId]);
+        
+        // Ištriname susijusias prekes (jei nėra automatinio ON DELETE CASCADE DB lygmenyje)
+        $stmtDelItems = $pdo->prepare("DELETE FROM order_items WHERE order_id = ?");
+        $stmtDelItems->execute([$deleteId]);
+
+        // Perkrovimas, kad dingtų iš sąrašo
+        echo "<script>window.location.href=window.location.href;</script>";
+        exit;
+    } catch (PDOException $e) {
+        echo "<div class='alert alert-danger'>Klaida trinant: " . $e->getMessage() . "</div>";
+    }
+}
+
 // 1. Surenkame duomenis
 // Prijungiame ir delivery_details, kad galėtume rodyti paštomatą
+// PAPILDYTA: Paimame ir u.phone AS user_phone, kad rodytų telefoną, jei jis yra vartotojo lentelėje
 $allOrders = $pdo->query('
-    SELECT o.*, u.name AS user_name, u.email AS user_email 
+    SELECT o.*, 
+           u.name AS user_name, 
+           u.email AS user_email, 
+           u.phone AS user_phone
     FROM orders o 
     LEFT JOIN users u ON u.id = o.user_id 
     ORDER BY o.created_at DESC
@@ -127,6 +151,21 @@ unset($order); // Nutraukiame nuorodą
         padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%;
     }
 
+    /* Mygtukas ištrynimui */
+    .btn-delete {
+        background: #fee2e2; 
+        color: #b91c1c; 
+        border: 1px solid #fca5a5; 
+        padding: 6px 10px; 
+        font-weight: bold;
+        margin-left: 5px;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    .btn-delete:hover {
+        background: #fecaca;
+    }
+
     @media (max-width: 700px) {
         .modal-grid { grid-template-columns: 1fr; }
         .modal-footer { flex-direction: column; gap: 10px; }
@@ -178,6 +217,10 @@ unset($order); // Nutraukiame nuorodą
                     data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
               Peržiūrėti
             </button>
+            <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
+                <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
+                <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
+            </form>
           </td>
         </tr>
       <?php endforeach; ?>
@@ -202,7 +245,7 @@ unset($order); // Nutraukiame nuorodą
                     <h4>Pirkėjas</h4>
                     <p id="m_customerName"></p>
                     <p id="m_customerEmail" class="muted" style="font-size:14px; margin-top:2px;"></p>
-                    <p id="m_customerPhone" class="muted" style="font-size:14px;"></p>
+                    <p id="m_customerPhone" class="muted" style="font-size:14px; margin-top:2px; color:#555; font-weight:600;"></p>
                 </div>
                 <div class="info-group">
                     <h4>Pristatymo informacija</h4>
@@ -267,7 +310,11 @@ unset($order); // Nutraukiame nuorodą
             
             document.getElementById('m_customerName').innerText = data.customer_name;
             document.getElementById('m_customerEmail').innerText = data.customer_email;
-            document.getElementById('m_customerPhone').innerText = data.customer_phone || '-';
+            
+            // TELEFONO LOGIKA:
+            // Pirmiausia ieškome užsakyme (customer_phone), jei nėra - imame iš user lentelės (user_phone), jei nėra - bendras phone
+            const phone = data.customer_phone || data.user_phone || data.phone || '-';
+            document.getElementById('m_customerPhone').innerText = "Tel: " + phone;
             
             // Sekimo numeris
             document.getElementById('m_trackingInput').value = data.tracking_number || '';
