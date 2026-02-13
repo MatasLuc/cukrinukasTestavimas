@@ -37,15 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unlink_facebook'])) {
     exit;
 }
 
-// Paimame vartotojo duomenis (PRIDĖTAS facebook_id)
-$stmt = $pdo->prepare('SELECT id, name, email, profile_photo, birthdate, gender, city, country, google_id, facebook_id FROM users WHERE id = ?');
+// Paimame vartotojo duomenis (PRIDĖTI STRIPE LAUKAI)
+$stmt = $pdo->prepare('SELECT id, name, email, profile_photo, birthdate, gender, city, country, google_id, facebook_id, stripe_account_id, stripe_onboarding_completed FROM users WHERE id = ?');
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
 
 $errors = [];
 $success = '';
 
-// Patikriname pranešimus (papildyta Facebook pranešimais)
+// Patikriname pranešimus (papildyta Facebook ir Stripe pranešimais)
 if (isset($_GET['success'])) {
     if ($_GET['success'] === 'google_linked') {
         $success = 'Google paskyra sėkmingai susieta!';
@@ -55,6 +55,8 @@ if (isset($_GET['success'])) {
         $success = 'Facebook paskyra sėkmingai susieta!';
     } elseif ($_GET['success'] === 'facebook_unlinked') {
         $success = 'Facebook paskyra sėkmingai atsieta.';
+    } elseif ($_GET['success'] === 'stripe_connected') {
+        $success = 'Sveikiname! Jūs tapote patvirtintu pardavėju. Dabar galite gauti išmokas.';
     }
 }
 if (isset($_GET['error'])) {
@@ -62,6 +64,10 @@ if (isset($_GET['error'])) {
         $errors[] = 'Ši Google paskyra jau susieta su kitu vartotoju.';
     } elseif ($_GET['error'] === 'facebook_taken') {
         $errors[] = 'Ši Facebook paskyra jau susieta su kitu vartotoju.';
+    } elseif ($_GET['error'] === 'stripe_incomplete') {
+        $errors[] = 'Registracija Stripe sistemoje nebuvo pilnai baigta.';
+    } elseif ($_GET['error'] === 'stripe_not_found') {
+        $errors[] = 'Įvyko klaida nustatant sąskaitą. Susisiekite su administracija.';
     }
 }
 
@@ -222,7 +228,7 @@ $fbAppId = getenv('FACEBOOK_APP_ID') ?: 'JUSU_FACEBOOK_APP_ID_CIA'; // Pakeisti 
         background: #f8fafc;
         flex-wrap: wrap; 
         gap: 12px;
-        margin-bottom: 12px; /* Pridėtas tarpas tarp eilučių */
+        margin-bottom: 12px;
     }
     .account-info { display: flex; align-items: center; gap: 12px; font-weight: 500; color: var(--text-main); }
     .badge-linked { background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid #bbf7d0; }
@@ -234,7 +240,7 @@ $fbAppId = getenv('FACEBOOK_APP_ID') ?: 'JUSU_FACEBOOK_APP_ID_CIA'; // Pakeisti 
     }
     .btn-unlink:hover { background: #fef2f2; border-color: #fecaca; }
 
-    /* Stilius Facebook susiejimo mygtukui (kad derėtų prie Google stiliaus) */
+    /* Facebook button */
     .btn-link-fb {
         background: #1877f2; border: 1px solid #1877f2; color: #fff;
         padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
@@ -275,6 +281,20 @@ $fbAppId = getenv('FACEBOOK_APP_ID') ?: 'JUSU_FACEBOOK_APP_ID_CIA'; // Pakeisti 
         content: "✓"; position: absolute; left: 0; top: 2px;
         color: var(--accent); font-weight: bold;
     }
+
+    /* Stripe Specific Styles */
+    .stripe-btn {
+        display: inline-flex; align-items: center; background-color: #635bff; color: white;
+        border: none; padding: 10px 16px; border-radius: 8px; text-decoration: none;
+        font-weight: 600; font-size: 13px; transition: background-color 0.2s;
+    }
+    .stripe-btn:hover { background-color: #4b45c2; color: white; }
+    .dashboard-link {
+        color: #635bff; text-decoration: none; font-weight: 500; font-size: 13px;
+        margin-left: 10px; display: inline-block;
+    }
+    .dashboard-link:hover { text-decoration: underline; }
+    .stripe-icon { margin-right: 8px; font-weight: bold; font-family: sans-serif; }
     
     @media(max-width: 600px) {
         .form-grid { grid-template-columns: 1fr; gap:0; }
@@ -493,7 +513,32 @@ $fbAppId = getenv('FACEBOOK_APP_ID') ?: 'JUSU_FACEBOOK_APP_ID_CIA'; // Pakeisti 
             </div>
 
           </div>
-      </div>
+
+          <div class="card">
+            <h2>Pardavėjo statusas</h2>
+            <p class="card-desc">Norėdami parduoti prekes bendruomenės turgelyje, turite susieti savo sąskaitą su Stripe.</p>
+            
+            <div class="account-row">
+                <div class="account-info">
+                    <span style="font-size: 20px; color: #635bff; font-weight: bold;">S</span>
+                    <span>Stripe Express</span>
+                    <?php if (!empty($user['stripe_onboarding_completed'])): ?>
+                        <span class="badge-linked">Patvirtinta</span>
+                    <?php else: ?>
+                        <span class="badge-unlinked">Nepradėta</span>
+                    <?php endif; ?>
+                </div>
+
+                <?php if (!empty($user['stripe_onboarding_completed'])): ?>
+                    <a href="stripe_connect.php" class="dashboard-link">Stripe Valdymas &rarr;</a>
+                <?php else: ?>
+                    <a href="stripe_connect.php" class="stripe-btn">
+                       <span class="stripe-icon">S</span> <?php echo !empty($user['stripe_account_id']) ? 'Tęsti registraciją' : 'Tapti pardavėju'; ?>
+                    </a>
+                <?php endif; ?>
+            </div>
+          </div>
+          </div>
 
       <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; height: fit-content;">
         <h2>Saugumo patarimai</h2>
