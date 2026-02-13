@@ -22,14 +22,12 @@ if (isset($_POST['delete_id'])) {
 }
 
 // 1. Surenkame duomenis
-// Prijungiame ir delivery_details, kad galėtume rodyti paštomatą
-// PAPILDYTA: Paimame ir u.phone AS user_phone, kad rodytų telefoną, jei jis yra vartotojo lentelėje
+// PATAISYMAS: Pašalintas u.phone, nes jo nėra users lentelėje. Naudojame orders.customer_phone
 try {
     $allOrders = $pdo->query('
         SELECT o.*, 
                u.name AS user_name, 
-               u.email AS user_email, 
-               u.phone AS user_phone
+               u.email AS user_email
         FROM orders o 
         LEFT JOIN users u ON u.id = o.user_id 
         ORDER BY o.created_at DESC
@@ -93,7 +91,7 @@ unset($order); // Nutraukiame nuorodą
     .modal-window {
         background: #fff;
         width: 100%;
-        max-width: 800px;
+        max-width: 900px;
         max-height: 90vh;
         border-radius: 16px;
         box-shadow: 0 20px 50px rgba(0,0,0,0.2);
@@ -104,7 +102,7 @@ unset($order); // Nutraukiame nuorodą
     }
     
     .modal-header {
-        padding: 20px 24px;
+        padding: 15px 24px;
         border-bottom: 1px solid #eee;
         display: flex;
         justify-content: space-between;
@@ -126,11 +124,20 @@ unset($order); // Nutraukiame nuorodą
         gap: 24px;
         margin-bottom: 24px;
     }
+
+    .info-section {
+        background: #f9f9f9;
+        border-radius: 8px;
+        padding: 15px;
+        border: 1px solid #eee;
+    }
     
-    .info-group h4 { margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; color: #666; }
-    .info-group p { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.4; }
+    .info-group h4 { margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; color: #888; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+    .info-row label { font-weight: 600; color: #555; }
+    .info-row span { text-align: right; color: #111; max-width: 60%; word-break: break-word; }
     
-    .item-list { border: 1px solid #eee; border-radius: 12px; overflow: hidden; }
+    .item-list { border: 1px solid #eee; border-radius: 12px; overflow: hidden; margin-top: 20px; }
     .item-row {
         display: flex; align-items: center; gap: 12px;
         padding: 10px 12px; border-bottom: 1px solid #eee;
@@ -170,8 +177,13 @@ unset($order); // Nutraukiame nuorodą
     .btn-delete:hover {
         background: #fecaca;
     }
+    
+    /* Bool badges */
+    .badge-bool { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .badge-yes { background: #dcfce7; color: #166534; }
+    .badge-no { background: #f3f4f6; color: #6b7280; }
 
-    @media (max-width: 700px) {
+    @media (max-width: 768px) {
         .modal-grid { grid-template-columns: 1fr; }
         .modal-footer { flex-direction: column; gap: 10px; }
         .modal-footer form { flex-direction: column; align-items: stretch; }
@@ -185,93 +197,146 @@ unset($order); // Nutraukiame nuorodą
       <span class="muted" style="font-size:13px;">Viso: <?php echo count($allOrders); ?></span>
   </div>
   
-  <table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Klientas</th>
-            <th>Data</th>
-            <th>Suma</th>
-            <th>Statusas</th>
-            <th style="text-align:right;">Veiksmai</th>
-        </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($allOrders as $order): 
-            $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($order['status']));
-      ?>
-        <tr>
-          <td><strong>#<?php echo (int)$order['id']; ?></strong></td>
-          <td>
-            <div style="font-weight:600;"><?php echo htmlspecialchars($order['customer_name']); ?></div>
-            <div class="muted" style="font-size:12px;"><?php echo htmlspecialchars($order['customer_email']); ?></div>
-          </td>
-          <td><?php echo date('Y-m-d H:i', strtotime($order['created_at'])); ?></td>
-          <td><strong><?php echo number_format((float)$order['total'], 2); ?> €</strong></td>
-          <td>
-            <span class="status-badge <?php echo $statusClass; ?>">
-                <?php echo ucfirst($order['status']); ?>
-            </span>
-            <?php if(!empty($order['tracking_number'])): ?>
-                <div style="font-size:10px; color:#666; margin-top:2px;">📦 <?php echo htmlspecialchars($order['tracking_number']); ?></div>
-            <?php endif; ?>
-          </td>
-          <td style="text-align:right;">
-            <button class="btn secondary open-order-modal" 
-                    type="button"
-                    data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
-              Peržiūrėti
-            </button>
-            <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
-                <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
-                <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
-            </form>
-          </td>
-        </tr>
-      <?php endforeach; ?>
-      <?php if (!$allOrders): ?>
-        <tr><td colspan="6" class="muted" style="text-align:center; padding:20px;">Užsakymų nerasta.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
+  <div style="overflow-x:auto;">
+      <table style="width:100%; min-width: 800px;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Klientas</th>
+                <th>Data</th>
+                <th>Suma</th>
+                <th>Statusas</th>
+                <th style="text-align:right;">Veiksmai</th>
+            </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($allOrders as $order): 
+                $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($order['status']));
+          ?>
+            <tr>
+              <td><strong>#<?php echo (int)$order['id']; ?></strong></td>
+              <td>
+                <div style="font-weight:600;"><?php echo htmlspecialchars($order['customer_name']); ?></div>
+                <div class="muted" style="font-size:12px;"><?php echo htmlspecialchars($order['customer_email']); ?></div>
+                <?php if(!empty($order['customer_phone'])): ?>
+                    <div class="muted" style="font-size:11px; color:#666;">Tel: <?php echo htmlspecialchars($order['customer_phone']); ?></div>
+                <?php endif; ?>
+              </td>
+              <td><?php echo date('Y-m-d H:i', strtotime($order['created_at'])); ?></td>
+              <td><strong><?php echo number_format((float)$order['total'], 2); ?> €</strong></td>
+              <td>
+                <span class="status-badge <?php echo $statusClass; ?>">
+                    <?php echo ucfirst($order['status']); ?>
+                </span>
+                <?php if(!empty($order['tracking_number'])): ?>
+                    <div style="font-size:10px; color:#666; margin-top:2px;">📦 <?php echo htmlspecialchars($order['tracking_number']); ?></div>
+                <?php endif; ?>
+              </td>
+              <td style="text-align:right;">
+                <button class="btn secondary open-order-modal" 
+                        type="button"
+                        data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
+                  Peržiūrėti
+                </button>
+                <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
+                    <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
+                    <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          <?php if (!$allOrders): ?>
+            <tr><td colspan="6" class="muted" style="text-align:center; padding:20px;">Užsakymų nerasta.</td></tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+  </div>
 </div>
 
 <div id="orderModal" class="modal-overlay">
     <div class="modal-window">
         <div class="modal-header">
             <h3 class="modal-title">Užsakymas #<span id="m_orderId"></span></h3>
-            <button type="button" class="modal-close" onclick="closeModal()">&times;</button>
+            <div style="margin-left: 10px; font-size:12px; color:#888;">
+                Sukurtas: <span id="m_createdAt"></span>
+            </div>
+            <button type="button" class="modal-close" onclick="closeModal()" style="margin-left:auto;">&times;</button>
         </div>
         
         <form method="post" style="display:contents;">
         <div class="modal-body">
+            
             <div class="modal-grid">
-                <div class="info-group">
-                    <h4>Pirkėjas</h4>
-                    <p id="m_customerName"></p>
-                    <p id="m_customerEmail" class="muted" style="font-size:14px; margin-top:2px;"></p>
-                    <p id="m_customerPhone" class="muted" style="font-size:14px; margin-top:2px; color:#555; font-weight:600;"></p>
-                </div>
-                <div class="info-group">
-                    <h4>Pristatymo informacija</h4>
-                    <p id="m_address" style="white-space: pre-line;"></p>
-                    <div id="m_deliveryMethod" style="margin-top:5px; font-size:13px; color:#2563eb; font-weight:600;"></div>
+                
+                <div style="display:flex; flex-direction:column; gap:20px;">
                     
-                    <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #eee;">
-                        <label style="font-size:12px; font-weight:700; color:#444; display:block; margin-bottom:4px;">Siuntos sekimo numeris:</label>
-                        <input type="text" name="tracking_number" id="m_trackingInput" class="form-control" placeholder="Įveskite kodą...">
-                        <div style="font-size:11px; color:#888; margin-top:2px;">Keičiant būseną į "Išsiųsta", šis kodas bus išsiųstas klientui.</div>
+                    <div class="info-section">
+                        <div class="info-group">
+                            <h4>Pirkėjo informacija</h4>
+                            <div class="info-row"><label>Vardas:</label> <span id="m_customerName"></span></div>
+                            <div class="info-row"><label>El. paštas:</label> <span id="m_customerEmail"></span></div>
+                            <div class="info-row"><label>Telefonas:</label> <span id="m_customerPhone"></span></div>
+                            <div class="info-row"><label>User ID:</label> <span id="m_userId"></span></div>
+                        </div>
                     </div>
+
+                    <div class="info-section">
+                        <div class="info-group">
+                            <h4>Pristatymo duomenys</h4>
+                            <div class="info-row"><label>Būdas:</label> <span id="m_deliveryMethod"></span></div>
+                            <div class="info-row"><label>Adresas:</label> <span id="m_address"></span></div>
+                            
+                            <div style="margin-top:10px; font-size:12px; background:#fff; padding:8px; border:1px dashed #ccc; display:none;" id="m_deliveryDetailsBox">
+                                <strong>Papildoma info (JSON):</strong><br>
+                                <span id="m_deliveryDetailsText" style="word-break:break-all; color:#555;"></span>
+                            </div>
+
+                            <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee;">
+                                <label style="font-size:12px; font-weight:700; color:#444; display:block; margin-bottom:4px;">Siuntos sekimo numeris:</label>
+                                <input type="text" name="tracking_number" id="m_trackingInput" class="form-control" placeholder="Įveskite kodą...">
+                                <div style="font-size:11px; color:#888; margin-top:2px;">Atnaujinus į "Išsiųsta", kodas bus išsiųstas klientui.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:20px;">
+                    
+                    <div class="info-section">
+                        <div class="info-group">
+                            <h4>Finansinė informacija</h4>
+                            <div class="info-row"><label>Nuolaidos kodas:</label> <span id="m_discountCode"></span></div>
+                            <div class="info-row"><label>Nuolaidos suma:</label> <span id="m_discountAmount"></span></div>
+                            <div class="info-row"><label>Pristatymo kaina:</label> <span id="m_shippingAmount"></span></div>
+                            <div class="info-row" style="font-size:16px; border-top:1px solid #ddd; padding-top:5px; margin-top:5px;">
+                                <label>VISO:</label> <strong id="m_total" style="color:#000;"></strong>
+                            </div>
+                            <div style="margin-top:10px; font-size:11px; color:#666;">
+                                Stripe Session ID: <br>
+                                <span id="m_stripeSession" style="font-family:monospace; word-break:break-all;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <div class="info-group">
+                            <h4>Sistemos būsenos (Email & Logs)</h4>
+                            <div class="info-row"><label>Atnaujinta:</label> <span id="m_updatedAt"></span></div>
+                            <div class="info-row"><label>Laiškas (Thank You):</label> <span id="m_emailThankYou"></span></div>
+                            <div class="info-row"><label>Laiškas (Išsiųsta):</label> <span id="m_emailShipped"></span></div>
+                            <div class="info-row"><label>Laiškas (Review):</label> <span id="m_emailReview"></span></div>
+                            <div class="info-row"><label>Prim. (1h):</label> <span id="m_emailRem1h"></span></div>
+                            <div class="info-row"><label>Prim. (24h):</label> <span id="m_emailRem24h"></span></div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
             <h4 style="margin-bottom:10px; color:#666; font-size:13px; text-transform:uppercase;">Užsakytos prekės</h4>
-            <div id="m_itemsList" class="item-list">
-                </div>
+            <div id="m_itemsList" class="item-list"></div>
             
-            <div style="text-align:right; margin-top:16px; font-size:18px;">
-                Viso: <strong id="m_total"></strong>
-            </div>
         </div>
 
         <div class="modal-footer">
@@ -301,6 +366,17 @@ unset($order); // Nutraukiame nuorodą
 <script>
     const modal = document.getElementById('orderModal');
     
+    function boolBadge(val) {
+        return val == 1 
+            ? '<span class="badge-bool badge-yes">TAIP</span>' 
+            : '<span class="badge-bool badge-no">NE</span>';
+    }
+
+    function formatDate(dateStr) {
+        if(!dateStr) return '-';
+        return dateStr;
+    }
+
     // Atidaryti modalą
     document.querySelectorAll('.open-order-modal').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -309,47 +385,62 @@ unset($order); // Nutraukiame nuorodą
                 data = JSON.parse(this.getAttribute('data-order'));
             } catch(e) { console.error("JSON Error", e); return; }
             
-            // Užpildome duomenis
+            // Header
             document.getElementById('m_orderId').innerText = data.id;
+            document.getElementById('m_createdAt').innerText = data.created_at;
             document.getElementById('m_formOrderId').value = data.id;
             
+            // Customer
             document.getElementById('m_customerName').innerText = data.customer_name;
             document.getElementById('m_customerEmail').innerText = data.customer_email;
+            document.getElementById('m_customerPhone').innerText = data.customer_phone || '-';
+            document.getElementById('m_userId').innerText = data.user_id ? ('#' + data.user_id) : 'Svečias';
             
-            // TELEFONO LOGIKA:
-            // Pirmiausia ieškome užsakyme (customer_phone), jei nėra - imame iš user lentelės (user_phone), jei nėra - bendras phone
-            const phone = data.customer_phone || data.user_phone || data.phone || '-';
-            document.getElementById('m_customerPhone').innerText = "Tel: " + phone;
-            
-            // Sekimo numeris
+            // Delivery
+            let methodMap = {
+                'courier': 'Kurjeris',
+                'locker': 'Paštomatas',
+                'pickup': 'Atsiėmimas'
+            };
+            document.getElementById('m_deliveryMethod').innerText = methodMap[data.delivery_method] || data.delivery_method;
+            document.getElementById('m_address').innerText = data.customer_address || '-';
             document.getElementById('m_trackingInput').value = data.tracking_number || '';
             
-            // Adresas ir paštomatas
-            let addressText = data.customer_address;
-            let deliveryText = '';
-
-            if (data.delivery_method === 'locker') {
-                deliveryText = '📦 Paštomatas';
-                // Bandome ištraukti detales jei jos JSON
+            // Delivery Details (JSON)
+            const detailsBox = document.getElementById('m_deliveryDetailsBox');
+            const detailsText = document.getElementById('m_deliveryDetailsText');
+            if (data.delivery_details) {
+                detailsBox.style.display = 'block';
+                // Jei tai JSON, pabandom gražiau atvaizduoti, jei ne - tiesiog tekstą
                 try {
-                    const details = JSON.parse(data.delivery_details);
-                    if (details.address) addressText = details.address;
-                    if (details.title) addressText = details.title + ' (' + details.address + ')';
-                    if (details.manual_request) addressText = "Rankinis įvedimas: " + details.manual_request;
-                } catch(e) {}
+                    let obj = JSON.parse(data.delivery_details);
+                    detailsText.innerText = JSON.stringify(obj, null, 2); 
+                } catch(e) {
+                    detailsText.innerText = data.delivery_details;
+                }
             } else {
-                deliveryText = '🚚 Kurjeris';
+                detailsBox.style.display = 'none';
             }
-            
-            document.getElementById('m_address').innerText = addressText;
-            document.getElementById('m_deliveryMethod').innerText = deliveryText;
 
-            document.getElementById('m_total').innerText = parseFloat(data.total).toFixed(2) + ' €';
-            
-            // Nustatome esamą statusą
+            // Financials
+            document.getElementById('m_discountCode').innerText = data.discount_code ? data.discount_code : '-';
+            document.getElementById('m_discountAmount').innerText = parseFloat(data.discount_amount || 0).toFixed(2) + ' €';
+            document.getElementById('m_shippingAmount').innerText = parseFloat(data.shipping_amount || 0).toFixed(2) + ' €';
+            document.getElementById('m_total').innerText = parseFloat(data.total || 0).toFixed(2) + ' €';
+            document.getElementById('m_stripeSession').innerText = data.stripe_session_id || '-';
+
+            // System Flags
+            document.getElementById('m_updatedAt').innerText = formatDate(data.updated_at);
+            document.getElementById('m_emailThankYou').innerHTML = boolBadge(data.email_thankyou);
+            document.getElementById('m_emailShipped').innerHTML = boolBadge(data.email_shipped_sent);
+            document.getElementById('m_emailReview').innerHTML = boolBadge(data.email_review_sent);
+            document.getElementById('m_emailRem1h').innerHTML = boolBadge(data.email_rem_1h);
+            document.getElementById('m_emailRem24h').innerHTML = boolBadge(data.email_rem_24h);
+
+            // Status select
             document.getElementById('m_statusSelect').value = data.status;
 
-            // Sugeneruojame prekes
+            // Items List
             const itemsContainer = document.getElementById('m_itemsList');
             itemsContainer.innerHTML = '';
             
@@ -357,14 +448,11 @@ unset($order); // Nutraukiame nuorodą
                 data.items.forEach(item => {
                     const price = parseFloat(item.price).toFixed(2);
                     const total = (item.price * item.quantity).toFixed(2);
-                    // Jei nėra nuotraukos, dedame placeholder
                     const imgUrl = item.image_url ? item.image_url : 'https://placehold.co/100?text=Foto';
                     
-                    // Variacijos
-                    let varInfo = '';
-                    if (item.variation_info) {
-                        varInfo = `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>`;
-                    }
+                    let varInfo = item.variation_info 
+                        ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>` 
+                        : '';
 
                     const html = `
                         <div class="item-row">
@@ -383,23 +471,18 @@ unset($order); // Nutraukiame nuorodą
                 itemsContainer.innerHTML = '<div style="padding:12px; text-align:center; color:#999;">Prekių sąrašas tuščias</div>';
             }
 
-            // Parodome modalą
+            // Show
             modal.style.display = 'flex';
-            // Mažas timeout animacijai
             setTimeout(() => { modal.classList.add('open'); }, 10);
         });
     });
 
-    // Uždaryti modalą funkcijos
     function closeModal() {
         modal.classList.remove('open');
         setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
     
-    // Uždaryti paspaudus už lango ribų
     modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            closeModal();
-        }
+        if (e.target === modal) closeModal();
     });
 </script>
