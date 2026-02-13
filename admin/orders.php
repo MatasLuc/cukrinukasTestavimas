@@ -1,37 +1,6 @@
 <?php
 // admin/orders.php
 
-// 0. POST užklausos apdorojimas (Atnaujinimas)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'order_status') {
-    $orderId = (int)$_POST['order_id'];
-    $newStatus = $_POST['status'];
-    $trackingNumber = isset($_POST['tracking_number']) ? trim($_POST['tracking_number']) : '';
-
-    // Patikriname, ar statusas keičiasi į "išsiųsta"
-    // Pirmiausia gauname seną statusą, kad žinotume ar siųsti laišką
-    $stmtCheck = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
-    $stmtCheck->execute([$orderId]);
-    $oldOrder = $stmtCheck->fetch();
-    $oldStatus = $oldOrder ? $oldOrder['status'] : '';
-
-    // Atnaujiname DB
-    $stmt = $pdo->prepare("UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?");
-    $stmt->execute([$newStatus, $trackingNumber, $orderId]);
-
-    // Jei statusas pasikeitė į "išsiųsta" (arba jau yra "išsiųsta", bet įvedėme/keitėme tracking kodą)
-    // Saugiau siųsti tik tada, kai pasirenkamas "išsiųsta".
-    // Kad nespamintume, galima tikrinti ar senas != 'išsiųsta', bet kartais norisi persiųsti laišką.
-    // Šiuo atveju siųsime, jei statusas yra 'išsiųsta' ir buvo paspaustas atnaujinimas.
-    if (strtolower($newStatus) === 'išsiųsta') {
-        require_once __DIR__ . '/../order_functions.php';
-        sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo);
-    }
-
-    // Perkrauname puslapį, kad matytume pokyčius
-    header("Location: " . $_SERVER['REQUEST_URI']);
-    exit;
-}
-
 // 1. Surenkame duomenis
 // Prijungiame ir delivery_details, kad galėtume rodyti paštomatą
 $allOrders = $pdo->query('
