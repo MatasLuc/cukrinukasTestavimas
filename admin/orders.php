@@ -1,6 +1,9 @@
 <?php
 // admin/orders.php
 
+require_once '../db.php';
+require_once 'functions.php';
+
 // 0. IŠTRYNIMO LOGIKA
 if (isset($_POST['delete_id'])) {
     $deleteId = (int)$_POST['delete_id'];
