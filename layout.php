@@ -817,8 +817,8 @@ function renderFooter(?PDO $pdo = null): void {
         echo <<<CSS
 <style>
 .footer { background: #121212; color: #fff; padding: 40px 22px; margin-top: 60px; font-size: 14px; }
-.footer-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
-.footer-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 30px; }
+.footer-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.footer-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
 .footer-nav { display: flex; gap: 24px; }
 .footer-nav a { color: #ccc; text-decoration: none; font-weight: 500; transition: color 0.2s; }
 .footer-nav a:hover { color: #fff; }
@@ -842,18 +842,18 @@ CSS;
       <div class="footer-inner">
         <div class="footer-top">
            <div class="footer-nav">
-              <a href="products.php">Pavadinimas 1</a>
-              <a href="products.php">Pavadinimas 2</a>
-              <a href="products.php">Pavadinimas 3</a>
-              <a href="products.php">Pavadinimas 4</a>
-              <a href="products.php">Pavadinimas 5</a>
+              <a href="news.php">Naujienos</a>
+              <a href="recipes.php">Receptai</a>
+              <a href="products.php">Parduotuvė</a>
+              <a href="community.php">Bendruomenė</a>
+              <a href="about.php">Apie mus</a>
            </div>
            <div class="footer-social">
               <span>Mus galite rasti ir čia</span>
-              <a href="#" aria-label="Facebook" target="_blank" rel="noopener">
+              <a href="https://www.facebook.com/cukrinukasbecukraus" aria-label="Facebook" target="_blank" rel="noopener">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.19 2.23.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.53-4.5-10.02-10-10.02Z"/></svg>
               </a>
-              <a href="#" aria-label="Instagram" target="_blank" rel="noopener">
+              <a href="https://www.instagram.com/cukrinukaslt/" aria-label="Instagram" target="_blank" rel="noopener">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85C2.38 3.92 3.9 2.38 7.15 2.23c1.27-.06 1.65-.07 4.85-.07m0-2.16c-3.26 0-3.67.01-4.95.07C3.76.23 1.05 1.77.47 5.05.41 6.33.4 6.74.4 10s.01 3.67.07 4.95c.58 3.28 3.29 4.82 6.58 4.88 1.28.06 1.69.07 4.95.07s3.67-.01 4.95-.07c3.29-.06 4.83-1.6 4.88-4.88.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.56-3.28-3.28-4.82-6.58-4.88C15.67.01 15.26 0 12 0Z"/><path d="M12 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32Zm0 10.16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/><path d="M20.63 4.8a1.44 1.44 0 1 1-2.88 0 1.44 1.44 0 0 1 2.88 0Z"/></svg>
               </a>
            </div>
