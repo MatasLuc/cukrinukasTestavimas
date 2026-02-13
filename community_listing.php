@@ -280,6 +280,18 @@ a { color:inherit; text-decoration:none; }
                     </span>
                  </div>
              <?php endif; ?>
+
+            <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
+                <form action="cart.php" method="POST" style="margin-top: 15px;">
+                    <input type="hidden" name="action" value="add_community">
+                    <input type="hidden" name="product_id" value="<?php echo $listing['id']; ?>">
+                    <button type="submit" class="btn btn-primary btn-lg btn-block">
+                        Įdėti į krepšelį (<?php echo number_format($listing['price'], 2); ?> €)
+                    </button>
+                </form>
+            <?php elseif(!isset($_SESSION['user_id'])): ?>
+                <div class="alert alert-info">Norėdami pirkti, turite prisijungti.</div>
+            <?php endif; ?>
              
              <div style="margin-top:20px; font-size:12px; color:var(--muted); line-height:1.5; background:#f9fafb; padding:10px; border-radius:12px;">
                 <p style="margin:0;">⚠️ Būkite atsargūs pervesdami pinigus. Cukrinukas.lt neatsako už sandorius tarp narių.</p>
