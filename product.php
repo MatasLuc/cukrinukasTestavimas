@@ -515,7 +515,7 @@ $meta = [
             <div class="info-list">
                 <div class="info-item"><span>🔄</span> 14 dienų grąžinimo garantija</div>
                 <div class="info-item"><span>🛡️</span> 24 mėn. kokybės garantija</div>
-                <div class="info-item"><span>🚀</span> Pristatymas per 1-3 d.d.</div>
+                <div class="info-item"><span>🚀</span> Pristatymas per <?php echo htmlspecialchars($product['delivery_time'] ?? '1-3 d.d.'); ?></div>
             </div>
         </form>
     </div>
