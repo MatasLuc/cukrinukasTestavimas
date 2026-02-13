@@ -85,6 +85,10 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         $lockerAddress = isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '';
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
+        // Stiliai
+        $styleText = "color: #475467; font-size: 14px; padding: 12px; border-bottom: 1px solid #e2e8f0;";
+        $styleHeader = "color: #475467; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; font-weight: 600;";
+        
         $itemsRows = '';
         $itemsTotal = 0;
         foreach ($items as $item) {
@@ -96,10 +100,10 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
             
             $itemsRows .= "
             <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #eee;'>$title</td>
-                <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: center;'>$qty</td>
-                <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: right;'>$price €</td>
-                <td style='padding: 10px; border-bottom: 1px solid #eee; text-align: right;'><strong>$totalItem €</strong></td>
+                <td style='$styleText'>$title</td>
+                <td style='$styleText text-align: center;'>$qty</td>
+                <td style='$styleText text-align: right;'>$price €</td>
+                <td style='$styleText text-align: right; color: #0f172a;'><strong>$totalItem €</strong></td>
             </tr>";
         }
 
@@ -108,48 +112,56 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         if ($shippingPrice > 0.001) {
             $shippingRow = "
             <tr>
-                <td colspan='3' style='padding: 10px; text-align: right; color: #666;'>Pristatymas:</td>
-                <td style='padding: 10px; text-align: right;'>" . number_format($shippingPrice, 2) . " €</td>
+                <td colspan='3' style='padding: 12px; text-align: right; color: #64748b; font-size: 14px;'>Pristatymas:</td>
+                <td style='padding: 12px; text-align: right; color: #0f172a; font-weight: 600; font-size: 14px;'>" . number_format($shippingPrice, 2) . " €</td>
             </tr>";
         }
 
         $emailContent = "
         <html>
-        <body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;'>
-            <div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
-                <div style='background-color: #e91e63; padding: 20px; text-align: center; color: white;'>
-                    <h1 style='margin: 0; font-size: 24px;'>Užsakymas #$orderId patvirtintas!</h1>
+        <head>
+            <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
+        </head>
+        <body style='font-family: \"Inter\", Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;'>
+            <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>
+                
+                <div style='padding: 32px; text-align: center; border-bottom: 1px solid #f1f5f9;'>
+                    <h1 style='margin: 0; color: #0f172a; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;'>Užsakymas #$orderId patvirtintas! 🎉</h1>
                 </div>
-                <div style='padding: 30px;'>
-                    <p>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
-                    <p>Ačiū, kad perkate „Cukrinukas“. Gavome jūsų apmokėjimą ir pradedame ruošti užsakymą.</p>
+
+                <div style='padding: 32px;'>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 24px;'>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 32px;'>Ačiū, kad perkate „Cukrinukas“. Gavome jūsų apmokėjimą ir pradedame ruošti užsakymą.</p>
                     
-                    <table style='width: 100%; border-collapse: collapse; margin-top: 10px;'>
+                    <table style='width: 100%; border-collapse: collapse; margin-bottom: 32px;'>
                         <thead>
-                            <tr style='background-color: #f9f9f9;'>
-                                <th style='padding: 10px; text-align: left;'>Prekė</th>
-                                <th style='padding: 10px; text-align: center;'>Kiekis</th>
-                                <th style='padding: 10px; text-align: right;'>Vnt.</th>
-                                <th style='padding: 10px; text-align: right;'>Suma</th>
+                            <tr>
+                                <th style='$styleHeader text-align: left;'>Prekė</th>
+                                <th style='$styleHeader text-align: center;'>Kiekis</th>
+                                <th style='$styleHeader text-align: right;'>Vnt.</th>
+                                <th style='$styleHeader text-align: right;'>Suma</th>
                             </tr>
                         </thead>
                         <tbody>$itemsRows</tbody>
                         <tfoot>
                             $shippingRow
                             <tr>
-                                <td colspan='3' style='padding: 15px; text-align: right; font-size: 18px;'><strong>VISO:</strong></td>
-                                <td style='padding: 15px; text-align: right; font-size: 18px; color: #e91e63;'><strong>" . number_format($order['total'], 2) . " €</strong></td>
+                                <td colspan='3' style='padding: 16px 12px; text-align: right; font-size: 16px; color: #0f172a;'><strong>VISO:</strong></td>
+                                <td style='padding: 16px 12px; text-align: right; font-size: 20px; color: #2563eb; font-weight: 700;'><strong>" . number_format($order['total'], 2) . " €</strong></td>
                             </tr>
                         </tfoot>
                     </table>
-                    <div style='background-color: #f9f9f9; padding: 15px; margin-top: 20px; border-radius: 5px;'>
-                        <p style='margin: 5px 0;'><strong>Pristatymo būdas:</strong> $deliveryMethod</p>
-                        <p style='margin: 5px 0;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
-                        <p style='margin: 5px 0;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? '-') . "</p>
+
+                    <div style='background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;'>
+                        <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600;'>Pristatymo informacija</h3>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Būdas:</strong> $deliveryMethod</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? '-') . "</p>
                     </div>
                 </div>
-                <div style='background-color: #333; color: #aaa; padding: 20px; text-align: center; font-size: 12px;'>
-                    <p>Cukrinukas © " . date('Y') . ". Visos teisės saugomos.</p>
+
+                <div style='background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+                    <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Cukrinukas © " . date('Y') . ". Visos teisės saugomos.</p>
                 </div>
             </div>
         </body>
@@ -182,34 +194,42 @@ function sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo) {
 
         $trackingHtml = '';
         if (!empty($trackingNumber)) {
+            // Dizainas kaip admin/emails.php "styleBox" ir "styleCode"
             $trackingHtml = "
-            <div style='background-color: #ecfdf5; border: 1px solid #d1fae5; color: #065f46; padding: 15px; margin: 20px 0; border-radius: 6px; text-align: center;'>
-                <p style='margin: 0; font-size: 14px;'>Jūsų siuntos sekimo numeris:</p>
-                <p style='margin: 5px 0 0 0; font-size: 20px; font-weight: bold; letter-spacing: 1px;'>$trackingNumber</p>
+            <div style='background-color: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; margin: 32px 0; text-align: center;'>
+                <p style='margin: 0 0 12px 0; font-size: 14px; color: #64748b;'>Jūsų siuntos sekimo numeris:</p>
+                <span style='background-color: #ffffff; border: 2px dashed #2563eb; color: #2563eb; font-size: 20px; font-weight: 700; padding: 12px 24px; display: inline-block; border-radius: 8px; letter-spacing: 1px;'>$trackingNumber</span>
             </div>";
         }
 
         $emailContent = "
         <html>
-        <body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;'>
-            <div style='max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
+        <head>
+            <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
+        </head>
+        <body style='font-family: \"Inter\", Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;'>
+            <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>
                 
-                <div style='background-color: #4caf50; padding: 20px; text-align: center; color: white;'>
-                    <h1 style='margin: 0; font-size: 24px;'>Jūsų užsakymas #$orderId išsiųstas!</h1>
+                <div style='padding: 32px; text-align: center; border-bottom: 1px solid #f1f5f9;'>
+                    <h1 style='margin: 0; color: #0f172a; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;'>Jūsų užsakymas #$orderId išsiųstas! 📦</h1>
                 </div>
 
-                <div style='padding: 30px;'>
-                    <p>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
-                    <p>Džiugios naujienos! Jūsų užsakymas buvo supakuotas ir perduotas kurjerių tarnybai.</p>
+                <div style='padding: 32px;'>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 16px;'>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 16px;'>Džiugios naujienos! Jūsų užsakymas buvo supakuotas ir perduotas kurjerių tarnybai.</p>
                     
                     $trackingHtml
 
-                    <p>Prekės jus turėtų pasiekti artimiausiu metu.</p>
-                    <p>Jei turite klausimų, galite atsakyti į šį laišką.</p>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 8px;'>Prekės jus turėtų pasiekti artimiausiu metu.</p>
+                    <p style='color: #475467; font-size: 16px; line-height: 1.6;'>Jei turite klausimų, galite atsakyti į šį laišką.</p>
+                    
+                    <div style='text-align: center; margin-top: 32px;'>
+                        <a href='https://cukrinukas.lt' style='background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 600; font-size: 15px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);'>Grįžti į parduotuvę</a>
+                    </div>
                 </div>
 
-                <div style='background-color: #333; color: #aaa; padding: 20px; text-align: center; font-size: 12px;'>
-                    <p>Cukrinukas © " . date('Y') . ". Ačiū, kad perkate!</p>
+                <div style='background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+                    <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Cukrinukas © " . date('Y') . ". Ačiū, kad perkate!</p>
                 </div>
             </div>
         </body>
