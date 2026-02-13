@@ -372,9 +372,19 @@ foreach ($allCats as $c) {
                         <label>Akcijos kaina (€)</label>
                         <input type="number" step="0.01" name="sale_price" id="p_sale_price" class="form-control">
                     </div>
-                    <div class="full-width input-group">
+                    <div class="input-group">
                         <label>Bendras likutis (Jei nenaudojamos variacijos) *</label>
                         <input type="number" name="quantity" id="p_quantity" class="form-control" value="0" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Pristatymo terminas</label>
+                        <select name="delivery_time" id="p_delivery_time" class="form-control">
+                            <option value="1-3 d.d.">1-3 d.d.</option>
+                            <option value="5-7 d.d.">5-7 d.d.</option>
+                            <option value="10-14 d.d.">10-14 d.d.</option>
+                            <option value="Pagal užsakymą">Pagal užsakymą</option>
+                        </select>
                     </div>
 
                     <div class="full-width input-group">
@@ -740,6 +750,9 @@ foreach ($allCats as $c) {
         document.getElementById('p_price').value = data.price;
         document.getElementById('p_sale_price').value = data.sale_price||'';
         document.getElementById('p_quantity').value = data.quantity;
+        
+        // Set delivery time
+        document.getElementById('p_delivery_time').value = data.delivery_time || '1-3 d.d.';
 
         if(data.is_featured_flag > 0) document.getElementById('p_featured').checked = true;
         
@@ -819,6 +832,8 @@ foreach ($allCats as $c) {
 
         document.getElementById('descEditor').innerHTML = '';
         document.getElementById('attributesContainer').innerHTML = '';
+        document.getElementById('p_delivery_time').value = '1-3 d.d.';
+        
         addRichAttrRow(); 
         document.getElementById('variationsWrapper').innerHTML = '';
         document.getElementById('imgPreview').innerHTML = '';
