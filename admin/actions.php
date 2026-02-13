@@ -336,7 +336,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'order_status') {
         $orderId = (int)($_POST['order_id'] ?? 0);
         $status = trim($_POST['status'] ?? '');
-        $allowed = ["laukiama", "apdorojama", "išsiųsta", "įvykdyta", "apmokėta", "atšaukta"];
+        $trackingNumber = trim($_POST['tracking_number'] ?? ''); // PAIMAME TRACKING KODĄ
+        
+        // Išplečiame leidžiamų statusų sąrašą
+        $allowed = ["laukiama", "laukiama apmokėjimo", "apdorojama", "išsiųsta", "įvykdyta", "apmokėta", "atšaukta", "atmesta"];
         
         if ($orderId && in_array($status, $allowed, true)) {
             
@@ -345,15 +348,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../helpers.php'; // Užtikrinam, kad turim funkciją
                 approveOrder($pdo, $orderId);
                 
-                // Jei pasirinkta 'įvykdyta', papildomai dar atnaujinam statusą (nes approveOrder nustato 'apmokėta')
+                // Jei pasirinkta 'įvykdyta', papildomai dar atnaujinam statusą ir tracking (nes approveOrder nustato 'apmokėta')
                 if ($status === 'įvykdyta') {
-                    $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?')->execute(['įvykdyta', $orderId]);
+                    $pdo->prepare('UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute(['įvykdyta', $trackingNumber, $orderId]);
+                } else {
+                    // Jei tik 'apmokėta', vis tiek išsaugome tracking, jei įvestas
+                     $pdo->prepare('UPDATE orders SET tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute([$trackingNumber, $orderId]);
                 }
                 
-                redirectWithMsg('orders', 'Užsakymas patvirtintas, likučiai nurašyti ir laiškai išsiųsti.');
+                redirectWithMsg('orders', 'Užsakymas patvirtintas, likučiai nurašyti.');
             } else {
-                // Kitiems statusams (pvz. išsiųsta, atšaukta) tiesiog atnaujinam DB
-                $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?')->execute([$status, $orderId]);
+                // Kitiems statusams (pvz. išsiųsta, atšaukta)
+                
+                // 1. Atnaujiname statusą IR tracking numerį
+                $pdo->prepare('UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute([$status, $trackingNumber, $orderId]);
+
+                // 2. Jei IŠSIŲSTA - siunčiame laišką klientui
+                if ($status === 'išsiųsta') {
+                    require_once __DIR__ . '/../order_functions.php';
+                    if (function_exists('sendShippingConfirmationEmail')) {
+                        sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo);
+                    }
+                    redirectWithMsg('orders', 'Užsakymas pažymėtas kaip išsiųstas, klientas informuotas.');
+                }
+
                 redirectWithMsg('orders', 'Užsakymo būsena atnaujinta');
             }
         }
