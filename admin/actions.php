@@ -169,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $salePrice = isset($_POST['sale_price']) && $_POST['sale_price'] !== '' ? (float)$_POST['sale_price'] : null;
         $qty = (int)($_POST['quantity'] ?? 0);
         $metaTags = trim($_POST['meta_tags'] ?? '');
+        $deliveryTime = trim($_POST['delivery_time'] ?? '1-3 d.d.'); // Naujas kintamasis
         
         $isFeatured = isset($_POST['is_featured']) ? true : false;
         
@@ -180,17 +181,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($id) {
                 // Update PRODUCTS
-                $stmt = $pdo->prepare('UPDATE products SET category_id=?, title=?, subtitle=?, description=?, ribbon_text=?, price=?, sale_price=?, quantity=?, meta_tags=? WHERE id=?');
-                $stmt->execute([$primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null, $price, $salePrice, $qty, $metaTags ?: null, $id]);
+                $stmt = $pdo->prepare('UPDATE products SET category_id=?, title=?, subtitle=?, description=?, ribbon_text=?, price=?, sale_price=?, quantity=?, meta_tags=?, delivery_time=? WHERE id=?');
+                $stmt->execute([$primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null, $price, $salePrice, $qty, $metaTags ?: null, $deliveryTime, $id]);
                 $productId = $id;
                 $msg = 'Prekė atnaujinta';
             } else {
                 // Create PRODUCTS
-                $stmt = $pdo->prepare('INSERT INTO products (category_id, title, subtitle, description, ribbon_text, image_url, price, sale_price, quantity, meta_tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $stmt = $pdo->prepare('INSERT INTO products (category_id, title, subtitle, description, ribbon_text, image_url, price, sale_price, quantity, meta_tags, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 $stmt->execute([
                     $primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null,
                     'https://placehold.co/600x400?text=Preke', 
-                    $price, $salePrice, $qty, $metaTags ?: null
+                    $price, $salePrice, $qty, $metaTags ?: null, $deliveryTime
                 ]);
                 $productId = (int)$pdo->lastInsertId();
                 $msg = 'Prekė sukurta';
@@ -226,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Primary Image change
             if (isset($_POST['primary_image_id']) && function_exists('setPrimaryImage')) {
-                setPrimaryImage($pdo, $productId, (int)$_POST['primary_image_id']);
+                setPrimaryImage($pdo, $productId, (int)$$_POST['primary_image_id']);
             }
 
             // Delete images
