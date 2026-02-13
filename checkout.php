@@ -587,16 +587,28 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
 
     <div class="page">
         
-        <?php if (!empty($_SESSION['user_id'])): ?>
-            <div class="promo-banner">
+        <div class="promo-banner">
+            <?php if (!empty($_SESSION['user_id'])): ?>
                 <div class="promo-content">
                     <div class="pill">🎉 Jūs esate klubo narys</div>
                     <h2>AČIŪ, kad esate su mumis!</h2>
                     <p>Kaip registruotam nariui, dovanojame Jums išskirtinę <strong>5% nuolaidą</strong> šiam krepšeliui.</p>
                 </div>
                 <div class="promo-code-box">KODAS: ACIU</div>
-            </div>
-        <?php endif; ?>
+            <?php else: ?>
+                <div class="promo-content">
+                    <div class="pill">🎁 Išskirtinis pasiūlymas</div>
+                    <h2>Norite gauti 5% nuolaidą?</h2>
+                    <p>
+                        <a href="login.php" style="color: inherit; text-decoration: underline; font-weight: bold;">Prisijunkite</a> 
+                        arba 
+                        <a href="register.php" style="color: inherit; text-decoration: underline; font-weight: bold;">registruokitės</a>, 
+                        tapkite klubo nariu ir sutaupykite!
+                    </p>
+                </div>
+                <div class="promo-code-box" style="opacity: 0.5;">TIK NARIAMS</div>
+            <?php endif; ?>
+        </div>
 
         <h1 class="page-title">Užsakymo formavimas</h1>
 
