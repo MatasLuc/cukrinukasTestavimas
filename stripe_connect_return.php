@@ -1,4 +1,5 @@
 <?php
+// 1. Įjungiame klaidų rodymą
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -8,6 +9,9 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/lib/stripe/init.php';
 
 session_start();
+
+// 2. FIX: Inicijuojame DB
+$pdo = getPdo();
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -35,8 +39,7 @@ if (!$stripeKey && isset($_ENV['STRIPE_SECRET_KEY'])) {
 try {
     $account = \Stripe\Account::retrieve($user['stripe_account_id']);
 
-    // Tikriname, ar charges_enabled (ar gali priimti pinigus)
-    // ARBA ar details_submitted (ar užpildė formą)
+    // Tikriname ar pateikė duomenis
     if ($account->details_submitted) {
         $updateStmt = $pdo->prepare("UPDATE users SET stripe_onboarding_completed = 1 WHERE id = ?");
         $updateStmt->execute([$user_id]);
