@@ -24,15 +24,20 @@ if (isset($_POST['delete_id'])) {
 // 1. Surenkame duomenis
 // Prijungiame ir delivery_details, kad galėtume rodyti paštomatą
 // PAPILDYTA: Paimame ir u.phone AS user_phone, kad rodytų telefoną, jei jis yra vartotojo lentelėje
-$allOrders = $pdo->query('
-    SELECT o.*, 
-           u.name AS user_name, 
-           u.email AS user_email, 
-           u.phone AS user_phone
-    FROM orders o 
-    LEFT JOIN users u ON u.id = o.user_id 
-    ORDER BY o.created_at DESC
-')->fetchAll();
+try {
+    $allOrders = $pdo->query('
+        SELECT o.*, 
+               u.name AS user_name, 
+               u.email AS user_email, 
+               u.phone AS user_phone
+        FROM orders o 
+        LEFT JOIN users u ON u.id = o.user_id 
+        ORDER BY o.created_at DESC
+    ')->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    echo "<div class='alert alert-danger'>Duomenų bazės klaida: " . $e->getMessage() . "</div>";
+    $allOrders = [];
+}
 
 $orderItemsStmt = $pdo->prepare('
     SELECT oi.*, p.title, p.image_url 
@@ -270,7 +275,7 @@ unset($order); // Nutraukiame nuorodą
         </div>
 
         <div class="modal-footer">
-                <?php echo csrfField(); ?>
+                <?php if(function_exists('csrfField')) echo csrfField(); ?>
                 <input type="hidden" name="action" value="order_status">
                 <input type="hidden" name="order_id" id="m_formOrderId">
                 
