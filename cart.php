@@ -111,6 +111,29 @@ $hasGiftProduct = !empty($freeShippingIds);
 
 // --- PABAIGA LOGIKOS ---
 
+if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
+    $product_id = (int)$_POST['product_id'];
+    // Naudojame atskirą sesiją bendruomenės prekėms
+    if (!isset($_SESSION['cart_community'])) {
+        $_SESSION['cart_community'] = [];
+    }
+    
+    // Bendruomenės prekių kiekis dažniausiai yra 1 vnt. (vienetinė prekė)
+    // Bet jei leidžiate daugiau, galima keisti logiką. Čia darome, kad tiesiog įsideda.
+    $_SESSION['cart_community'][$product_id] = 1;
+    
+    // Nukreipiame atgal arba į krepšelį
+    header('Location: cart.php');
+    exit;
+}
+
+if (isset($_GET['action']) && $_GET['action'] == 'remove_community') {
+    $id = (int)$_GET['id'];
+    unset($_SESSION['cart_community'][$id]);
+    header('Location: cart.php');
+    exit;
+}
+
 if (isset($_POST['remove_key'])) {
     validateCsrfToken();
     $removeKey = $_POST['remove_key'];
