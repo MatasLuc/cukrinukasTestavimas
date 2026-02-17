@@ -1,4 +1,5 @@
 <?php
+// Įjungiame klaidų rodymą
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -6,7 +7,7 @@ error_reporting(E_ALL);
 session_start();
 require __DIR__ . '/db.php';
 require __DIR__ . '/layout.php';
-require_once __DIR__ . '/helpers.php'; // Būtina slugify funkcijai
+require_once __DIR__ . '/helpers.php'; 
 
 $pdo = getPdo();
 ensureProductsTable($pdo);
@@ -16,7 +17,7 @@ tryAutoLogin($pdo);
 
 // --- 1. VEIKSMAI (POST/GET) ---
 
-// A. Bendruomenės prekės pridėjimas (NAUJA)
+// A. Bendruomenės prekės pridėjimas
 if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
     validateCsrfToken();
     $product_id = (int)$_POST['product_id'];
@@ -25,24 +26,21 @@ if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
         $_SESSION['cart_community'] = [];
     }
     
-    // Bendruomenės prekė yra unikali (1 vnt.)
     $_SESSION['cart_community'][$product_id] = 1;
     
     header('Location: cart.php');
     exit;
 }
 
-// B. Bendruomenės prekės pašalinimas (NAUJA)
+// B. Bendruomenės prekės pašalinimas
 if (isset($_GET['action']) && $_GET['action'] == 'remove_community') {
-    // GET užklausoms CSRF dažnai nenaudojamas remove mygtukuose, bet dėl saugumo gerai turėti.
-    // Čia paliekame paprastą GET, nes vartotojas tiesiog trina iš sesijos.
     $id = (int)$_GET['id'];
     unset($_SESSION['cart_community'][$id]);
     header('Location: cart.php');
     exit;
 }
 
-// C. Standartinės prekės pašalinimas (ESAMA)
+// C. Standartinės prekės pašalinimas
 if (isset($_POST['remove_key'])) {
     validateCsrfToken();
     $removeKey = $_POST['remove_key'];
@@ -52,7 +50,7 @@ if (isset($_POST['remove_key'])) {
     exit;
 }
 
-// D. Promo prekės pridėjimas (ESAMA)
+// D. Promo prekės pridėjimas
 if (isset($_POST['add_promo_product'])) {
     validateCsrfToken();
     $pid = (int)$_POST['add_promo_product'];
@@ -70,7 +68,7 @@ $items = [];
 $total = 0;
 $freeShippingIds = [];
 
-// --- DALIS 1: STANDARTINĖ PARDUOTUVĖ (TAVO KODAS) ---
+// --- DALIS 1: STANDARTINĖ PARDUOTUVĖ ---
 $rawCart = $_SESSION['cart'] ?? [];
 $rawVariations = $_SESSION['cart_variations'] ?? [];
 
@@ -79,7 +77,6 @@ $globalDiscount = getGlobalDiscount($pdo);
 $fsProducts = getFreeShippingProducts($pdo);
 $fsIds = array_column($fsProducts, 'product_id');
 
-// Surenkame unikalius produktų ID iš krepšelio raktų
 $productIdsToFetch = [];
 foreach (array_keys($rawCart) as $key) {
     $parts = explode('_', $key);
@@ -99,7 +96,6 @@ if (!empty($productIdsToFetch)) {
     }
 }
 
-// Formuojame items sąrašą (Standartinės prekės)
 foreach ($rawCart as $key => $qty) {
     $parts = explode('_', $key);
     $pid = (int)$parts[0];
@@ -135,7 +131,7 @@ foreach ($rawCart as $key => $qty) {
     }
 
     $items[] = [
-        'type' => 'shop', // Identifikatorius atvaizdavimui
+        'type' => 'shop', 
         'id' => $pid,
         'cart_key' => $key,
         'title' => $product['title'],
@@ -150,40 +146,38 @@ foreach ($rawCart as $key => $qty) {
     $total += ($finalPrice * $qty);
 }
 
-// --- DALIS 2: BENDRUOMENĖS PREKĖS (NAUJA) ---
+// --- DALIS 2: BENDRUOMENĖS PREKĖS ---
 if (isset($_SESSION['cart_community']) && !empty($_SESSION['cart_community'])) {
     $c_ids = array_keys($_SESSION['cart_community']);
     if (!empty($c_ids)) {
         $placeholders = implode(',', array_fill(0, count($c_ids), '?'));
+        // DĖMESIO: Lentelė vadinasi 'community_listings'
         $stmt = $pdo->prepare("SELECT * FROM community_listings WHERE id IN ($placeholders)");
         $stmt->execute($c_ids);
         $comm_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($comm_products as $item) {
-            $qty = 1; // Bendruomenės prekės visada po 1
+            $qty = 1; 
             $price = (float)$item['price'];
             
-            // Nuotraukos atvaizdavimas (tikrinam ar JSON ar string)
+            // --- FIX NUOTRAUKOMS ---
+            // Naudojame 'image_url' stulpelį
             $imagePath = 'uploads/default.png';
-            if (!empty($item['image'])) {
-                $decoded = json_decode($item['image'], true);
-                if (is_array($decoded) && !empty($decoded[0])) {
-                    $imagePath = $decoded[0];
-                } else {
-                    $imagePath = $item['image'];
-                }
+            if (!empty($item['image_url'])) {
+                $imagePath = $item['image_url'];
             }
+            // ------------------------
 
             $items[] = [
-                'type' => 'community', // Identifikatorius
+                'type' => 'community',
                 'id' => $item['id'],
-                'cart_key' => 'comm_' . $item['id'], // Fiktyvus raktas
+                'cart_key' => 'comm_' . $item['id'],
                 'title' => $item['title'],
-                'image_url' => $imagePath,
+                'image_url' => $imagePath, 
                 'quantity' => $qty,
                 'price' => $price,
                 'line_total' => $price * $qty,
-                'variation' => [], // Nėra variacijų
+                'variation' => [],
                 'free_shipping_gift' => false
             ];
 
@@ -191,8 +185,6 @@ if (isset($_SESSION['cart_community']) && !empty($_SESSION['cart_community'])) {
         }
     }
 }
-
-// --- LOGIKOS PABAIGA ---
 
 $freeShippingOffers = getFreeShippingProducts($pdo);
 $hasGiftProduct = !empty($freeShippingIds);
@@ -224,7 +216,7 @@ $hasGiftProduct = !empty($freeShippingIds);
     
     .page { max-width: 1200px; margin:0 auto; padding:32px 20px 72px; }
 
-    /* Hero Section (Match orders.php) */
+    /* Hero Section */
     .hero { 
         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
         border:1px solid #dbeafe; 
@@ -291,7 +283,7 @@ $hasGiftProduct = !empty($freeShippingIds);
     .item-img {
         width: 80px;
         height: 80px;
-        object-fit: cover; /* Pakeista iš contain į cover, kad geriau atrodytų įvairios nuotraukos */
+        object-fit: cover; 
         background: #fff;
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -339,7 +331,7 @@ $hasGiftProduct = !empty($freeShippingIds);
     /* Summary Sidebar */
     .summary-box {
         position: sticky;
-        top: 90px; /* Pagal headerio aukštį */
+        top: 90px; 
     }
     .summary-row {
         display: flex;
@@ -554,7 +546,7 @@ $hasGiftProduct = !empty($freeShippingIds);
                 
                 <?php foreach ($items as $item): ?>
                   <?php 
-                    // Jei tai parduotuvės prekė, rodom nuorodą, jei bendruomenės - kitokią
+                    // Nuorodos logika
                     $isCommunity = ($item['type'] ?? 'shop') === 'community';
                     if ($isCommunity) {
                          $itemUrl = '/community_listing.php?id=' . (int)$item['id']; 
