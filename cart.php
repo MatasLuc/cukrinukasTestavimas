@@ -112,6 +112,7 @@ $hasGiftProduct = !empty($freeShippingIds);
 // --- PABAIGA LOGIKOS ---
 
 if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
+    validateCsrfToken(); // Būtina: patikriname ar raktas teisingas
     $product_id = (int)$_POST['product_id'];
     // Naudojame atskirą sesiją bendruomenės prekėms
     if (!isset($_SESSION['cart_community'])) {
