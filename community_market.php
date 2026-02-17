@@ -365,7 +365,7 @@ echo headerStyles();
                     </div>
                     <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
                         <form action="cart.php" method="POST" style="display:inline;">
-                            <input type="hidden" name="action" value="add_community">
+                            <?php echo csrfField(); ?> <input type="hidden" name="action" value="add_community">
                             <input type="hidden" name="product_id" value="<?php echo $item['id']; ?>">
                             <button type="submit" class="btn btn-sm btn-primary">
                                 <i class="fas fa-shopping-cart"></i> Į krepšelį
