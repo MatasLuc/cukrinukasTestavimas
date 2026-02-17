@@ -10,7 +10,7 @@ require_once __DIR__ . '/lib/stripe/init.php';
 
 session_start();
 
-$stripeSecretKey = getEnvVar('STRIPE_SECRET_KEY');
+$stripeSecretKey = requireEnv('STRIPE_SECRET_KEY');
 \Stripe\Stripe::setApiKey($stripeSecretKey);
 
 // 1. Paimame sesijos ID iš URL
