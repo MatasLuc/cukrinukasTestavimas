@@ -155,8 +155,7 @@ if (isset($_SESSION['cart_community']) && !empty($_SESSION['cart_community'])) {
     $c_ids = array_keys($_SESSION['cart_community']);
     if (!empty($c_ids)) {
         $placeholders = implode(',', array_fill(0, count($c_ids), '?'));
-        // Pataisymas: naudojame lentelę 'community_market'
-        $stmt = $pdo->prepare("SELECT * FROM community_market WHERE id IN ($placeholders)");
+        $stmt = $pdo->prepare("SELECT * FROM community_listings WHERE id IN ($placeholders)");
         $stmt->execute($c_ids);
         $comm_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
