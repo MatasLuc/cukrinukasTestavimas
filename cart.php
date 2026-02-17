@@ -10,15 +10,66 @@ ensureCartTables($pdo);
 ensureAdminAccount($pdo);
 tryAutoLogin($pdo);
 
-// --- KREPŠELIO SURINKIMO LOGIKA ---
-$rawCart = $_SESSION['cart'] ?? [];
-$rawVariations = $_SESSION['cart_variations'] ?? [];
+// --- 1. VEIKSMAI (POST/GET) ---
+
+// A. Bendruomenės prekės pridėjimas (NAUJA)
+if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
+    validateCsrfToken();
+    $product_id = (int)$_POST['product_id'];
+    
+    if (!isset($_SESSION['cart_community'])) {
+        $_SESSION['cart_community'] = [];
+    }
+    
+    // Bendruomenės prekė yra unikali (1 vnt.)
+    $_SESSION['cart_community'][$product_id] = 1;
+    
+    header('Location: cart.php');
+    exit;
+}
+
+// B. Bendruomenės prekės pašalinimas (NAUJA)
+if (isset($_GET['action']) && $_GET['action'] == 'remove_community') {
+    // GET užklausoms CSRF dažnai nenaudojamas remove mygtukuose, bet dėl saugumo gerai turėti.
+    // Čia paliekame paprastą GET, nes vartotojas tiesiog trina iš sesijos.
+    $id = (int)$_GET['id'];
+    unset($_SESSION['cart_community'][$id]);
+    header('Location: cart.php');
+    exit;
+}
+
+// C. Standartinės prekės pašalinimas (ESAMA)
+if (isset($_POST['remove_key'])) {
+    validateCsrfToken();
+    $removeKey = $_POST['remove_key'];
+    unset($_SESSION['cart'][$removeKey]);
+    unset($_SESSION['cart_variations'][$removeKey]);
+    header('Location: /cart.php');
+    exit;
+}
+
+// D. Promo prekės pridėjimas (ESAMA)
+if (isset($_POST['add_promo_product'])) {
+    validateCsrfToken();
+    $pid = (int)$_POST['add_promo_product'];
+    $key = (string)$pid . '_default';
+    if ($pid > 0) {
+        $_SESSION['cart'][$key] = ($_SESSION['cart'][$key] ?? 0) + 1;
+    }
+    header('Location: /cart.php');
+    exit;
+}
+
+// --- 2. KREPŠELIO SURINKIMO LOGIKA ---
 
 $items = [];
 $total = 0;
 $freeShippingIds = [];
 
-// Nuolaidų gavimas (jei helperiai naudoja tas pačias funkcijas)
+// --- DALIS 1: STANDARTINĖ PARDUOTUVĖ (TAVO KODAS) ---
+$rawCart = $_SESSION['cart'] ?? [];
+$rawVariations = $_SESSION['cart_variations'] ?? [];
+
 $categoryDiscounts = getCategoryDiscounts($pdo);
 $globalDiscount = getGlobalDiscount($pdo);
 $fsProducts = getFreeShippingProducts($pdo);
@@ -27,7 +78,6 @@ $fsIds = array_column($fsProducts, 'product_id');
 // Surenkame unikalius produktų ID iš krepšelio raktų
 $productIdsToFetch = [];
 foreach (array_keys($rawCart) as $key) {
-    // Raktas gali būti "123" arba "123_md5hash"
     $parts = explode('_', $key);
     $pid = (int)$parts[0];
     if ($pid > 0) {
@@ -45,7 +95,7 @@ if (!empty($productIdsToFetch)) {
     }
 }
 
-// Formuojame items sąrašą
+// Formuojame items sąrašą (Standartinės prekės)
 foreach ($rawCart as $key => $qty) {
     $parts = explode('_', $key);
     $pid = (int)$parts[0];
@@ -53,32 +103,22 @@ foreach ($rawCart as $key => $qty) {
     if (!isset($fetchedProducts[$pid])) continue;
     $product = $fetchedProducts[$pid];
     
-    // Prijungiame variacijas
     $currentVariations = $rawVariations[$key] ?? [];
     
-    // Skaičiuojame kainą su variacijomis
     $variationDelta = 0;
     foreach ($currentVariations as $cv) {
         $variationDelta += (float)($cv['delta'] ?? 0);
     }
     
-    // Bazinės kainos
     $basePrice = (float)$product['price'] + $variationDelta;
     $salePrice = ($product['sale_price'] !== null) ? ((float)$product['sale_price'] + $variationDelta) : null;
     
-    // Pritaikome nuolaidas
-    // Pastaba: čia naudojama supaprastinta logika, atkartojanti helperius
-    // Jei helperių funkcijos prieinamos, geriausia naudoti jas, bet čia įdedame tiesioginį skaičiavimą
-    
-    // Kategorijos nuolaida
     $catDisc = $categoryDiscounts[$product['category_id']] ?? null;
     $finalPrice = ($salePrice !== null) ? $salePrice : $basePrice;
     
-    // Globali nuolaida
     if ($globalDiscount['type'] === 'percent') $finalPrice *= (1 - $globalDiscount['value']/100);
     elseif ($globalDiscount['type'] === 'amount') $finalPrice -= $globalDiscount['value'];
     
-    // Kategorijos
     if ($catDisc) {
         if ($catDisc['type'] === 'percent') $finalPrice *= (1 - $catDisc['value']/100);
         elseif ($catDisc['type'] === 'amount') $finalPrice -= $catDisc['value'];
@@ -86,14 +126,14 @@ foreach ($rawCart as $key => $qty) {
     
     $finalPrice = max(0, $finalPrice);
     
-    // Ar nemokamas pristatymas?
     if (in_array($pid, $fsIds)) {
         $freeShippingIds[] = $pid;
     }
 
     $items[] = [
+        'type' => 'shop', // Identifikatorius atvaizdavimui
         'id' => $pid,
-        'cart_key' => $key, // Svarbu ištrynimui
+        'cart_key' => $key,
         'title' => $product['title'],
         'image_url' => $product['image_url'],
         'quantity' => $qty,
@@ -106,59 +146,54 @@ foreach ($rawCart as $key => $qty) {
     $total += ($finalPrice * $qty);
 }
 
+// --- DALIS 2: BENDRUOMENĖS PREKĖS (NAUJA) ---
+if (isset($_SESSION['cart_community']) && !empty($_SESSION['cart_community'])) {
+    $c_ids = array_keys($_SESSION['cart_community']);
+    if (!empty($c_ids)) {
+        $placeholders = implode(',', array_fill(0, count($c_ids), '?'));
+        // Pataisymas: naudojame lentelę 'community_market'
+        $stmt = $pdo->prepare("SELECT * FROM community_market WHERE id IN ($placeholders)");
+        $stmt->execute($c_ids);
+        $comm_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($comm_products as $item) {
+            $qty = 1; // Bendruomenės prekės visada po 1
+            $price = (float)$item['price'];
+            
+            // Nuotraukos atvaizdavimas (tikrinam ar JSON ar string)
+            $imagePath = 'uploads/default.png';
+            if (!empty($item['image'])) {
+                $decoded = json_decode($item['image'], true);
+                if (is_array($decoded) && !empty($decoded[0])) {
+                    $imagePath = $decoded[0];
+                } else {
+                    $imagePath = $item['image'];
+                }
+            }
+
+            $items[] = [
+                'type' => 'community', // Identifikatorius
+                'id' => $item['id'],
+                'cart_key' => 'comm_' . $item['id'], // Fiktyvus raktas
+                'title' => $item['title'],
+                'image_url' => $imagePath,
+                'quantity' => $qty,
+                'price' => $price,
+                'line_total' => $price * $qty,
+                'variation' => [], // Nėra variacijų
+                'free_shipping_gift' => false
+            ];
+
+            $total += ($price * $qty);
+        }
+    }
+}
+
+// --- LOGIKOS PABAIGA ---
+
 $freeShippingOffers = getFreeShippingProducts($pdo);
 $hasGiftProduct = !empty($freeShippingIds);
 
-// --- PABAIGA LOGIKOS ---
-
-if (isset($_POST['action']) && $_POST['action'] == 'add_community') {
-    validateCsrfToken(); // Būtina: patikriname ar raktas teisingas
-    $product_id = (int)$_POST['product_id'];
-    // Naudojame atskirą sesiją bendruomenės prekėms
-    if (!isset($_SESSION['cart_community'])) {
-        $_SESSION['cart_community'] = [];
-    }
-    
-    // Bendruomenės prekių kiekis dažniausiai yra 1 vnt. (vienetinė prekė)
-    // Bet jei leidžiate daugiau, galima keisti logiką. Čia darome, kad tiesiog įsideda.
-    $_SESSION['cart_community'][$product_id] = 1;
-    
-    // Nukreipiame atgal arba į krepšelį
-    header('Location: cart.php');
-    exit;
-}
-
-if (isset($_GET['action']) && $_GET['action'] == 'remove_community') {
-    $id = (int)$_GET['id'];
-    unset($_SESSION['cart_community'][$id]);
-    header('Location: cart.php');
-    exit;
-}
-
-if (isset($_POST['remove_key'])) {
-    validateCsrfToken();
-    $removeKey = $_POST['remove_key'];
-    unset($_SESSION['cart'][$removeKey]);
-    unset($_SESSION['cart_variations'][$removeKey]);
-    
-    // DB valymas (jei naudojama) - čia reikėtų sudėtingesnės logikos, 
-    // todėl kol kas paliekame tik sesiją.
-    
-    header('Location: /cart.php');
-    exit;
-}
-
-if (isset($_POST['add_promo_product'])) {
-    validateCsrfToken();
-    $pid = (int)$_POST['add_promo_product'];
-    // Promo prekės paprastai neturi variacijų, tad naudojame paprastą ID kaip raktą
-    $key = (string)$pid . '_default';
-    if ($pid > 0) {
-        $_SESSION['cart'][$key] = ($_SESSION['cart'][$key] ?? 0) + 1;
-    }
-    header('Location: /cart.php');
-    exit;
-}
 ?>
 <!doctype html>
 <html lang="lt">
@@ -253,7 +288,7 @@ if (isset($_POST['add_promo_product'])) {
     .item-img {
         width: 80px;
         height: 80px;
-        object-fit: contain;
+        object-fit: cover; /* Pakeista iš contain į cover, kad geriau atrodytų įvairios nuotraukos */
         background: #fff;
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -392,7 +427,7 @@ if (isset($_POST['add_promo_product'])) {
     }
     .btn-primary:hover {
         background: #1e293b;
-        color: #ffffff !important; /* FIX: Priverstinė balta spalva */
+        color: #ffffff !important;
         transform: translateY(-1px);
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
@@ -426,6 +461,16 @@ if (isset($_POST['add_promo_product'])) {
         font-weight: 600;
         margin-top: 4px;
     }
+    .badge-community {
+        display: inline-block;
+        background-color: #635bff;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
 
     @media (max-width: 900px) {
         .cart-grid { grid-template-columns: 1fr; }
@@ -458,6 +503,8 @@ if (isset($_POST['add_promo_product'])) {
         <p style="color: var(--text-muted); margin: 0 0 24px;">Atrodo, dar nieko neišsirinkote. Peržiūrėkite mūsų asortimentą.</p>
         <div style="max-width: 250px; margin: 0 auto;">
             <a href="/products.php" class="btn btn-primary">Eiti į parduotuvę</a>
+            <br><br>
+            <a href="/community_market.php" class="btn btn-outline">Eiti į turgelį</a>
         </div>
       </div>
     <?php else: ?>
@@ -504,10 +551,14 @@ if (isset($_POST['add_promo_product'])) {
                 
                 <?php foreach ($items as $item): ?>
                   <?php 
-                    // SEO URL generavimas krepšelio prekėms
-                    $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['id']; 
+                    // Jei tai parduotuvės prekė, rodom nuorodą, jei bendruomenės - kitokią
+                    $isCommunity = ($item['type'] ?? 'shop') === 'community';
+                    if ($isCommunity) {
+                         $itemUrl = '/community_listing.php?id=' . (int)$item['id']; 
+                    } else {
+                         $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['id']; 
+                    }
                     
-                    // Variacijos
                     $itemVariations = $item['variation'] ?? [];
                   ?>
                   <div class="cart-item">
@@ -516,7 +567,12 @@ if (isset($_POST['add_promo_product'])) {
                     </a>
                     
                     <div class="item-info">
-                      <h3><a href="<?php echo htmlspecialchars($itemUrl); ?>"><?php echo htmlspecialchars($item['title']); ?></a></h3>
+                      <h3>
+                          <?php if ($isCommunity): ?>
+                            <span class="badge-community">Turgelis</span>
+                          <?php endif; ?>
+                          <a href="<?php echo htmlspecialchars($itemUrl); ?>"><?php echo htmlspecialchars($item['title']); ?></a>
+                      </h3>
                       <div class="item-meta">
                         <?php if ($itemVariations): ?>
                             <?php foreach ($itemVariations as $v): ?>
@@ -543,11 +599,17 @@ if (isset($_POST['add_promo_product'])) {
 
                     <div class="item-actions">
                       <div class="item-price"><?php echo number_format($item['line_total'], 2); ?> €</div>
-                      <form method="post" style="margin-top: 8px;">
-                        <?php echo csrfField(); ?>
-                        <input type="hidden" name="remove_key" value="<?php echo htmlspecialchars($item['cart_key']); ?>">
-                        <button class="remove-btn" type="submit">Pašalinti</button>
-                      </form>
+                      
+                      <?php if ($isCommunity): ?>
+                          <a href="cart.php?action=remove_community&id=<?php echo $item['id']; ?>" class="remove-btn">Pašalinti</a>
+                      <?php else: ?>
+                          <form method="post" style="margin-top: 8px;">
+                            <?php echo csrfField(); ?>
+                            <input type="hidden" name="remove_key" value="<?php echo htmlspecialchars($item['cart_key']); ?>">
+                            <button class="remove-btn" type="submit">Pašalinti</button>
+                          </form>
+                      <?php endif; ?>
+                      
                     </div>
                   </div>
                 <?php endforeach; ?>
@@ -582,7 +644,7 @@ if (isset($_POST['add_promo_product'])) {
                     </div>
 
                     <div style="margin-top: 24px;">
-                        <a href="/checkout.php" class="btn btn-primary" onclick="fbq('track', 'InitiateCheckout');">
+                        <a href="stripe_checkout.php" class="btn btn-primary">
                             Apmokėti užsakymą
                         </a>
                         <a href="/products.php" class="btn btn-outline">
