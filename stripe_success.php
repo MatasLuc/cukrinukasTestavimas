@@ -11,7 +11,7 @@ require_once __DIR__ . '/lib/stripe/init.php';
 
 session_start();
 
-// Naudojame requireEnv, nes taip sutvarkėme praeitame žingsnyje
+// Įkeliame Stripe raktą
 $stripeSecretKey = requireEnv('STRIPE_SECRET_KEY');
 \Stripe\Stripe::setApiKey($stripeSecretKey);
 
@@ -36,12 +36,14 @@ try {
     $pdo = getPdo();
     $userId = $_SESSION['user_id'] ?? null;
     
-    // Jei vartotojas nėra prisijungęs sesijoje
+    // Jei vartotojas nėra prisijungęs sesijoje (pvz., naršyklė užsidarė ir atsidarė)
+    // Saugumo sumetimais reikalaujame vartotojo, bet galima pritaikyti logiką svečiams.
     if (!$userId) {
         die("Klaida: Vartotojo sesija nerasta. Susisiekite su administracija.");
     }
 
     // 3. Patikriname, ar šis session_id jau panaudotas (Idempotency)
+    // Tikriname tiek orders, tiek community_orders
     $stmt = $pdo->prepare("SELECT id FROM orders WHERE stripe_payment_intent_id = ?");
     $stmt->execute([$checkout_session->payment_intent]);
     $existsMain = $stmt->fetch();
@@ -51,7 +53,7 @@ try {
     $existsCommunity = $stmt->fetch();
 
     if ($existsMain || $existsCommunity) {
-        // Užsakymas jau apdorotas
+        // Užsakymas jau apdorotas, nukreipiame į pirkėjo užsakymus
         header("Location: orders.php?success=already_processed");
         exit;
     }
@@ -64,6 +66,9 @@ try {
     // ---------------------------------------------------
     $shopOrderCreated = false;
     
+    // Tikriname ar sesijoje yra krepšelis. 
+    // PASTABA: Stripe webhook gali suveikti greičiau nei šis failas.
+    // Čia darome prielaidą, kad apdorojame tiesiogiai po redirect.
     if (!empty($_SESSION['cart'])) {
         $totalShopPrice = 0;
         $orderItems = [];
@@ -106,7 +111,7 @@ try {
     // ---------------------------------------------------
     // B. BENDRUOMENĖS PREKĖS (Marketplace Logic)
     // ---------------------------------------------------
-    $communityOrdersCreated = [];
+    $communityOrdersCreated = []; 
 
     if (!empty($_SESSION['cart_community'])) {
         
@@ -120,6 +125,7 @@ try {
             $stmt->execute($cIds);
             $listings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // Grupuojame pagal pardavėją
             $itemsBySeller = [];
             foreach ($listings as $listing) {
                 $sellerId = $listing['seller_id'];
@@ -179,35 +185,38 @@ try {
     }
 
     // Patvirtiname tranzakciją
-    // Po šios eilutės duomenys yra išsaugoti. RollBack nebegalimas.
+    // Po šio žingsnio duomenys yra saugūs DB.
     $pdo->commit();
 
-    // 4. Siunčiame el. laiškus (gali įvykti klaidų, bet užsakymas jau sukurtas)
+    // 4. Siunčiame el. laiškus
+    // Dedame į atskirą try/catch, kad laiškų klaidos nesugadintų redirecto
     try {
-        // A. Laiškas PIRKĖJUI
         $buyerEmail = $_SESSION['user_email'] ?? $checkout_session->customer_details->email;
-        $subject = "Jūsų užsakymas patvirtintas!";
-        $body = "<h1>Ačiū už jūsų užsakymą!</h1>";
-        $body .= "<p>Jūsų mokėjimas sėkmingai gautas.</p>";
         
-        if ($shopOrderCreated) {
-            $body .= "<h3>Parduotuvės prekės:</h3><p>Bus išsiųstos artimiausiu metu.</p>";
-        }
-        
-        if (!empty($communityOrdersCreated)) {
-            $body .= "<h3>Bendruomenės prekės:</h3>";
-            $body .= "<ul>";
-            foreach ($communityOrdersCreated as $co) {
-                foreach ($co['items'] as $item) {
-                    $body .= "<li>{$item['title']} (x{$item['qty']})</li>";
-                }
+        if ($buyerEmail) {
+            $subject = "Jūsų užsakymas patvirtintas!";
+            $body = "<h1>Ačiū už jūsų užsakymą!</h1>";
+            $body .= "<p>Jūsų mokėjimas sėkmingai gautas.</p>";
+            
+            if ($shopOrderCreated) {
+                $body .= "<h3>Parduotuvės prekės:</h3><p>Bus išsiųstos artimiausiu metu.</p>";
             }
-            $body .= "</ul>";
+            
+            if (!empty($communityOrdersCreated)) {
+                $body .= "<h3>Bendruomenės prekės:</h3>";
+                $body .= "<ul>";
+                foreach ($communityOrdersCreated as $co) {
+                    foreach ($co['items'] as $item) {
+                        $body .= "<li>{$item['title']} (x{$item['qty']})</li>";
+                    }
+                }
+                $body .= "</ul>";
+            }
+            
+            sendEmail($buyerEmail, $subject, $body);
         }
-        
-        sendEmail($buyerEmail, $subject, $body);
 
-        // B. Laiškai PARDAVĖJAMS
+        // Laiškai PARDAVĖJAMS
         foreach ($communityOrdersCreated as $co) {
             $stmt = $pdo->prepare("SELECT email, username FROM users WHERE id = ?");
             $stmt->execute([$co['seller_id']]);
@@ -228,8 +237,8 @@ try {
             }
         }
     } catch (Exception $emailError) {
-        // Jei laiškai neišsisiuntė, tiesiog loguojame klaidą, bet nemetame fatal error vartotojui
-        error_log("Klaida siunčiant laiškus po sėkmingo apmokėjimo: " . $emailError->getMessage());
+        // Tik įrašome į logą, bet netrukdome vartotojui
+        error_log("Klaida siunčiant laiškus (Stripe Success): " . $emailError->getMessage());
     }
 
     // 5. Išvalome krepšelius
@@ -241,13 +250,12 @@ try {
     exit;
 
 } catch (Exception $e) {
-    // PATAISYMAS ČIA:
-    // Tikriname ar $pdo egzistuoja IR ar tranzakcija vis dar aktyvi
+    // Svarbu: Rollback darome TIK jei tranzakcija vis dar aktyvi
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
     
     // Log error
-    error_log("Stripe Success Error: " . $e->getMessage());
+    error_log("Stripe Success Critical Error: " . $e->getMessage());
     die("Įvyko klaida apdorojant užsakymą. Pinigai nuskaityti, bet užsakymas neišsaugotas. Susisiekite su administracija nurodydami sesijos ID: " . htmlspecialchars($session_id));
 }
