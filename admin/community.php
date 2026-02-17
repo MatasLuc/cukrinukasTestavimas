@@ -48,7 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderId = (int)$_POST['order_id'];
         
         // Gauname užsakymo info ir Stripe Payment Intent ID
-        $stmt = $pdo->prepare("SELECT stripe_payment_intent_id, status, total_price FROM community_orders WHERE id = ?");
+        // PATAISYTA: total_price -> total_amount pagal duotą schemą
+        $stmt = $pdo->prepare("SELECT stripe_payment_intent_id, status, total_amount FROM community_orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch();
 
@@ -182,17 +183,17 @@ $listings = $pdo->query('
 ')->fetchAll();
 
 // --- TURGELIS (Užsakymai - Išplėstinė užklausa) ---
-// Pastaba: darome prielaidą, kad community_orders turi commission_amount stulpelį. 
-// Jei ne, galima jį apskaičiuoti, bet čia imame iš DB.
+// PATAISYTA: listing_id -> item_id
+// PATAISYTA: l.user_id -> o.seller_id (kad gautume pardavėją net jei skelbimas ištrintas, plius schema turi seller_id)
 $marketOrders = $pdo->query('
     SELECT o.*, 
            l.title as item_title, 
            b.name as buyer_name, b.email as buyer_email,
            s.name as seller_name, s.email as seller_email
     FROM community_orders o
-    LEFT JOIN community_listings l ON o.listing_id = l.id
+    LEFT JOIN community_listings l ON o.item_id = l.id
     LEFT JOIN users b ON o.buyer_id = b.id
-    LEFT JOIN users s ON l.user_id = s.id
+    LEFT JOIN users s ON o.seller_id = s.id
     ORDER BY o.created_at DESC LIMIT 50
 ')->fetchAll();
 
@@ -371,8 +372,8 @@ require_once 'header.php';
                     </thead>
                     <tbody>
                         <?php foreach ($marketOrders as $ord): 
-                            $commission = isset($ord['commission_amount']) ? $ord['commission_amount'] : 0;
-                            // Jei komisinio nėra DB, galima bandyti skaičiuoti, bet rodome 0
+                            // PATAISYTA: commission_amount -> admin_commission_amount pagal schemą
+                            $commission = isset($ord['admin_commission_amount']) ? $ord['admin_commission_amount'] : 0;
                         ?>
                         <tr>
                             <td>#<?php echo $ord['id']; ?></td>
@@ -388,7 +389,7 @@ require_once 'header.php';
                                 <div><?php echo htmlspecialchars($ord['seller_name']); ?></div>
                                 <div class="muted" style="font-size:11px;"><?php echo htmlspecialchars($ord['seller_email']); ?></div>
                             </td>
-                            <td style="font-weight:bold;"><?php echo number_format($ord['total_price'] ?? 0, 2); ?> €</td>
+                            <td style="font-weight:bold;"><?php echo number_format($ord['total_amount'] ?? 0, 2); ?> €</td>
                             <td style="color:#6b6b7a;"><?php echo number_format($commission, 2); ?> €</td>
                             <td>
                                 <span class="status-pill status-<?php echo htmlspecialchars($ord['status']); ?>">
