@@ -75,7 +75,7 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
         $placeholders = implode(',', array_fill(0, count($c_ids), '?'));
         // Prijungiame vartotojus, kad gautume info apie pardavėją (nors apmokėjimas eina mums)
         $stmt = $pdo->prepare("SELECT m.*, u.stripe_account_id, u.stripe_onboarding_completed 
-                               FROM community_market m 
+                               FROM community_listings m 
                                JOIN users u ON m.user_id = u.id 
                                WHERE m.id IN ($placeholders)");
         $stmt->execute($c_ids);
