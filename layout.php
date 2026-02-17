@@ -515,6 +515,41 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
     $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='60' fill='black'%3EC%3C/text%3E%3C/svg%3E";
 
     $cart = getCartData($pdo, $_SESSION['cart'] ?? [], $_SESSION['cart_variations'] ?? []);
+    
+    // --- FIX: Pridedame bendruomenės prekes į headerio krepšelį ---
+    if (!empty($_SESSION['cart_community'])) {
+        $commIds = array_keys($_SESSION['cart_community']);
+        if ($commIds) {
+            $inQuery = implode(',', array_fill(0, count($commIds), '?'));
+            $stmtComm = $pdo->prepare("SELECT id, title, price, image_url FROM community_listings WHERE id IN ($inQuery)");
+            $stmtComm->execute($commIds);
+            $commItems = $stmtComm->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($commItems as $cItem) {
+                $cQty = 1; // Bendruomenės prekės visada po 1
+                $cPrice = (float)$cItem['price'];
+                $cImg = !empty($cItem['image_url']) ? $cItem['image_url'] : 'uploads/default.png';
+
+                // Atnaujiname bendrą statistiką
+                $cart['count'] += $cQty;
+                $cart['total'] += $cPrice;
+
+                // Pridedame į items sąrašą, kad rodytų dropdowne
+                $cart['items'][] = [
+                    'cart_key' => 'comm_' . $cItem['id'], // Unikalus raktas
+                    'title' => $cItem['title'],
+                    'image_url' => $cImg,
+                    'quantity' => $cQty,
+                    'price' => $cPrice,
+                    'line_total' => $cPrice,
+                    'line_base' => $cPrice, // Kad nerodytų nuolaidos stiliaus
+                    'variation' => [['group' => 'Turgelis', 'name' => 'Bendruomenė']] // Indikacija
+                ];
+            }
+        }
+    }
+    // -----------------------------------------------------------
+
     $user = currentUser();
     try {
         ensureDirectMessages($pdo);
