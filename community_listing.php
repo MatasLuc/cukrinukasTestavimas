@@ -283,7 +283,7 @@ a { color:inherit; text-decoration:none; }
 
             <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
                 <form action="cart.php" method="POST" style="margin-top: 15px;">
-                    <input type="hidden" name="action" value="add_community">
+                    <?php echo csrfField(); ?> <input type="hidden" name="action" value="add_community">
                     <input type="hidden" name="product_id" value="<?php echo $listing['id']; ?>">
                     <button type="submit" class="btn btn-primary btn-lg btn-block">
                         Įdėti į krepšelį (<?php echo number_format($listing['price'], 2); ?> €)
