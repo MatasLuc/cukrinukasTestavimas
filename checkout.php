@@ -1,5 +1,5 @@
 <?php
-// checkout.php - Pataisytas pagal tavo pateiktą DB struktūrą
+// checkout.php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -324,7 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ];
             $deliveryDetailsJson = json_encode($deliveryDetailsArr);
 
-            // --- ĮRAŠYMAS Į ORDERS LENTELĘ (PAGAL TAVO SCHEMĄ) ---
+            // --- ĮRAŠYMAS Į ORDERS LENTELĘ ---
             $stmtOrder = $pdo->prepare("
                 INSERT INTO orders (
                     user_id, 
@@ -334,7 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     customer_address, 
                     discount_code, 
                     discount_amount, 
-                    shipping_amount,  -- Pakeista iš shipping_price
+                    shipping_amount, 
                     total, 
                     status, 
                     delivery_method, 
@@ -351,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $fullAddress,
                 $activeDiscountCode,
                 $discountAmount,
-                $finalShippingPrice,
+                $finalShippingPrice, // Svarbu: čia įrašoma pristatymo kaina
                 $grandTotal,
                 $method,
                 $deliveryDetailsJson
@@ -359,10 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             
             $orderId = $pdo->lastInsertId();
 
-            // --- ĮRAŠYMAS Į ORDER_ITEMS (SAUGUS VARIANTAS) ---
-            // Įrašome tik tai, kas tikrai egzistuoja daugumoje DB: order_id, product_id, quantity, price.
-            // IGNORUOJAME 'name', 'item_type' ir kt., nes DB jų nėra.
-            
+            // --- ĮRAŠYMAS Į ORDER_ITEMS ---
             $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
             
             foreach ($productsInCart as $item) {
@@ -370,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     $orderId, 
                     $item['product_id'], 
                     $item['qty'], 
-                    $item['price']
+                    $item['price'] // Čia įrašoma jau pritaikyta sale_price
                 ]);
             }
 
@@ -380,6 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             }
 
             $pdo->commit();
+            // Nukreipiame su order_id, kad stripe_checkout.php galėtų paimti pristatymo kainą
             header("Location: stripe_checkout.php?order_id=" . $orderId);
             exit;
 
