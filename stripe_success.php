@@ -186,7 +186,7 @@ try {
 
     if (!empty($_SESSION['cart_community'])) {
         
-        // PATAISYMAS ČIA: Ieškome setting_value pagal setting_key
+        // Ieškome setting_value pagal setting_key
         $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1");
         $stmt->execute(['community_commission']);
         $commissionRate = $stmt->fetchColumn() ?: 0; // Default 0 jei nėra settingo
@@ -194,7 +194,9 @@ try {
         $cIds = array_keys($_SESSION['cart_community']);
         if (!empty($cIds)) {
             $placeholders = implode(',', array_fill(0, count($cIds), '?'));
-            $stmt = $pdo->prepare("SELECT id, user_id as seller_id, title, price, shipping_price FROM community_listings WHERE id IN ($placeholders)");
+            
+            // PATAISYTA: Pašalintas 'shipping_price' iš SELECT užklausos
+            $stmt = $pdo->prepare("SELECT id, user_id as seller_id, title, price FROM community_listings WHERE id IN ($placeholders)");
             $stmt->execute($cIds);
             $listings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -212,7 +214,7 @@ try {
                     'listing_id' => $listing['id'],
                     'title' => $listing['title'],
                     'price' => $listing['price'],
-                    'shipping' => $listing['shipping_price'],
+                    'shipping' => 0, // PATAISYTA: Pristatymas visada 0
                     'qty' => $qty
                 ];
             }
@@ -223,7 +225,7 @@ try {
                 
                 foreach ($items as $item) {
                     $subtotal += $item['price'] * $item['qty'];
-                    $shippingTotal += $item['shipping'] * $item['qty'];
+                    $shippingTotal += 0; // PATAISYTA: Nėra papildomo pristatymo mokesčio
                 }
 
                 $grandTotal = $subtotal + $shippingTotal;
@@ -243,7 +245,7 @@ try {
                     $userId,
                     $sellerId,
                     $subtotal,
-                    $shippingTotal,
+                    $shippingTotal, // Čia įsirašys 0
                     $commissionAmount,
                     $grandTotal,
                     $paymentIntentId,
