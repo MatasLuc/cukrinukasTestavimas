@@ -36,24 +36,47 @@ try {
     $pdo = getPdo();
     $userId = $_SESSION['user_id'] ?? null;
     
-    // Jei vartotojas nėra prisijungęs sesijoje (pvz., naršyklė užsidarė ir atsidarė)
-    // Saugumo sumetimais reikalaujame vartotojo, bet galima pritaikyti logiką svečiams.
+    // Jei vartotojas nėra prisijungęs sesijoje
     if (!$userId) {
         die("Klaida: Vartotojo sesija nerasta. Susisiekite su administracija.");
     }
 
+    // --- NAUJA: Ištraukiame pirkėjo duomenis iš Stripe (reikalingi orders lentelei) ---
+    $customerDetails = $checkout_session->customer_details;
+    
+    $customerName = $customerDetails->name ?? 'Nenurodyta';
+    $customerEmail = $customerDetails->email ?? ($_SESSION['user_email'] ?? 'info@cukrinukas.lt');
+    $customerPhone = $customerDetails->phone ?? ''; // Gali būti tuščias, bet stulpelis reikalauja reikšmės
+    
+    // Formuojame adresą iš Stripe duomenų
+    $addressData = $customerDetails->address ?? null;
+    $customerAddress = "Nėra adreso duomenų";
+    if ($addressData) {
+        $lines = array_filter([
+            $addressData->line1,
+            $addressData->line2,
+            $addressData->postal_code,
+            $addressData->city,
+            $addressData->country
+        ]);
+        $customerAddress = implode(', ', $lines);
+    }
+    // --------------------------------------------------------------------------------
+
     // 3. Patikriname, ar šis session_id jau panaudotas (Idempotency)
-    // Tikriname tiek orders, tiek community_orders
-    $stmt = $pdo->prepare("SELECT id FROM orders WHERE stripe_payment_intent_id = ?");
-    $stmt->execute([$checkout_session->payment_intent]);
+    
+    // TIKRINAME PAGAL NAUJĄ STRUKTŪRĄ: orders lentelėje pagal stripe_session_id
+    $stmt = $pdo->prepare("SELECT id FROM orders WHERE stripe_session_id = ?");
+    $stmt->execute([$session_id]);
     $existsMain = $stmt->fetch();
 
+    // Community orders dažniausiai naudoja payment intent, paliekame kaip buvo, nebent ir ten keitėte
     $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ?");
     $stmt->execute([$checkout_session->payment_intent]);
     $existsCommunity = $stmt->fetch();
 
     if ($existsMain || $existsCommunity) {
-        // Užsakymas jau apdorotas, nukreipiame į pirkėjo užsakymus
+        // Užsakymas jau apdorotas
         header("Location: orders.php?success=already_processed");
         exit;
     }
@@ -66,9 +89,6 @@ try {
     // ---------------------------------------------------
     $shopOrderCreated = false;
     
-    // Tikriname ar sesijoje yra krepšelis. 
-    // PASTABA: Stripe webhook gali suveikti greičiau nei šis failas.
-    // Čia darome prielaidą, kad apdorojame tiesiogiai po redirect.
     if (!empty($_SESSION['cart'])) {
         $totalShopPrice = 0;
         $orderItems = [];
@@ -96,8 +116,35 @@ try {
         }
 
         if ($totalShopPrice > 0) {
-            $stmt = $pdo->prepare("INSERT INTO orders (user_id, total_price, status, payment_method, stripe_payment_intent_id, created_at) VALUES (?, ?, 'paid', 'stripe', ?, NOW())");
-            $stmt->execute([$userId, $totalShopPrice, $checkout_session->payment_intent]);
+            // PATAISYTA SQL UŽKLAUSA PAGAL PATEIKTĄ LENTELĘ
+            // Naudojame 'total' vietoj 'total_price'
+            // Naudojame 'stripe_session_id' vietoj 'stripe_payment_intent_id'
+            // Pridedame privalomus laukus: customer_name, customer_email, customer_phone, customer_address
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO orders (
+                    user_id, 
+                    customer_name, 
+                    customer_email, 
+                    customer_phone, 
+                    customer_address, 
+                    total, 
+                    status, 
+                    stripe_session_id, 
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'paid', ?, NOW())
+            ");
+            
+            $stmt->execute([
+                $userId,
+                $customerName,
+                $customerEmail,
+                $customerPhone,
+                $customerAddress,
+                $totalShopPrice,
+                $session_id // Čia įrašome sesijos ID
+            ]);
+            
             $orderId = $pdo->lastInsertId();
 
             $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
@@ -157,6 +204,7 @@ try {
                 $commissionAmount = ($subtotal * $commissionRate) / 100;
                 $itemsJson = json_encode($items);
 
+                // Čia paliekame stripe_payment_intent_id, nebent community_orders irgi pakeista
                 $stmt = $pdo->prepare("
                     INSERT INTO community_orders 
                     (buyer_id, seller_id, total_item_price, total_shipping_price, platform_commission, total_paid, stripe_payment_intent_id, status, payout_status, delivery_status, created_at, items_json) 
@@ -185,13 +233,11 @@ try {
     }
 
     // Patvirtiname tranzakciją
-    // Po šio žingsnio duomenys yra saugūs DB.
     $pdo->commit();
 
     // 4. Siunčiame el. laiškus
-    // Dedame į atskirą try/catch, kad laiškų klaidos nesugadintų redirecto
     try {
-        $buyerEmail = $_SESSION['user_email'] ?? $checkout_session->customer_details->email;
+        $buyerEmail = $customerEmail; // Naudojame jau gautą el. paštą
         
         if ($buyerEmail) {
             $subject = "Jūsų užsakymas patvirtintas!";
@@ -199,7 +245,7 @@ try {
             $body .= "<p>Jūsų mokėjimas sėkmingai gautas.</p>";
             
             if ($shopOrderCreated) {
-                $body .= "<h3>Parduotuvės prekės:</h3><p>Bus išsiųstos artimiausiu metu.</p>";
+                $body .= "<h3>Parduotuvės prekės:</h3><p>Bus išsiųstos artimiausiu metu adresu: $customerAddress</p>";
             }
             
             if (!empty($communityOrdersCreated)) {
@@ -237,7 +283,6 @@ try {
             }
         }
     } catch (Exception $emailError) {
-        // Tik įrašome į logą, bet netrukdome vartotojui
         error_log("Klaida siunčiant laiškus (Stripe Success): " . $emailError->getMessage());
     }
 
@@ -250,12 +295,10 @@ try {
     exit;
 
 } catch (Exception $e) {
-    // Svarbu: Rollback darome TIK jei tranzakcija vis dar aktyvi
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
     
-    // Log error
     error_log("Stripe Success Critical Error: " . $e->getMessage());
     die("Įvyko klaida apdorojant užsakymą. Pinigai nuskaityti, bet užsakymas neišsaugotas. Susisiekite su administracija nurodydami sesijos ID: " . htmlspecialchars($session_id));
 }
