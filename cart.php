@@ -1,4 +1,5 @@
 <?php
+// cart.php
 // Įjungiame klaidų rodymą
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -639,7 +640,7 @@ $hasGiftProduct = !empty($freeShippingIds);
                     </div>
 
                     <div style="margin-top: 24px;">
-                        <a href="stripe_checkout.php" class="btn btn-primary">
+                        <a href="checkout.php" class="btn btn-primary">
                             Apmokėti užsakymą
                         </a>
                         <a href="/products.php" class="btn btn-outline">
