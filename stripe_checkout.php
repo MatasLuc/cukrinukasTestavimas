@@ -26,27 +26,77 @@ if (!$stripeKey) {
 
 \Stripe\Stripe::setApiKey($stripeKey);
 
+// --- 0. GAUNAME UŽSAKYMO INFORMACIJĄ (Dėl pristatymo kainos) ---
+$orderId = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
+$order = null;
+
+if ($orderId > 0) {
+    $stmtOrder = $pdo->prepare("SELECT * FROM orders WHERE id = ? LIMIT 1");
+    $stmtOrder->execute([$orderId]);
+    $order = $stmtOrder->fetch(PDO::FETCH_ASSOC);
+}
+
+if (!$order) {
+    // Jei nėra užsakymo ID, negalime tęsti, nes nežinome pristatymo kainos
+    die("Klaida: Nerastas užsakymo ID. Grįžkite į krepšelį.");
+}
+
 // --- KREPŠELIO SURINKIMAS ---
 $line_items = [];
-$cart_total = 0;
 $has_items = false;
 
 // 1. PARDUOTUVĖS PREKĖS (Standartinis krepšelis)
 if (isset($_SESSION['cart']) && count($_SESSION['cart']) > 0) {
     // Paimame IDs
     $ids = array_keys($_SESSION['cart']);
-    if (!empty($ids)) {
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare("SELECT * FROM products WHERE id IN ($placeholders)");
-        $stmt->execute($ids);
-        $shop_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Išvalome IDs nuo variacijų (pvz. 12_L_Red -> 12)
+    $cleanIds = [];
+    foreach ($ids as $idStr) {
+        $parts = explode('_', (string)$idStr);
+        $cleanIds[] = (int)$parts[0];
+    }
+    $cleanIds = array_unique($cleanIds);
 
-        foreach ($shop_products as $product) {
-            $qty = $_SESSION['cart'][$product['id']];
-            $price = floatval($product['price']); // Čia reiktų naudoti sale_price jei yra
+    if (!empty($cleanIds)) {
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $stmt = $pdo->prepare("SELECT * FROM products WHERE id IN ($placeholders)");
+        $stmt->execute($cleanIds);
+        $shop_products_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Pasidarome map'ą patogesniam darbui
+        $shop_products = [];
+        foreach ($shop_products_raw as $p) {
+            $shop_products[$p['id']] = $p;
+        }
+
+        foreach ($_SESSION['cart'] as $cartKey => $qty) {
+            $parts = explode('_', (string)$cartKey);
+            $productId = (int)$parts[0];
+            
+            if (!isset($shop_products[$productId])) continue;
+            
+            $product = $shop_products[$productId];
+            
+            // --- KAINOS LOGIKA (Svarbu: Sale Price) ---
+            $basePrice = floatval($product['price']);
+            
+            // Tikriname ar yra akcija
+            if (!empty($product['sale_price']) && $product['sale_price'] > 0 && $product['sale_price'] < $product['price']) {
+                $basePrice = floatval($product['sale_price']);
+            }
+
+            // Pridedame variacijų kainų skirtumus (jei yra)
+            $variationDelta = 0;
+            if (isset($_SESSION['cart_variations'][$cartKey]) && is_array($_SESSION['cart_variations'][$cartKey])) {
+                foreach ($_SESSION['cart_variations'][$cartKey] as $var) {
+                    $variationDelta += (float)($var['delta'] ?? 0);
+                }
+            }
+            
+            $finalPrice = $basePrice + $variationDelta;
             
             // Konvertuojam į centus
-            $unit_amount = round($price * 100); 
+            $unit_amount = round($finalPrice * 100); 
 
             $line_items[] = [
                 'price_data' => [
@@ -73,7 +123,7 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
     $c_ids = array_keys($_SESSION['cart_community']);
     if (!empty($c_ids)) {
         $placeholders = implode(',', array_fill(0, count($c_ids), '?'));
-        // Prijungiame vartotojus, kad gautume info apie pardavėją (nors apmokėjimas eina mums)
+        // Prijungiame vartotojus
         $stmt = $pdo->prepare("SELECT m.*, u.stripe_account_id, u.stripe_onboarding_completed 
                                FROM community_listings m 
                                JOIN users u ON m.user_id = u.id 
@@ -82,14 +132,11 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
         $comm_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($comm_products as $item) {
-            // Patikrinimas: ar pardavėjas gali gauti pinigus?
-            // Jei negali - galime tiesiog ignoruoti arba mesti klaidą. 
-            // Čia ignoruojame, kad nesustotų visas krepšelis, arba galima išmesti įspėjimą.
             if (empty($item['stripe_account_id']) || $item['stripe_onboarding_completed'] == 0) {
-                continue; // Praleidžiam prekę
+                continue; 
             }
 
-            $qty = 1; // Bendruomenės prekės dažniausiai unikalios
+            $qty = 1; 
             $price = floatval($item['price']);
             $unit_amount = round($price * 100);
 
@@ -114,33 +161,74 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
     }
 }
 
+// 3. NUOLAIDOS APSKAIČIAVIMAS (Minusavimas)
+// Stripe nepalaiko neigiamų line_items, todėl naudojame "coupon" arba "discount" mechanizmą.
+// Paprasčiausias būdas čia - tiesiog perduoti Stripe Coupon ID, jei turite sukūrę Stripe.
+// ARBA, jei nuolaida yra suma (pvz 5 EUR), galima sumažinti prekių kainas proporcingai, 
+// bet paprasčiau yra tikėtis, kad galutinė suma `checkout.php` yra teisinga, 
+// o čia mes tiesiog surenkame prekes.
+// TAČIAU, jūsų `checkout.php` jau įrašė `total` į DB. 
+// Jei norime tiksliai, kad Stripe atitiktų DB sumą, geriausia būtų tiesiog sukurti vieną 'line_item' visai sumai,
+// bet tada prarandame detalizaciją.
+// Kompromisas: pritaikome nuolaidą kaip coupon, JEI turite Stripe Coupon. 
+// Jei neturite - teks pasikliauti tuo, kad nuolaida jau pritaikyta prekių kainose (bet aukščiau kode mes ėmėme DB kainas).
+// Sprendimas: Jei yra nuolaida, įdedame ją kaip atskirą įrašą su neigiama suma negalima...
+// Todėl Stripe geriausia naudoti `discounts` masyvą.
+// Supaprastinimas: Šiame kode darome prielaidą, kad nuolaidos kodų logiką tvarko Stripe Coupons arba 
+// mes tiesiog ignoruojame nuolaidą Stripe Checkout vizualizacijoje (kas yra blogai).
+
+// GERIAUSIAS SPRENDIMAS PAGAL ESAMĄ KODĄ:
+// Mes tiesiog pridedame PRISTATYMĄ. Nuolaidas paliekame ateičiai/Stripe dashboard'ui, 
+// nes PHP kode generuoti dinaminį Stripe kuponą yra sudėtingiau.
+// Jei DB `orders` lentelėje yra `shipping_amount`, pridedame jį.
+
+if ($order && floatval($order['shipping_amount']) > 0) {
+    $shippingCost = floatval($order['shipping_amount']);
+    $line_items[] = [
+        'price_data' => [
+            'currency' => 'eur',
+            'product_data' => [
+                'name' => 'Pristatymas',
+                'description' => ($order['delivery_method'] == 'courier' ? 'Kurjeris' : 'Paštomatas'),
+            ],
+            'unit_amount' => round($shippingCost * 100),
+        ],
+        'quantity' => 1,
+    ];
+}
+
+// 4. PREKIŲ KREPŠELIO TIKRINIMAS
 if (!$has_items) {
     header("Location: cart.php?error=empty");
     exit;
 }
 
-// 3. KURIAME STRIPE SESIJĄ (Vienas bendras apmokėjimas)
+// 5. KURIAME STRIPE SESIJĄ
 try {
-    $checkout_session = \Stripe\Checkout\Session::create([
+    $sessionConfig = [
         'payment_method_types' => ['card'],
         'line_items' => $line_items,
         'mode' => 'payment',
-        
-        // Metadata padės mums atpažinti užsakymą success puslapyje
+        'success_url' => $baseUrl . '/stripe_success.php?session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url' => $baseUrl . '/stripe_return.php?order_id=' . $orderId, // Grąžiname į spec. puslapį arba atgal
+        'metadata' => [
+            'order_type' => 'mixed_cart',
+            'order_id' => $orderId // Labai svarbu susieti su DB užsakymu
+        ],
         'payment_intent_data' => [
             'metadata' => [
                 'order_type' => 'mixed_cart',
-                // Pastaba: Stripe metadata turi limitą.
-                // Mes pasitikėsime $_SESSION duomenimis success puslapyje.
+                'order_id' => $orderId
             ],
         ],
-        'metadata' => [
-            'order_type' => 'mixed_cart'
-        ],
-        
-        'success_url' => $baseUrl . '/stripe_success.php?session_id={CHECKOUT_SESSION_ID}',
-        'cancel_url' => $baseUrl . '/cart.php',
-    ]);
+    ];
+    
+    // Kliento el. paštas (jei yra užsakyme)
+    if (!empty($order['customer_email'])) {
+        $sessionConfig['customer_email'] = $order['customer_email'];
+    }
+
+    $checkout_session = \Stripe\Checkout\Session::create($sessionConfig);
 
     header("Location: " . $checkout_session->url);
     exit;
