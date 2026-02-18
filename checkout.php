@@ -1,5 +1,5 @@
 <?php
-// checkout.php - Pataisytas SQL ir Community skaičiavimas
+// checkout.php - Pataisytas pagal tavo pateiktą DB struktūrą
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -24,8 +24,6 @@ if ((empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) && (empty($_SES
 }
 
 // --- DUOMENŲ GAVIMAS IŠ DB (SETTINGS) ---
-
-// Gauname pristatymo kainas
 $stmtSettings = $pdo->query("SELECT * FROM shipping_settings LIMIT 1");
 $shippingSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
 
@@ -56,32 +54,27 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
             return ['valid' => false, 'error' => 'Nuolaidos kodas nerastas arba negalioja.'];
         }
 
+        // Tikrinimai (datos, limitai)
         $now = new DateTime();
-        if (!empty($discount['valid_from']) && new DateTime($discount['valid_from']) > $now) {
-            return ['valid' => false, 'error' => 'Šis kodas dar negalioja.'];
-        }
-        if (!empty($discount['valid_until']) && new DateTime($discount['valid_until']) < $now) {
-            return ['valid' => false, 'error' => 'Šio kodo galiojimas pasibaigęs.'];
-        }
+        if (!empty($discount['valid_from']) && new DateTime($discount['valid_from']) > $now) return ['valid' => false, 'error' => 'Kodas dar negalioja.'];
+        if (!empty($discount['valid_until']) && new DateTime($discount['valid_until']) < $now) return ['valid' => false, 'error' => 'Kodo galiojimas baigėsi.'];
 
         if (isset($discount['usage_limit']) && $discount['usage_limit'] > 0) {
             $used = $discount['used_count'] ?? 0;
-            if ($used >= $discount['usage_limit']) {
-                return ['valid' => false, 'error' => 'Kodo panaudojimo limitas pasiektas.'];
-            }
+            if ($used >= $discount['usage_limit']) return ['valid' => false, 'error' => 'Kodo panaudojimo limitas pasiektas.'];
         }
 
         if (!empty($discount['min_order_amount']) && $cartTotal < $discount['min_order_amount']) {
-            return ['valid' => false, 'error' => 'Minimali krepšelio suma šiam kodui: ' . number_format($discount['min_order_amount'], 2) . ' €'];
+            return ['valid' => false, 'error' => 'Minimali suma: ' . number_format($discount['min_order_amount'], 2) . ' €'];
         }
 
+        // Skaičiavimas
         $discountValue = 0;
         $grantsFreeShipping = false;
 
         if ($discount['type'] === 'percent') {
             $discountValue = round(($cartTotal * ($discount['value'] / 100)), 2);
-        } 
-        elseif ($discount['type'] === 'amount') {
+        } elseif ($discount['type'] === 'amount') {
             $discountValue = (float)$discount['value'];
         }
         
@@ -89,9 +82,7 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
             $grantsFreeShipping = true;
         }
 
-        if ($discountValue > $cartTotal) {
-            $discountValue = $cartTotal;
-        }
+        if ($discountValue > $cartTotal) $discountValue = $cartTotal;
 
         return [
             'valid' => true,
@@ -107,7 +98,7 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
 
 // 4. SKAIČIUOJAME PREKIŲ KREPŠELĮ (SHOP + COMMUNITY)
 $cartItemsTotal = 0;
-$productsInCart = [];
+$productsInCart = []; 
 $hasFreeShippingProduct = false;
 
 // --- A. SHOP PREKĖS ---
@@ -125,11 +116,8 @@ if (!empty($_SESSION['cart'])) {
         $stmt = $pdo->prepare("SELECT id, title, price, sale_price FROM products WHERE id IN ($placeholders)");
         $stmt->execute($cleanIds);
         $productsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
         $productsMap = [];
-        foreach ($productsRaw as $row) {
-            $productsMap[$row['id']] = $row;
-        }
+        foreach ($productsRaw as $row) $productsMap[$row['id']] = $row;
 
         foreach ($_SESSION['cart'] as $cartKey => $qty) {
             $parts = explode('_', (string)$cartKey);
@@ -160,24 +148,20 @@ if (!empty($_SESSION['cart'])) {
 
                 $productsInCart[] = [
                     'product_id' => $pId,
-                    'type' => 'shop',
-                    'name' => $p['title'], 
                     'price' => $finalPrice,
-                    'qty' => $qty,
-                    'total' => $lineTotal
+                    'qty' => $qty
                 ];
             }
         }
     }
 }
 
-// --- B. COMMUNITY PREKĖS (TURGELIS) ---
+// --- B. COMMUNITY PREKĖS ---
 if (!empty($_SESSION['cart_community'])) {
     $cIds = array_keys($_SESSION['cart_community']);
     if (!empty($cIds)) {
         $placeholders = implode(',', array_fill(0, count($cIds), '?'));
-        // PATAISYMAS: Nuimtas "AND status='active'", kad krepšelyje esančios prekės visada būtų skaičiuojamos
-        $stmt = $pdo->prepare("SELECT id, title, price, user_id FROM community_listings WHERE id IN ($placeholders)");
+        $stmt = $pdo->prepare("SELECT id, price FROM community_listings WHERE id IN ($placeholders)");
         $stmt->execute($cIds);
         $cProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -185,17 +169,12 @@ if (!empty($_SESSION['cart_community'])) {
             $qty = 1; 
             $price = (float)$cp['price'];
             $lineTotal = $price * $qty;
-            
             $cartItemsTotal += $lineTotal;
 
             $productsInCart[] = [
                 'product_id' => $cp['id'],
-                'type' => 'community',
-                'name' => $cp['title'],
                 'price' => $price,
-                'qty' => $qty,
-                'total' => $lineTotal,
-                'owner_id' => $cp['user_id']
+                'qty' => $qty
             ];
         }
     }
@@ -215,8 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'code' => $result['data']['code'],
                 'value' => $result['calculated_value'],
                 'type' => $result['data']['type'],
-                'grants_free_shipping' => $result['grants_free_shipping'],
-                'id' => $result['data']['id']
+                'grants_free_shipping' => $result['grants_free_shipping']
             ];
             $discountSuccess = 'Nuolaida pritaikyta!';
         } else {
@@ -232,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 6. GALUTINIAI SKAIČIAVIMAI
 $discountAmount = 0;
-$activeDiscountCode = '';
+$activeDiscountCode = null;
 $couponGrantsFreeShipping = false;
 
 if (isset($_SESSION['applied_discount'])) {
@@ -241,9 +219,6 @@ if (isset($_SESSION['applied_discount'])) {
         $discountAmount = $check['calculated_value'];
         $couponGrantsFreeShipping = $check['grants_free_shipping'];
         $activeDiscountCode = $_SESSION['applied_discount']['code'];
-        
-        $_SESSION['applied_discount']['value'] = $discountAmount;
-        $_SESSION['applied_discount']['grants_free_shipping'] = $couponGrantsFreeShipping;
     } else {
         unset($_SESSION['applied_discount']);
         $discountError = "Nuolaida nebegalioja: " . $check['error'];
@@ -254,16 +229,9 @@ $totalAfterDiscount = max(0, $cartItemsTotal - $discountAmount);
 
 // Siuntimo taisyklės
 $isShippingFree = false;
-
-if ($hasFreeShippingProduct) {
-    $isShippingFree = true;
-}
-elseif ($couponGrantsFreeShipping) {
-    $isShippingFree = true;
-}
-elseif (!empty($shippingSettings['free_over']) && $shippingSettings['free_over'] > 0 && $totalAfterDiscount >= $shippingSettings['free_over']) {
-    $isShippingFree = true;
-}
+if ($hasFreeShippingProduct) $isShippingFree = true;
+elseif ($couponGrantsFreeShipping) $isShippingFree = true;
+elseif (!empty($shippingSettings['free_over']) && $shippingSettings['free_over'] > 0 && $totalAfterDiscount >= $shippingSettings['free_over']) $isShippingFree = true;
 
 $lockerPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['locker_price'];
 $courierPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['courier_price'];
@@ -345,78 +313,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $grandTotal = $totalAfterDiscount + $finalShippingPrice;
 
-            // PATAISYMAS: Surenkame visą info į JSON, nes stulpelių DB nėra
+            // Formuojame JSON su papildoma informacija
             $deliveryDetailsArr = [
                 'method' => $method,
                 'shipping_price' => $finalShippingPrice,
                 'contact_phone' => $phone,
                 'contact_email' => $email,
                 'notes' => $notes,
-                'discount_code' => $activeDiscountCode,
-                'discount_amount' => $discountAmount
+                'locker_name' => ($method === 'locker') ? $selectedLocker : null
             ];
-            if ($method === 'locker') {
-                $deliveryDetailsArr['locker_name'] = $selectedLocker;
-            }
             $deliveryDetailsJson = json_encode($deliveryDetailsArr);
 
-            // PATAISYTA SQL: Pašalinti shipping_price, discount_amount, discount_code stulpeliai
+            // --- ĮRAŠYMAS Į ORDERS LENTELĘ (PAGAL TAVO SCHEMĄ) ---
             $stmtOrder = $pdo->prepare("
-                INSERT INTO orders 
-                (user_id, total, status, created_at, customer_name, customer_email, customer_phone, customer_address, delivery_method, delivery_details) 
-                VALUES (?, ?, 'pending_payment', NOW(), ?, ?, ?, ?, ?, ?)
+                INSERT INTO orders (
+                    user_id, 
+                    customer_name, 
+                    customer_email, 
+                    customer_phone, 
+                    customer_address, 
+                    discount_code, 
+                    discount_amount, 
+                    shipping_amount,  -- Pakeista iš shipping_price
+                    total, 
+                    status, 
+                    delivery_method, 
+                    delivery_details, 
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', ?, ?, NOW())
             ");
             
             $stmtOrder->execute([
                 $_SESSION['user_id'] ?? null,
-                $grandTotal,
                 $name,
                 $email,
                 $phone,
                 $fullAddress,
+                $activeDiscountCode,
+                $discountAmount,
+                $finalShippingPrice,
+                $grandTotal,
                 $method,
                 $deliveryDetailsJson
             ]);
             
             $orderId = $pdo->lastInsertId();
 
-            // PATAISYMAS: Įrašymas į order_items
-            // Tikriname ar lentelė turi 'item_type' stulpelį (maža gudrybė)
-            $colCheck = $pdo->query("SHOW COLUMNS FROM order_items LIKE 'item_type'");
-            $hasItemType = $colCheck->fetch();
-
-            if ($hasItemType) {
-                 $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, item_type, name, quantity, price, original_owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            } else {
-                 $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES (?, ?, ?, ?, ?)");
-            }
-
+            // --- ĮRAŠYMAS Į ORDER_ITEMS (SAUGUS VARIANTAS) ---
+            // Įrašome tik tai, kas tikrai egzistuoja daugumoje DB: order_id, product_id, quantity, price.
+            // IGNORUOJAME 'name', 'item_type' ir kt., nes DB jų nėra.
+            
+            $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+            
             foreach ($productsInCart as $item) {
-                if ($hasItemType) {
-                    $stmtItem->execute([
-                        $orderId, 
-                        $item['product_id'], 
-                        $item['type'],
-                        $item['name'], 
-                        $item['qty'], 
-                        $item['price'],
-                        $item['owner_id'] ?? null
-                    ]);
-                } else {
-                    // Jei nėra atskiro stulpelio, pridedame prefix prie pavadinimo
-                    $name = $item['name'];
-                    if ($item['type'] === 'community') $name = "[Turgelis] " . $name;
-                    
-                    $stmtItem->execute([
-                        $orderId, 
-                        $item['product_id'], 
-                        $name, 
-                        $item['qty'], 
-                        $item['price']
-                    ]);
-                }
+                $stmtItem->execute([
+                    $orderId, 
+                    $item['product_id'], 
+                    $item['qty'], 
+                    $item['price']
+                ]);
             }
 
+            // Atnaujiname nuolaidos panaudojimą
             if (!empty($activeDiscountCode)) {
                 $pdo->prepare("UPDATE discounts SET used_count = used_count + 1 WHERE code = ?")->execute([$activeDiscountCode]);
             }
