@@ -1,35 +1,66 @@
 <?php
-// Įjungiame klaidų rodymą (testavimo metu)
+// checkout.php - Pilnai sutvarkytas
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 session_start();
 
-// 1. Generuojame CSRF tokeną apsaugai
+// 1. Apsauga ir DB prisijungimas
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/layout.php';
-require_once __DIR__ . '/shipping_helper.php';
-require_once __DIR__ . '/helpers.php'; 
+require_once __DIR__ . '/helpers.php'; // Jei turite bendrų funkcijų
+
+// Jei shipping_helper.php nėra būtinas dėl kitų dalykų, šis failas jo nenaudos skaičiavimams, 
+// nes visą logiką įdėjau čia, kad atitiktų tavo DB schemą.
+if (file_exists(__DIR__ . '/shipping_helper.php')) {
+    require_once __DIR__ . '/shipping_helper.php';
+}
 
 $pdo = getPdo();
 
+// 2. Patikriname ar vartotojas prisijungęs (jei reikia)
+// if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
+
 // 3. Patikriname, ar krepšelis nėra tuščias
 if (empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) {
-    header('Location: /products.php');
+    header('Location: products.php');
     exit;
 }
 
-// --- PAGALBINĖS FUNKCIJOS NUOLAIDOMS ---
+// --- DUOMENŲ GAVIMAS IŠ DB (SETTINGS) ---
+
+// Gauname pristatymo kainas iš shipping_settings
+$stmtSettings = $pdo->query("SELECT * FROM shipping_settings LIMIT 1");
+$shippingSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
+
+// Jei netyčia DB tuščia, naudojame numatytąsias reikšmes, kad nelūžtų
+if (!$shippingSettings) {
+    $shippingSettings = [
+        'base_price' => 3.99,
+        'courier_price' => 3.99,
+        'locker_price' => 2.49,
+        'free_over' => 50.00
+    ];
+}
+
+// Gauname produktus, kuriems taikomas nemokamas siuntimas
+$stmtFreeProd = $pdo->query("SELECT product_id FROM shipping_free_products");
+$freeShippingProductIds = $stmtFreeProd->fetchAll(PDO::FETCH_COLUMN);
+
+// --- FUNKCIJOS ---
 
 function checkDiscountCode($pdo, $code, $cartTotal) {
     if (empty($code)) return ['valid' => false, 'error' => 'Įveskite kodą.'];
 
     try {
+        // Tikriname lentelę 'discounts'. Jei tavo lentelė vadinasi 'discount_settings', pakeisk čia.
+        // Tačiau dažniausiai 'settings' būna nustatymai, o 'discounts' - patys kodai.
+        // Darome prielaidą, kad kodai yra 'discounts' lentelėje.
         $stmt = $pdo->prepare("SELECT * FROM discounts WHERE code = ? AND is_active = 1 LIMIT 1");
         $stmt->execute([$code]);
         $discount = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -55,17 +86,28 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
             }
         }
 
-        // Tikriname minimalią krepšelio sumą
+        // Tikriname minimalią sumą
         if (!empty($discount['min_order_amount']) && $cartTotal < $discount['min_order_amount']) {
             return ['valid' => false, 'error' => 'Minimali krepšelio suma šiam kodui: ' . number_format($discount['min_order_amount'], 2) . ' €'];
         }
 
-        // Paskaičiuojame nuolaidos vertę
+        // Skaičiuojame vertę
         $discountValue = 0;
+        $grantsFreeShipping = false;
+
+        // Tikriname tipą pagal tavo nurodytą schemą discount_settings (enum)
+        // Jei tai 'percent'
         if ($discount['type'] === 'percent') {
             $discountValue = round(($cartTotal * ($discount['value'] / 100)), 2);
-        } else {
+        } 
+        // Jei tai 'amount'
+        elseif ($discount['type'] === 'amount') {
             $discountValue = (float)$discount['value'];
+        }
+        // Jei tai 'free_shipping' (pagal enum) arba free_shipping stulpelis yra 1
+        
+        if (($discount['type'] ?? '') === 'free_shipping' || (!empty($discount['free_shipping']) && $discount['free_shipping'] == 1)) {
+            $grantsFreeShipping = true;
         }
 
         if ($discountValue > $cartTotal) {
@@ -75,7 +117,8 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
         return [
             'valid' => true,
             'data' => $discount,
-            'calculated_value' => $discountValue
+            'calculated_value' => $discountValue,
+            'grants_free_shipping' => $grantsFreeShipping
         ];
 
     } catch (Exception $e) {
@@ -83,11 +126,12 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
     }
 }
 
-// 4. Skaičiuojame krepšelio sumą (SUTVARKYTA LOGIKA)
+// 4. Skaičiuojame krepšelio sumą
 $cartItemsTotal = 0;
 $productsInCart = [];
+$hasFreeShippingProduct = false;
 
-// Gauname tikrus produktų ID iš krepšelio raktų (kurie gali būti pvz. "7_a1b2...")
+// Išvalome ir surenkame ID
 $cartKeys = array_keys($_SESSION['cart']);
 $cleanIds = [];
 foreach ($cartKeys as $key) {
@@ -96,25 +140,17 @@ foreach ($cartKeys as $key) {
 }
 $cleanIds = array_unique($cleanIds);
 
-$hasFreeShippingProduct = false; 
-$fsProducts = getFreeShippingProducts($pdo);
-$fsIds = array_column($fsProducts, 'product_id');
-
 if (!empty($cleanIds)) {
     $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
-    
-    // Įtraukiame ir sale_price
     $stmt = $pdo->prepare("SELECT id, title, price, sale_price FROM products WHERE id IN ($placeholders)");
     $stmt->execute($cleanIds);
     $productsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Sukuriame žemėlapį ID => Prekės duomenys, kad nereiktų sukti ciklo cikle
     $productsMap = [];
     foreach ($productsRaw as $row) {
         $productsMap[$row['id']] = $row;
     }
 
-    // Iteruojame per KREPŠELIO elementus, o ne per DB rezultatus
     foreach ($_SESSION['cart'] as $cartKey => $qty) {
         $parts = explode('_', (string)$cartKey);
         $pId = (int)$parts[0];
@@ -122,31 +158,33 @@ if (!empty($cleanIds)) {
         if (isset($productsMap[$pId])) {
             $p = $productsMap[$pId];
             
-            // 1. Nustatome bazinę kainą (Akcija vs Įprasta)
+            // Kaina (Akcija vs Reguliari)
             $basePrice = (float)$p['price'];
             if (!empty($p['sale_price']) && $p['sale_price'] > 0 && $p['sale_price'] < $p['price']) {
                 $basePrice = (float)$p['sale_price'];
             }
 
-            // 2. Pridedame variacijų kainų skirtumus (jei yra)
+            // Variacijos
             $variationDelta = 0;
+            $variationText = '';
             if (isset($_SESSION['cart_variations'][$cartKey]) && is_array($_SESSION['cart_variations'][$cartKey])) {
                 foreach ($_SESSION['cart_variations'][$cartKey] as $var) {
                     $variationDelta += (float)($var['delta'] ?? 0);
+                    // Galima surinkti variacijų pavadinimus jei reikia įrašyti į DB vėliau
                 }
             }
 
             $finalPrice = $basePrice + $variationDelta;
-
-            // 3. Skaičiuojame sumą
             $cartItemsTotal += $finalPrice * $qty;
             
-            if (in_array($pId, $fsIds)) {
+            // Tikriname ar produktas suteikia nemokamą siuntimą
+            if (in_array($pId, $freeShippingProductIds)) {
                 $hasFreeShippingProduct = true;
             }
 
             $productsInCart[] = [
                 'id' => $pId,
+                'name' => $p['title'], // Reikalinga įrašant į order_items
                 'price' => $finalPrice,
                 'qty' => $qty
             ];
@@ -154,7 +192,7 @@ if (!empty($cleanIds)) {
     }
 }
 
-// 5. NUOLAIDOS KODO APDOROJIMAS
+// 5. NUOLAIDOS APDOROJIMAS (POST)
 $discountError = '';
 $discountSuccess = '';
 
@@ -168,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'code' => $result['data']['code'],
                 'value' => $result['calculated_value'],
                 'type' => $result['data']['type'],
-                'raw_value' => $result['data']['value'],
+                'grants_free_shipping' => $result['grants_free_shipping'],
                 'id' => $result['data']['id']
             ];
             $discountSuccess = 'Nuolaida pritaikyta!';
@@ -183,80 +221,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 6. PERSKAIČIUOJAME GALUTINĘ SUMĄ SU NUOLAIDA
+// 6. GALUTINIAI SKAIČIAVIMAI
 $discountAmount = 0;
 $activeDiscountCode = '';
+$couponGrantsFreeShipping = false;
 
 if (isset($_SESSION['applied_discount'])) {
+    // Pertikriname kiekvieną kartą, kad nepasenų
     $check = checkDiscountCode($pdo, $_SESSION['applied_discount']['code'], $cartItemsTotal);
     if ($check['valid']) {
         $discountAmount = $check['calculated_value'];
+        $couponGrantsFreeShipping = $check['grants_free_shipping'];
         $activeDiscountCode = $_SESSION['applied_discount']['code'];
+        // Atnaujiname sesiją su perskaičiuota verte (jei krepšelis kito)
         $_SESSION['applied_discount']['value'] = $discountAmount;
+        $_SESSION['applied_discount']['grants_free_shipping'] = $couponGrantsFreeShipping;
     } else {
         unset($_SESSION['applied_discount']);
-        $discountError = "Nuolaida pašalinta: " . $check['error'];
+        $discountError = "Nuolaida nebegalioja: " . $check['error'];
     }
 }
 
 $totalAfterDiscount = max(0, $cartItemsTotal - $discountAmount);
 
-// 7. Gauname pristatymo nustatymus
-$shippingSettings = getShippingSettings($pdo);
+// Nustatome ar taikomas nemokamas siuntimas
+$isShippingFree = false;
 
-// 8. GAUNAME PAŠTOMATUS IR PARUOŠIAME JS
-$lockersForJs = [];
-try {
-    // Pataisyta: nenaudojame ORDER BY city, nes tokio stulpelio nėra.
-    // Rikiuosime PHP pusėje pagal iš adreso ištrauktą miestą.
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers");
-    $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($allLockers as $l) {
-        // Bandome gauti miestą iš adreso (paprastai tekstas iki pirmo kablelio)
-        $addressParts = explode(',', $l['address']);
-        $derivedCity = trim($addressParts[0] ?? '');
-        
-        $lockersForJs[] = [
-            'title' => $l['title'],
-            'address' => $l['address'],
-            'city' => $derivedCity,
-            'type' => strtolower(trim($l['provider'] ?? 'other')), 
-            'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')'
-        ];
-    }
-
-    // Surikiuojame masyvą: Pirmiausia Miestas, tada Pavadinimas
-    usort($lockersForJs, function($a, $b) {
-        $cityCmp = strcmp($a['city'], $b['city']);
-        if ($cityCmp === 0) {
-            return strcmp($a['title'], $b['title']);
-        }
-        return $cityCmp;
-    });
-
-} catch (Exception $e) {
-    error_log("Klaida gaunant paštomatus: " . $e->getMessage());
+// 1 taisyklė: Ar yra nemokamo siuntimo prekė?
+if ($hasFreeShippingProduct) {
+    $isShippingFree = true;
+}
+// 2 taisyklė: Ar kuponas duoda nemokamą siuntimą?
+elseif ($couponGrantsFreeShipping) {
+    $isShippingFree = true;
+}
+// 3 taisyklė: Ar suma viršija nemokamo siuntimo ribą?
+elseif (!empty($shippingSettings['free_over']) && $shippingSettings['free_over'] > 0 && $totalAfterDiscount >= $shippingSettings['free_over']) {
+    $isShippingFree = true;
 }
 
-// 9. UŽSAKYMO PATEIKIMAS
+// Kainos atvaizdavimui
+$lockerPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['locker_price'];
+$courierPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['courier_price'];
+
+// 7. PAŠTOMATŲ SĄRAŠAS (JS)
+$lockersForJs = [];
+try {
+    // Pastaba: Tavo DB gali vadintis 'parcel_lockers' arba kitaip. 
+    // Jei lentelės nėra, JS tiesiog bus tuščias, kodas nelūš.
+    // Čia darau SELECT su error suppression, jei lentelės nėra.
+    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers"); 
+    if ($stmtLockers) {
+        $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allLockers as $l) {
+            $addressParts = explode(',', $l['address']);
+            $derivedCity = trim($addressParts[0] ?? '');
+            
+            $lockersForJs[] = [
+                'title' => $l['title'],
+                'address' => $l['address'],
+                'city' => $derivedCity,
+                'type' => strtolower(trim($l['provider'] ?? 'other')), 
+                'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')'
+            ];
+        }
+        // Rikiavimas
+        usort($lockersForJs, function($a, $b) {
+            return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
+        });
+    }
+} catch (Exception $e) {
+    // Ignoruojame, jei paštomatų lentelė dar nesukurta ar kitokia
+}
+
+// 8. UŽSAKYMO ĮRAŠYMAS (FINALIZAVIMAS)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $errors = [];
     
+    // CSRF
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $errors[] = 'Saugumo klaida. Pabandykite perkrauti puslapį.';
+        $errors[] = 'Saugumo klaida. Pabandykite iš naujo.';
     }
 
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    
     $method = $_POST['delivery_method'] ?? 'locker';
     $notes = trim($_POST['notes'] ?? '');
     $selectedLocker = trim($_POST['locker_select'] ?? '');
 
-    // ADRESO APDOROJIMAS
-    $address = "";
+    // Adreso validacija
+    $fullAddress = "";
     if ($method === 'courier') {
         $city = trim($_POST['city'] ?? '');
         $street = trim($_POST['street'] ?? '');
@@ -264,107 +319,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         $flat = trim($_POST['flat'] ?? '');
         $zip = trim($_POST['zip'] ?? '');
 
-        // Validacija
-        if (empty($city)) $errors[] = 'Įveskite miestą.';
-        if (empty($street)) $errors[] = 'Įveskite gatvę.';
-        if (empty($house)) $errors[] = 'Įveskite namo numerį.';
-        if (empty($zip)) $errors[] = 'Įveskite pašto kodą.';
-
-        // Sujungiame į vieną eilutę
-        $address = "$street g. $house" . (!empty($flat) ? "-$flat" : "") . ", $city, LT-$zip";
+        if (empty($city) || empty($street) || empty($house) || empty($zip)) {
+            $errors[] = 'Užpildykite visus adreso laukus kurjeriui.';
+        }
+        $fullAddress = "$street g. $house" . ($flat ? "-$flat" : "") . ", $city, LT-$zip";
+    } elseif ($method === 'locker') {
+        if (empty($selectedLocker)) {
+            $errors[] = 'Pasirinkite paštomatą.';
+        }
+        $fullAddress = "Paštomatas: " . $selectedLocker;
     }
 
-    // Validacija
-    if (empty($name)) $errors[] = 'Būtina įvesti vardą.';
-    if (empty($phone)) $errors[] = 'Būtina įvesti telefoną.';
-    if ($method === 'locker' && empty($selectedLocker)) $errors[] = 'Būtina pasirinkti paštomatą.';
+    if (empty($name) || empty($phone) || empty($email)) {
+        $errors[] = 'Neužpildyti kontaktiniai duomenys.';
+    }
 
     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
 
-            $shippingPrice = calculateShippingPrice($shippingSettings, $totalAfterDiscount, $method, $hasFreeShippingProduct);
-            $finalTotal = $totalAfterDiscount + $shippingPrice;
+            // Galutinis kainos apskaičiavimas SERVERIO pusėje (saugumas)
+            $finalShippingPrice = 0;
+            if (!$isShippingFree) {
+                if ($method === 'courier') {
+                    $finalShippingPrice = (float)$shippingSettings['courier_price'];
+                } else {
+                    $finalShippingPrice = (float)$shippingSettings['locker_price'];
+                }
+            }
 
-            $deliveryDetailsData = [
+            $grandTotal = $totalAfterDiscount + $finalShippingPrice;
+
+            // Paruošiame JSON su detalėmis
+            $deliveryDetailsArr = [
                 'method' => $method,
-                'shipping_price' => $shippingPrice,
-                'phone' => $phone,
-                'email' => $email,
+                'shipping_price' => $finalShippingPrice,
+                'contact_phone' => $phone,
+                'contact_email' => $email,
                 'notes' => $notes,
-                'items_total' => $cartItemsTotal,
                 'discount_code' => $activeDiscountCode,
                 'discount_amount' => $discountAmount
             ];
-
             if ($method === 'locker') {
-                $deliveryDetailsData['locker_address'] = $selectedLocker;
-                $address = "Paštomatas: " . $selectedLocker;
+                $deliveryDetailsArr['locker_name'] = $selectedLocker;
             }
+            $deliveryDetailsJson = json_encode($deliveryDetailsArr);
 
-            $deliveryDetails = json_encode($deliveryDetailsData);
-
+            // Įrašome į ORDERS
             $stmtOrder = $pdo->prepare("
                 INSERT INTO orders 
-                (user_id, total, status, created_at, customer_name, customer_address, delivery_method, delivery_details, customer_email) 
-                VALUES (?, ?, 'Laukiama apmokėjimo', NOW(), ?, ?, ?, ?, ?)
+                (user_id, total, shipping_price, discount_amount, discount_code, status, created_at, customer_name, customer_email, customer_phone, customer_address, delivery_method, delivery_details) 
+                VALUES (?, ?, ?, ?, ?, 'pending_payment', NOW(), ?, ?, ?, ?, ?, ?)
             ");
             
             $stmtOrder->execute([
                 $_SESSION['user_id'] ?? null,
-                $finalTotal,
+                $grandTotal,           // Viso su pristatymu
+                $finalShippingPrice,   // Tik pristatymas
+                $discountAmount,
+                $activeDiscountCode,
                 $name,
-                $address,
+                $email,
+                $phone,
+                $fullAddress,
                 $method,
-                $deliveryDetails,
-                $email
+                $deliveryDetailsJson
             ]);
             
             $orderId = $pdo->lastInsertId();
 
-            $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+            // Įrašome į ORDER_ITEMS
+            $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES (?, ?, ?, ?, ?)");
             foreach ($productsInCart as $item) {
-                $stmtItem->execute([$orderId, $item['id'], $item['qty'], $item['price']]);
+                $stmtItem->execute([
+                    $orderId, 
+                    $item['id'], 
+                    $item['name'], 
+                    $item['qty'], 
+                    $item['price']
+                ]);
             }
 
+            // Atnaujiname nuolaidos panaudojimą
             if (!empty($activeDiscountCode)) {
-                $stmtUpdateDiscount = $pdo->prepare("UPDATE discounts SET used_count = used_count + 1 WHERE code = ?");
-                $stmtUpdateDiscount->execute([$activeDiscountCode]);
+                $pdo->prepare("UPDATE discounts SET used_count = used_count + 1 WHERE code = ?")->execute([$activeDiscountCode]);
             }
 
             $pdo->commit();
             
-            unset($_SESSION['cart']);
-            unset($_SESSION['applied_discount']);
-            // Taip pat išvalome variacijas
-            unset($_SESSION['cart_variations']);
-
-            header("Location: /stripe_checkout.php?order_id=" . $orderId);
+            // Išvalome krepšelį tik po sėkmingo apmokėjimo? 
+            // Standartiškai: nukreipiam į Stripe, o krepšelis valomas 'stripe_success.php'.
+            // Bet kad vartotojas nebegalėtų "grįžti" ir redaguoti, galime išvalyti čia, 
+            // arba laikinai saugoti sesijoje "pending_order_id".
+            
+            // Šiam kartui: nukreipiame.
+            header("Location: stripe_checkout.php?order_id=" . $orderId);
             exit;
 
         } catch (Exception $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            $errors[] = "Klaida apdorojant užsakymą: " . $e->getMessage();
+            $pdo->rollBack();
+            $errors[] = "Sistemos klaida: " . $e->getMessage();
         }
     }
 }
 
-// User info autofill
-$user = null;
+// User autofill
+$user = [];
 if (!empty($_SESSION['user_id'])) {
-    $userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-    $userStmt->execute([$_SESSION['user_id']]);
-    $user = $userStmt->fetch();
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 }
-
-// UI Calculation
-$courierCost = calculateShippingPrice($shippingSettings, $totalAfterDiscount, 'courier', $hasFreeShippingProduct);
-$lockerCost = calculateShippingPrice($shippingSettings, $totalAfterDiscount, 'locker', $hasFreeShippingProduct);
-$isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $totalAfterDiscount >= $shippingSettings['free_over']));
-
 ?>
+
 <!doctype html>
 <html lang="lt">
 <head>
@@ -407,36 +474,13 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
             margin-bottom: 32px;
             text-align: left;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 24px;
-            flex-wrap: wrap;
+            display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
         }
         .promo-content { max-width: 600px; flex: 1; }
         .promo-banner h2 { margin: 0 0 12px 0; font-size: 24px; font-weight: 700; color: #1e3a8a; letter-spacing: -0.5px; }
         .promo-banner p { margin: 0; color: #1e40af; line-height: 1.6; font-size: 15px; }
-        
-        .pill { 
-            display:inline-flex; align-items:center; gap:8px; 
-            padding:6px 12px; border-radius:999px; 
-            background:#fff; border:1px solid #bfdbfe; 
-            font-weight:600; font-size:13px; color:#1e40af; 
-            margin-bottom: 12px;
-        }
-
-        .promo-code-box {
-            display: inline-block;
-            background: #ffffff;
-            padding: 10px 18px;
-            border-radius: 10px;
-            font-weight: 700;
-            color: #1e40af;
-            border: 1px dashed #3b82f6;
-            letter-spacing: 1px;
-            font-size: 14px;
-            white-space: nowrap;
-        }
+        .pill { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:#fff; border:1px solid #bfdbfe; font-weight:600; font-size:13px; color:#1e40af; margin-bottom: 12px; }
+        .promo-code-box { display: inline-block; background: #ffffff; padding: 10px 18px; border-radius: 10px; font-weight: 700; color: #1e40af; border: 1px dashed #3b82f6; letter-spacing: 1px; font-size: 14px; white-space: nowrap; }
 
         /* Forms */
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -444,16 +488,8 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         @media(max-width: 600px) { .form-grid-3 { grid-template-columns: 1fr; } }
 
         .form-group { margin-bottom: 16px; }
-        .form-group:last-child { margin-bottom: 0; }
         .form-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: var(--text-muted); }
-        .form-control { 
-            width: 100%; padding: 10px 12px; 
-            border: 1px solid var(--border); border-radius: 8px; 
-            font-size: 14px; color: var(--text-main);
-            transition: all 0.2s;
-            box-sizing: border-box;
-            background: #fff;
-        }
+        .form-control { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text-main); transition: all 0.2s; box-sizing: border-box; background: #fff; }
         .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
         textarea.form-control { resize: vertical; min-height: 80px; }
 
@@ -461,27 +497,13 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .shipping-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
         @media(max-width: 600px) { .shipping-options { grid-template-columns: 1fr; } }
 
-        .radio-card { 
-            position: relative;
-            border: 1px solid var(--border); 
-            border-radius: 10px; 
-            padding: 16px; 
-            cursor: pointer; 
-            transition: all 0.2s; 
-            display: flex; 
-            flex-direction: column;
-            gap: 8px;
-            align-items: flex-start;
-        }
+        .radio-card { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 16px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
         .radio-card:hover { background: #f8fafc; border-color: #cbd5e1; }
         .radio-card.active { border-color: var(--accent); background: #eff6ff; box-shadow: 0 0 0 1px var(--accent); }
         .radio-card input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
         
         .radio-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
-        .radio-circle { 
-            width: 18px; height: 18px; border-radius: 50%; border: 2px solid #cbd5e1; 
-            display: flex; align-items: center; justify-content: center; margin-right: 10px;
-        }
+        .radio-circle { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; margin-right: 10px; }
         .radio-card.active .radio-circle { border-color: var(--accent); }
         .radio-card.active .radio-circle::after { content: ''; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
         
@@ -491,63 +513,25 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
 
         /* Provider Selection Buttons */
         .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-        .provider-btn {
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            font-weight: 600;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-            background: #fff;
-        }
+        .provider-btn { border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.2s; background: #fff; }
         .provider-btn:hover { background: #f8fafc; }
-        .provider-btn.active {
-            border-color: var(--accent);
-            background: #eff6ff;
-            color: var(--accent);
-            box-shadow: 0 0 0 1px var(--accent);
-        }
+        .provider-btn.active { border-color: var(--accent); background: #eff6ff; color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
-        /* CUSTOM SELECT - SEARCHABLE DROPDOWN */
+        /* CUSTOM SELECT */
         .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
-        .custom-select-trigger {
-            position: relative;
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 12px;
-            font-size: 14px; font-weight: 400; color: var(--text-main);
-            background: #fff; border: 1px solid var(--border); border-radius: 8px;
-            cursor: pointer; transition: all 0.2s;
-        }
-        .custom-select-trigger:hover { border-color: #cbd5e1; }
+        .custom-select-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 14px; font-weight: 400; color: var(--text-main); background: #fff; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .custom-select-wrapper.open .custom-select-trigger { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
         .custom-select-trigger span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .custom-options-container {
-            position: absolute; display: none; top: 100%; left: 0; right: 0;
-            background: #fff; border: 1px solid var(--border); border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            z-index: 100; margin-top: 4px;
-            max-height: 300px; overflow: hidden;
-            flex-direction: column;
-        }
+        .custom-options-container { position: absolute; display: none; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 300px; overflow: hidden; flex-direction: column; }
         .custom-select-wrapper.open .custom-options-container { display: flex; }
         
         .sticky-search { padding: 8px; background: #fff; border-bottom: 1px solid var(--border); }
-        .sticky-search input {
-            width: 100%; padding: 8px;
-            border: 1px solid var(--border); border-radius: 6px;
-            font-size: 13px; box-sizing: border-box;
-        }
+        .sticky-search input { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; box-sizing: border-box; }
         .sticky-search input:focus { outline: none; border-color: var(--accent); }
         
         .options-list { overflow-y: auto; flex: 1; }
-        .custom-option {
-            padding: 10px 12px; font-size: 13px; color: var(--text-main);
-            cursor: pointer; transition: background 0.1s;
-            border-bottom: 1px solid #f1f5f9;
-        }
+        .custom-option { padding: 10px 12px; font-size: 13px; color: var(--text-main); cursor: pointer; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
         .custom-option:last-child { border-bottom: none; }
         .custom-option:hover { background: #f1f5f9; }
         .custom-option.selected { background: #eff6ff; color: var(--accent); font-weight: 500; }
@@ -559,17 +543,9 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
         .summary-row.total { border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 16px; font-weight: 700; font-size: 18px; color: var(--text-main); }
         .summary-row.discount { color: var(--success); font-weight: 500; }
         
-        .btn-primary { 
-            width: 100%; padding: 14px; 
-            background: var(--accent); color: white; 
-            border: none; border-radius: 10px; 
-            font-size: 16px; font-weight: 600; 
-            cursor: pointer; transition: 0.2s; 
-            text-align: center;
-        }
+        .btn-primary { width: 100%; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s; text-align: center; }
         .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); }
         
-        /* Discount Form */
         .discount-form { display: flex; gap: 8px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
         .btn-apply { padding: 0 16px; background: #0f172a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
         .active-discount { background: #ecfdf5; border: 1px solid #6ee7b7; padding: 10px; border-radius: 8px; font-size: 13px; color: #065f46; display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
@@ -592,13 +568,12 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                 <div class="promo-content">
                     <div class="pill">🎉 Jūs esate klubo narys</div>
                     <h2>AČIŪ, kad esate su mumis!</h2>
-                    <p>Kaip registruotam nariui, dovanojame Jums išskirtinę <strong>5% nuolaidą</strong> šiam krepšeliui.</p>
+                    <p>Kaip registruotam nariui, dovanojame Jums išskirtinę nuolaidą.</p>
                 </div>
-                <div class="promo-code-box">KODAS: ACIU</div>
             <?php else: ?>
                 <div class="promo-content">
                     <div class="pill">🎁 Išskirtinis pasiūlymas</div>
-                    <h2>Norite gauti 5% nuolaidą?</h2>
+                    <h2>Norite gauti nuolaidą?</h2>
                     <p>
                         <a href="login.php" style="color: inherit; text-decoration: underline; font-weight: bold;">Prisijunkite</a> 
                         arba 
@@ -606,7 +581,6 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                         tapkite klubo nariu ir sutaupykite!
                     </p>
                 </div>
-                <div class="promo-code-box" style="opacity: 0.5;">TIK NARIAMS</div>
             <?php endif; ?>
         </div>
 
@@ -659,12 +633,12 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                             Pristatymas
                         </h3>
                         
-                        <?php if($isFree): ?>
+                        <?php if($isShippingFree): ?>
                             <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                 Jums taikomas nemokamas pristatymas!
                             </div>
-                        <?php elseif($shippingSettings['free_over'] > 0): ?>
+                        <?php elseif(!empty($shippingSettings['free_over']) && $shippingSettings['free_over'] > 0): ?>
                              <div class="alert alert-success" style="font-size:12px; margin-bottom: 16px; padding: 8px;">
                                 Trūksta tik <strong><?php echo number_format($shippingSettings['free_over'] - $totalAfterDiscount, 2); ?> €</strong> iki nemokamo pristatymo.
                             </div>
@@ -678,8 +652,8 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                                         Paštomatas
                                     </span>
                                     <input type="radio" name="delivery_method" value="locker" checked>
-                                    <span class="radio-price <?php echo $isFree ? 'free' : ''; ?>">
-                                        <?php echo $isFree ? '0.00' : number_format($lockerCost, 2); ?> €
+                                    <span class="radio-price <?php echo $isShippingFree ? 'free' : ''; ?>">
+                                        <?php echo number_format($lockerPriceDisplay, 2); ?> €
                                     </span>
                                 </div>
                             </label>
@@ -691,8 +665,8 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                                         Kurjeris į namus
                                     </span>
                                     <input type="radio" name="delivery_method" value="courier">
-                                    <span class="radio-price <?php echo $isFree ? 'free' : ''; ?>">
-                                        <?php echo $isFree ? '0.00' : number_format($courierCost, 2); ?> €
+                                    <span class="radio-price <?php echo $isShippingFree ? 'free' : ''; ?>">
+                                        <?php echo number_format($courierPriceDisplay, 2); ?> €
                                     </span>
                                 </div>
                             </label>
@@ -725,10 +699,10 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
                                             <input type="text" id="locker-search-input" placeholder="Rašykite miestą arba adresą..." onkeyup="filterCustomOptions()" autocomplete="off">
                                         </div>
                                         <div class="options-list" id="options-list">
-                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                </div>
+                            </div>
                         </div>
 
                         <div class="hidden-field" id="address-field">
@@ -796,12 +770,12 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
 
                     <div class="summary-row">
                         <span>Pristatymas</span>
-                        <span id="shipping-display"><?php echo $isFree ? '0.00' : number_format($lockerCost, 2); ?> €</span>
+                        <span id="shipping-display"><?php echo number_format($lockerPriceDisplay, 2); ?> €</span>
                     </div>
                     
                     <div class="summary-row total">
                         <span>VISO MOKĖTI</span>
-                        <span id="total-display"><?php echo number_format($totalAfterDiscount + ($isFree ? 0 : $lockerCost), 2); ?> €</span>
+                        <span id="total-display"><?php echo number_format($totalAfterDiscount + $lockerPriceDisplay, 2); ?> €</span>
                     </div>
 
                     <button type="submit" form="checkout-form" class="btn-primary" style="margin-top: 24px;">
@@ -838,9 +812,10 @@ $isFree = ($hasFreeShippingProduct || ($shippingSettings['free_over'] > 0 && $to
     <script>
         // Data from PHP
         const totalAfterDiscount = <?php echo number_format($totalAfterDiscount, 2, '.', ''); ?>;
+        // Čia kainos jau ateina su įvertintu nemokamu siuntimu (jei jis priklauso)
         const prices = {
-            locker: <?php echo $isFree ? '0.00' : number_format($lockerCost, 2, '.', ''); ?>,
-            courier: <?php echo $isFree ? '0.00' : number_format($courierCost, 2, '.', ''); ?>
+            locker: <?php echo number_format($lockerPriceDisplay, 2, '.', ''); ?>,
+            courier: <?php echo number_format($courierPriceDisplay, 2, '.', ''); ?>
         };
         const allLockers = <?php echo json_encode($lockersForJs); ?>;
 
