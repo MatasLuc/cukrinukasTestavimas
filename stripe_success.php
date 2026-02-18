@@ -92,7 +92,9 @@ try {
 
     $existsCommunity = false;
     if ($checkout_session->payment_intent) {
-        $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ?");
+        // Tikriname community_orders, bet kadangi ten struktūra pasikeitė ir įrašoma daug eilučių,
+        // tikriname ar yra bent viena eilutė su šiuo payment intent
+        $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ? LIMIT 1");
         $stmt->execute([$checkout_session->payment_intent]);
         $existsCommunity = $stmt->fetch();
     }
@@ -195,68 +197,75 @@ try {
         if (!empty($cIds)) {
             $placeholders = implode(',', array_fill(0, count($cIds), '?'));
             
-            // PATAISYTA: Pašalintas 'shipping_price' iš SELECT užklausos
+            // PATAISYTA: Imam tik tai kas yra listings lentelėje
             $stmt = $pdo->prepare("SELECT id, user_id as seller_id, title, price FROM community_listings WHERE id IN ($placeholders)");
             $stmt->execute($cIds);
             $listings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Grupuojame pagal pardavėją
-            $itemsBySeller = [];
+            // Grupuojame pagal pardavėją tik el. laiškams
+            $itemsBySellerForEmail = [];
+
+            // Stripe ID (Payment Intent arba Session ID)
+            $paymentId = $checkout_session->payment_intent ?? $session_id;
+
             foreach ($listings as $listing) {
                 $sellerId = $listing['seller_id'];
-                $qty = (int)$_SESSION['cart_community'][$listing['id']];
+                $itemId = $listing['id'];
+                $qty = (int)$_SESSION['cart_community'][$itemId];
+                $unitPrice = $listing['price'];
+                $itemTotalPrice = $unitPrice * $qty;
                 
-                if (!isset($itemsBySeller[$sellerId])) {
-                    $itemsBySeller[$sellerId] = [];
-                }
+                // SKAIČIAVIMAI PAGAL DB STRUKTŪRĄ
+                $shippingPrice = 0; // Visada 0
+                $totalAmount = $itemTotalPrice + $shippingPrice;
                 
-                $itemsBySeller[$sellerId][] = [
-                    'listing_id' => $listing['id'],
-                    'title' => $listing['title'],
-                    'price' => $listing['price'],
-                    'shipping' => 0, // PATAISYTA: Pristatymas visada 0
-                    'qty' => $qty
-                ];
-            }
+                $adminCommissionAmount = ($itemTotalPrice * $commissionRate) / 100;
+                $sellerPayoutAmount = $totalAmount - $adminCommissionAmount;
 
-            foreach ($itemsBySeller as $sellerId => $items) {
-                $subtotal = 0;
-                $shippingTotal = 0;
-                
-                foreach ($items as $item) {
-                    $subtotal += $item['price'] * $item['qty'];
-                    $shippingTotal += 0; // PATAISYTA: Nėra papildomo pristatymo mokesčio
-                }
-
-                $grandTotal = $subtotal + $shippingTotal;
-                $commissionAmount = ($subtotal * $commissionRate) / 100;
-                $itemsJson = json_encode($items);
-
-                // Naudojame payment_intent kaip ID
-                $paymentIntentId = $checkout_session->payment_intent ?? $session_id . '_comm_' . $sellerId;
-
+                // 1. ĮRAŠOME Į DB KIEKVIENĄ PREKĘ ATSKIRAI
+                // Lentelės stulpeliai: buyer_id, seller_id, item_id, item_price, shipping_price, 
+                // total_amount, admin_commission_rate, admin_commission_amount, seller_payout_amount, ...
                 $stmt = $pdo->prepare("
                     INSERT INTO community_orders 
-                    (buyer_id, seller_id, total_item_price, total_shipping_price, platform_commission, total_paid, stripe_payment_intent_id, status, payout_status, delivery_status, created_at, items_json) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', 'hold', 'pending', NOW(), ?)
+                    (buyer_id, seller_id, item_id, item_price, shipping_price, 
+                     total_amount, admin_commission_rate, admin_commission_amount, seller_payout_amount, 
+                     stripe_payment_intent_id, status, payout_status, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', 'hold', NOW())
                 ");
                 
                 $stmt->execute([
                     $userId,
                     $sellerId,
-                    $subtotal,
-                    $shippingTotal, // Čia įsirašys 0
-                    $commissionAmount,
-                    $grandTotal,
-                    $paymentIntentId,
-                    $itemsJson
+                    $itemId,
+                    $itemTotalPrice, // item_price (bendra kaina už šią prekę)
+                    $shippingPrice,
+                    $totalAmount,
+                    $commissionRate,
+                    $adminCommissionAmount,
+                    $sellerPayoutAmount,
+                    $paymentId
                 ]);
 
+                // Kaupiame informaciją el. laiškams
+                if (!isset($itemsBySellerForEmail[$sellerId])) {
+                    $itemsBySellerForEmail[$sellerId] = [
+                        'total_paid' => 0,
+                        'items' => []
+                    ];
+                }
+                $itemsBySellerForEmail[$sellerId]['total_paid'] += $totalAmount;
+                $itemsBySellerForEmail[$sellerId]['items'][] = [
+                    'title' => $listing['title'],
+                    'qty' => $qty
+                ];
+            }
+
+            // Suformuojame masyvą laiškų siuntimui
+            foreach ($itemsBySellerForEmail as $sellerId => $data) {
                 $communityOrdersCreated[] = [
                     'seller_id' => $sellerId,
-                    'items' => $items,
-                    'total_paid' => $grandTotal,
-                    'shipping' => $shippingTotal
+                    'items' => $data['items'],
+                    'total_paid' => $data['total_paid']
                 ];
             }
         }
@@ -307,7 +316,7 @@ try {
                     $sBody .= "<li>{$item['title']} (x{$item['qty']})</li>";
                 }
                 $sBody .= "</ul>";
-                $sBody .= "<p>Gauta suma: " . number_format($co['total_paid'] / 100, 2) . " EUR</p>";
+                $sBody .= "<p>Gauta suma: " . number_format($co['total_paid'], 2) . " EUR</p>";
 
                 sendEmail($seller['email'], $sSubject, $sBody);
             }
