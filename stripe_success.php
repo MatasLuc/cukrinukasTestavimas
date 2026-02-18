@@ -110,7 +110,7 @@ try {
                     'product_id' => $product['id'],
                     'qty' => $qty,
                     'price' => $price,
-                    'name' => $product['name']
+                    'name' => $product['title']
                 ];
             }
         }
