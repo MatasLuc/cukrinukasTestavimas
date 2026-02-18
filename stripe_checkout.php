@@ -1,4 +1,5 @@
 <?php
+// stripe_checkout.php
 // Įjungiame klaidų rodymą
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -161,27 +162,8 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
     }
 }
 
-// 3. NUOLAIDOS APSKAIČIAVIMAS (Minusavimas)
-// Stripe nepalaiko neigiamų line_items, todėl naudojame "coupon" arba "discount" mechanizmą.
-// Paprasčiausias būdas čia - tiesiog perduoti Stripe Coupon ID, jei turite sukūrę Stripe.
-// ARBA, jei nuolaida yra suma (pvz 5 EUR), galima sumažinti prekių kainas proporcingai, 
-// bet paprasčiau yra tikėtis, kad galutinė suma `checkout.php` yra teisinga, 
-// o čia mes tiesiog surenkame prekes.
-// TAČIAU, jūsų `checkout.php` jau įrašė `total` į DB. 
-// Jei norime tiksliai, kad Stripe atitiktų DB sumą, geriausia būtų tiesiog sukurti vieną 'line_item' visai sumai,
-// bet tada prarandame detalizaciją.
-// Kompromisas: pritaikome nuolaidą kaip coupon, JEI turite Stripe Coupon. 
-// Jei neturite - teks pasikliauti tuo, kad nuolaida jau pritaikyta prekių kainose (bet aukščiau kode mes ėmėme DB kainas).
-// Sprendimas: Jei yra nuolaida, įdedame ją kaip atskirą įrašą su neigiama suma negalima...
-// Todėl Stripe geriausia naudoti `discounts` masyvą.
-// Supaprastinimas: Šiame kode darome prielaidą, kad nuolaidos kodų logiką tvarko Stripe Coupons arba 
-// mes tiesiog ignoruojame nuolaidą Stripe Checkout vizualizacijoje (kas yra blogai).
-
-// GERIAUSIAS SPRENDIMAS PAGAL ESAMĄ KODĄ:
-// Mes tiesiog pridedame PRISTATYMĄ. Nuolaidas paliekame ateičiai/Stripe dashboard'ui, 
-// nes PHP kode generuoti dinaminį Stripe kuponą yra sudėtingiau.
-// Jei DB `orders` lentelėje yra `shipping_amount`, pridedame jį.
-
+// 3. PRISTATYMAS
+// Imame tikslią sumą iš DB order įrašo
 if ($order && floatval($order['shipping_amount']) > 0) {
     $shippingCost = floatval($order['shipping_amount']);
     $line_items[] = [
@@ -209,6 +191,7 @@ try {
         'payment_method_types' => ['card'],
         'line_items' => $line_items,
         'mode' => 'payment',
+        'client_reference_id' => $orderId, // SVARBU: Susiejame Stripe sesiją su DB užsakymo ID
         'success_url' => $baseUrl . '/stripe_success.php?session_id={CHECKOUT_SESSION_ID}',
         'cancel_url' => $baseUrl . '/stripe_return.php?order_id=' . $orderId, // Grąžiname į spec. puslapį arba atgal
         'metadata' => [
