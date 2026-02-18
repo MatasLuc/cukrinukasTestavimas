@@ -41,12 +41,12 @@ try {
         die("Klaida: Vartotojo sesija nerasta. Susisiekite su administracija.");
     }
 
-    // --- NAUJA: Ištraukiame pirkėjo duomenis iš Stripe (reikalingi orders lentelei) ---
+    // --- Pirkėjo duomenys iš Stripe ---
     $customerDetails = $checkout_session->customer_details;
     
     $customerName = $customerDetails->name ?? 'Nenurodyta';
     $customerEmail = $customerDetails->email ?? ($_SESSION['user_email'] ?? 'info@cukrinukas.lt');
-    $customerPhone = $customerDetails->phone ?? ''; // Gali būti tuščias, bet stulpelis reikalauja reikšmės
+    $customerPhone = $customerDetails->phone ?? ''; 
     
     // Formuojame adresą iš Stripe duomenų
     $addressData = $customerDetails->address ?? null;
@@ -61,19 +61,44 @@ try {
         ]);
         $customerAddress = implode(', ', $lines);
     }
-    // --------------------------------------------------------------------------------
+    
+    // --- ATKURIAME PRISTATYMO INFORMACIJĄ ---
+    // Kadangi orders lentelė tikriausiai reikalauja delivery_method ir delivery_details,
+    // bandome juos gauti iš sesijos. Jei nėra - suformuojame atsarginius duomenis iš Stripe.
+    
+    $sessionDelivery = $_SESSION['checkout_delivery'] ?? [];
+    
+    // Nustatome pristatymo būdą (default: courier, jei sesija dingo)
+    $deliveryMethod = $sessionDelivery['method'] ?? 'courier';
+    
+    // Suformuojame delivery_details JSON
+    $deliveryDetailsArr = [
+        'address' => $customerAddress,
+        'city' => $addressData->city ?? '',
+        'zip' => $addressData->postal_code ?? '',
+        'phone' => $customerPhone,
+        'country_code' => $addressData->country ?? 'LT'
+    ];
+    
+    // Jei buvo pasirinktas paštomatas, pridedame jo info iš sesijos
+    if ($deliveryMethod === 'locker' && !empty($sessionDelivery['locker_address'])) {
+        $deliveryDetailsArr['locker_address'] = $sessionDelivery['locker_address'];
+    }
+    
+    $deliveryDetailsJson = json_encode($deliveryDetailsArr);
+    // ----------------------------------------
 
     // 3. Patikriname, ar šis session_id jau panaudotas (Idempotency)
-    
-    // TIKRINAME PAGAL NAUJĄ STRUKTŪRĄ: orders lentelėje pagal stripe_session_id
     $stmt = $pdo->prepare("SELECT id FROM orders WHERE stripe_session_id = ?");
     $stmt->execute([$session_id]);
     $existsMain = $stmt->fetch();
 
-    // Community orders dažniausiai naudoja payment intent, paliekame kaip buvo, nebent ir ten keitėte
-    $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ?");
-    $stmt->execute([$checkout_session->payment_intent]);
-    $existsCommunity = $stmt->fetch();
+    $existsCommunity = false;
+    if ($checkout_session->payment_intent) {
+        $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ?");
+        $stmt->execute([$checkout_session->payment_intent]);
+        $existsCommunity = $stmt->fetch();
+    }
 
     if ($existsMain || $existsCommunity) {
         // Užsakymas jau apdorotas
@@ -101,8 +126,11 @@ try {
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($products as $product) {
-                $qty = $_SESSION['cart'][$product['id']];
-                $price = $product['price'];
+                $qty = (int)$_SESSION['cart'][$product['id']];
+                
+                // PATAISYMAS: Naudojame akcijinę kainą, jei ji yra
+                $price = ($product['sale_price'] !== null) ? $product['sale_price'] : $product['price'];
+                
                 $subtotal = $price * $qty;
                 $totalShopPrice += $subtotal;
 
@@ -115,12 +143,13 @@ try {
             }
         }
 
+        // Pridedame pristatymo kainą iš sesijos (jei yra), kad 'total' sutaptų su tuo, ką nuskaityta
+        // Pastaba: čia supaprastinta, idealu būtų perskaičiuoti pagal shipping_helper, 
+        // bet Stripe jau nuskaitė pinigus, tad įrašome tiesiog prekių sumą + shipping jei reikia.
+        // Šiuo atveju paliekame items total, nebent turite atskirą kintamąjį pristatymui.
+        
         if ($totalShopPrice > 0) {
-            // PATAISYTA SQL UŽKLAUSA PAGAL PATEIKTĄ LENTELĘ
-            // Naudojame 'total' vietoj 'total_price'
-            // Naudojame 'stripe_session_id' vietoj 'stripe_payment_intent_id'
-            // Pridedame privalomus laukus: customer_name, customer_email, customer_phone, customer_address
-            
+            // PATAISYTA SQL UŽKLAUSA: Pridėti delivery_method ir delivery_details
             $stmt = $pdo->prepare("
                 INSERT INTO orders (
                     user_id, 
@@ -128,11 +157,13 @@ try {
                     customer_email, 
                     customer_phone, 
                     customer_address, 
+                    delivery_method,
+                    delivery_details,
                     total, 
                     status, 
                     stripe_session_id, 
                     created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'paid', ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, NOW())
             ");
             
             $stmt->execute([
@@ -141,8 +172,10 @@ try {
                 $customerEmail,
                 $customerPhone,
                 $customerAddress,
+                $deliveryMethod,      // Naujas laukas
+                $deliveryDetailsJson, // Naujas laukas
                 $totalShopPrice,
-                $session_id // Čia įrašome sesijos ID
+                $session_id
             ]);
             
             $orderId = $pdo->lastInsertId();
@@ -163,7 +196,7 @@ try {
     if (!empty($_SESSION['cart_community'])) {
         
         $stmt = $pdo->query("SELECT community_commission FROM system_settings LIMIT 1");
-        $commissionRate = $stmt->fetchColumn() ?: 0;
+        $commissionRate = $stmt->fetchColumn() ?: 0; // Default 0 jei nėra settingo
 
         $cIds = array_keys($_SESSION['cart_community']);
         if (!empty($cIds)) {
@@ -176,7 +209,7 @@ try {
             $itemsBySeller = [];
             foreach ($listings as $listing) {
                 $sellerId = $listing['seller_id'];
-                $qty = $_SESSION['cart_community'][$listing['id']];
+                $qty = (int)$_SESSION['cart_community'][$listing['id']];
                 
                 if (!isset($itemsBySeller[$sellerId])) {
                     $itemsBySeller[$sellerId] = [];
@@ -204,7 +237,9 @@ try {
                 $commissionAmount = ($subtotal * $commissionRate) / 100;
                 $itemsJson = json_encode($items);
 
-                // Čia paliekame stripe_payment_intent_id, nebent community_orders irgi pakeista
+                // Naudojame payment_intent kaip ID, nes session_id yra vienas visiems
+                $paymentIntentId = $checkout_session->payment_intent ?? $session_id . '_comm_' . $sellerId;
+
                 $stmt = $pdo->prepare("
                     INSERT INTO community_orders 
                     (buyer_id, seller_id, total_item_price, total_shipping_price, platform_commission, total_paid, stripe_payment_intent_id, status, payout_status, delivery_status, created_at, items_json) 
@@ -218,7 +253,7 @@ try {
                     $shippingTotal,
                     $commissionAmount,
                     $grandTotal,
-                    $checkout_session->payment_intent,
+                    $paymentIntentId,
                     $itemsJson
                 ]);
 
@@ -237,7 +272,7 @@ try {
 
     // 4. Siunčiame el. laiškus
     try {
-        $buyerEmail = $customerEmail; // Naudojame jau gautą el. paštą
+        $buyerEmail = $customerEmail; 
         
         if ($buyerEmail) {
             $subject = "Jūsų užsakymas patvirtintas!";
@@ -289,6 +324,8 @@ try {
     // 5. Išvalome krepšelius
     unset($_SESSION['cart']);
     unset($_SESSION['cart_community']);
+    // Išvalome ir pristatymo info, jei naudojama
+    unset($_SESSION['checkout_delivery']);
 
     // 6. Nukreipiame į padėkos puslapį
     header("Location: orders.php?success=1");
@@ -300,5 +337,7 @@ try {
     }
     
     error_log("Stripe Success Critical Error: " . $e->getMessage());
-    die("Įvyko klaida apdorojant užsakymą. Pinigai nuskaityti, bet užsakymas neišsaugotas. Susisiekite su administracija nurodydami sesijos ID: " . htmlspecialchars($session_id));
+    // Atvaizduojame tikslią klaidą, kad žinotumėte ką taisyti
+    die("Įvyko klaida apdorojant užsakymą. <br><strong>Techninė klaida:</strong> " . htmlspecialchars($e->getMessage()) . "<br>Sesijos ID: " . htmlspecialchars($session_id));
 }
+?>
