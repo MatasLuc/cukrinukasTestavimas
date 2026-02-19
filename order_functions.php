@@ -161,7 +161,7 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
 
                 if ($seller) {
                     $sSubject = "Naujas užsakymas! (Cukrinukas Turgelis)";
-                    $sBody = "<h2>Sveiki, {$seller['username']}!</h2>";
+                    $sBody = "<h2>Sveiki, {$seller['name']}!</h2>";
                     $sBody .= "<p>Turite naują užsakymą turgelyje.</p>";
                     $sBody .= "<h3>Reikia išsiųsti:</h3><ul>";
                     foreach ($data['items'] as $item) {
