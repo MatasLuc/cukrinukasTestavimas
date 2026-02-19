@@ -31,22 +31,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $sessionToken = getCsrfToken();
     $submittedToken = $_POST['csrf_token'] ?? '';
 
-    // Kadangi norime parodyti gražią HTML žinutę vietoj 'exit', tikriname rankiniu būdu
     if (!is_string($submittedToken) || empty($submittedToken) || !hash_equals($sessionToken, $submittedToken)) {
         $message = '<div class="alert alert-danger">Klaida: neteisingas saugumo raktas.</div>';
     } else {
         $action = $_POST['action'];
         $orderId = (int)($_POST['order_id'] ?? 0);
 
-        // A. Pirkėjas patvirtina gavimą (Turgelis)
+        // A. Pirkėjas patvirtina gavimą (Turgelis) - PINIGŲ PERVEDIMAS PARDAVĖJUI
         if ($action === 'confirm_delivery') {
-            $stmt = $pdo->prepare("SELECT id FROM community_orders WHERE id = ? AND buyer_id = ? AND status = 'shipped'");
+            $stmt = $pdo->prepare("SELECT * FROM community_orders WHERE id = ? AND buyer_id = ? AND status = 'shipped'");
             $stmt->execute([$orderId, $userId]);
+            $co = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($stmt->fetch()) {
-                $upd = $pdo->prepare("UPDATE community_orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?");
+            if ($co) {
+                $payoutSuccess = false;
+                
+                if ($co['payout_status'] !== 'transferred' && $co['seller_payout_amount'] > 0) {
+                    $stmtSeller = $pdo->prepare("SELECT stripe_account_id FROM users WHERE id = ?");
+                    $stmtSeller->execute([$co['seller_id']]);
+                    $sellerStripeAcc = $stmtSeller->fetchColumn();
+
+                    if (!empty($sellerStripeAcc)) {
+                        try {
+                            $stripeSecret = getenv('STRIPE_SECRET_KEY') ?: ($_ENV['STRIPE_SECRET_KEY'] ?? '');
+                            if ($stripeSecret && class_exists('\Stripe\Stripe')) {
+                                \Stripe\Stripe::setApiKey($stripeSecret);
+                                $transferAmount = (int)round($co['seller_payout_amount'] * 100);
+                                
+                                \Stripe\Transfer::create([
+                                    'amount' => $transferAmount,
+                                    'currency' => 'eur',
+                                    'destination' => $sellerStripeAcc,
+                                    'transfer_group' => $co['stripe_payment_intent_id'],
+                                    'metadata' => [
+                                        'community_order_id' => $co['id'],
+                                        'status' => 'confirmed_by_buyer'
+                                    ]
+                                ]);
+                                $payoutSuccess = true;
+                            }
+                        } catch (\Exception $e) {
+                            error_log("Stripe Transfer klaida (užsakymas #{$co['id']}): " . $e->getMessage());
+                            $message = '<div class="alert alert-danger">Sistemos klaida: Nepavyko atlikti pinigų pervedimo. Pardavėjui pinigai bus išmokėti rankiniu būdu.</div>';
+                        }
+                    }
+                } else {
+                    $payoutSuccess = true;
+                }
+
+                if ($payoutSuccess) {
+                    $upd = $pdo->prepare("UPDATE community_orders SET status = 'delivered', delivered_at = NOW(), payout_status = 'transferred' WHERE id = ?");
+                    $message = '<div class="alert alert-success">Prekės gavimas patvirtintas! Pinigai sėkmingai pervesti pardavėjui.</div>';
+                } else {
+                    $upd = $pdo->prepare("UPDATE community_orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?");
+                    if (empty($message)) {
+                        $message = '<div class="alert alert-warning">Prekės gavimas patvirtintas, bet pinigų pervedimas dar laukia administratoriaus patvirtinimo.</div>';
+                    }
+                }
                 $upd->execute([$orderId]);
-                $message = '<div class="alert alert-success">Prekės gavimas patvirtintas!</div>';
             }
         }
         
@@ -151,7 +193,6 @@ if (!empty($user['stripe_account_id']) && !empty($user['stripe_onboarding_comple
         error_log("Klaida gaunant Stripe balansą pardavėjui {$userId}: " . $e->getMessage());
     }
 }
-
 
 // A. Parduotuvės užsakymai (Pirkėjas)
 $orderStmt = $pdo->prepare('
@@ -376,11 +417,9 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                 <div class="order-list">
                   <?php foreach ($shopOrders as $order): ?>
                     <?php 
-                      // 1. Gauname parduotuvės prekes
                       $itemStmt->execute([$order['id']]); 
                       $orderItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC); 
                       
-                      // 2. Gauname bendruomenės prekes iš to paties krepšelio sesijos
                       $commSameOrderStmt->execute([$userId, $order['created_at']]);
                       $coItems = $commSameOrderStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -470,8 +509,6 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               $discountAmount = (float)($order['discount_amount'] ?? 0);
                               $deliveryCost = (float)($order['shipping_amount'] ?? 0);
 
-                              // Jeigu pristatymo suma nebuvo aiškiai išsaugota (senesni užsakymai arba specifiniai), 
-                              // ją suskaičiuojame iš bendros sumos atėmę visų prekių sumą ir pridėję nuolaidą atgal.
                               if ($deliveryCost <= 0) {
                                   $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal + $discountAmount, 2));
                               }
@@ -585,7 +622,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                           <div class="card-footer">
                               <div style="flex-grow:1;">
                                 <?php if (($order['status'] ?? '') === 'shipped'): ?>
-                                    <form method="POST" onsubmit="return confirm('Ar tikrai gavote prekę?');">
+                                    <form method="POST" onsubmit="return confirm('Ar tikrai gavote prekę? Tai patvirtinus, pinigai bus pervesti pardavėjui ir veiksmo atšaukti negalėsite.');">
                                         <?= csrfField() ?>
                                         <input type="hidden" name="action" value="confirm_delivery">
                                         <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
@@ -631,10 +668,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         
                         $isSaleDeleted = empty($sale['title']);
 
-                        // Ištraukiame pristatymo informaciją ir JSON
                         $deliveryDetails = json_decode($sale['delivery_details'] ?? '{}', true) ?: [];
-                        
-                        // Gauname duomenis iš atitinkamų stulpelių bei JSON atgalinio suderinamumo
                         $method = $sale['delivery_method'] ?? $deliveryDetails['method'] ?? 'Nežinomas';
                         $phone = $sale['customer_phone'] ?? $deliveryDetails['phone'] ?? $deliveryDetails['contact_phone'] ?? '-';
                         $email = $sale['p_email'] ?? $deliveryDetails['contact_email'] ?? '-';
@@ -643,7 +677,6 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         $notes = $sale['note'] ?? $deliveryDetails['notes'] ?? '';
                         $buyerName = $sale['customer_name'] ?? $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
 
-                        // Formatuojame pristatymo būdo pavadinimą
                         $provKey = strtolower($deliveryDetails['locker_provider'] ?? '');
                         $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
                         $provName = $provMap[$provKey] ?? strtoupper($provKey);
@@ -665,7 +698,6 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
                       <div class="card-body">
                           <div class="delivery-info" style="display:flex; flex-direction:column; gap:16px;">
-                              
                               <div style="display:flex; align-items:flex-start; gap:10px;">
                                   <span style="font-size:18px; color:var(--accent); margin-top:2px;">👤</span>
                                   <div>
@@ -738,7 +770,11 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                         <?php if (($sale['payout_status'] ?? '') == 'hold'): ?>
                                             <span style="color:#d97706; display: flex; align-items: center; gap: 4px;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                                Laukiama pervedimo patvirtinimo
+                                                Pinigai įšaldyti sistemoje, kol pirkėjas patvirtins gavimą
+                                            </span>
+                                        <?php elseif (($sale['payout_status'] ?? '') == 'transferred'): ?>
+                                            <span style="color:var(--success-text); display: flex; align-items: center; gap: 4px;">
+                                                ✓ Pinigai pervesti į Jūsų Stripe sąskaitą
                                             </span>
                                         <?php endif; ?>
                                     </div>
@@ -775,7 +811,6 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
             </div>
 
             <?php if (!empty($user['stripe_onboarding_completed'])): ?>
-                
                 <div style="margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <span style="font-size: 13px; color: var(--text-muted);">Prieinamas likutis:</span>
