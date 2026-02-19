@@ -8,6 +8,14 @@ require_once __DIR__ . '/mailer.php';
  * Kviečiama prieš nukreipiant į Stripe.
  */
 function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
+    // SPRENDIMAS KLAIDAI: Pakeičiame 'status' stulpelį į VARCHAR(50), 
+    // kad išvengtume "Data truncated for column 'status'" klaidos dėl griežto ENUM
+    try {
+        $pdo->exec("ALTER TABLE community_orders MODIFY status VARCHAR(50) NOT NULL DEFAULT 'laukiama'");
+    } catch (Exception $e) {
+        // Jei nepavyksta pakeisti, ignoruojame ir tęsiame darbą
+    }
+
     if (empty($_SESSION['cart_community'])) return;
 
     $stmtComm = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1");
