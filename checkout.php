@@ -36,6 +36,10 @@ if (!$shippingSettings) {
     ];
 }
 
+// Globalios parduotuvės nuolaidos
+$stmtDiscSettings = $pdo->query("SELECT * FROM discount_settings LIMIT 1");
+$globalDiscountSettings = $stmtDiscSettings->fetch(PDO::FETCH_ASSOC);
+
 // Gauname produktus, kuriems taikomas nemokamas siuntimas
 $stmtFreeProd = $pdo->query("SELECT product_id FROM shipping_free_products");
 $freeShippingProductIds = $stmtFreeProd->fetchAll(PDO::FETCH_COLUMN);
@@ -46,7 +50,8 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
     if (empty($code)) return ['valid' => false, 'error' => 'Įveskite kodą.'];
 
     try {
-        $stmt = $pdo->prepare("SELECT * FROM discounts WHERE code = ? AND is_active = 1 LIMIT 1");
+        // Ištaisyta lentelė ir stulpelis
+        $stmt = $pdo->prepare("SELECT * FROM discount_codes WHERE code = ? AND active = 1 LIMIT 1");
         $stmt->execute([$code]);
         $discount = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -54,18 +59,10 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
             return ['valid' => false, 'error' => 'Nuolaidos kodas nerastas arba negalioja.'];
         }
 
-        // Tikrinimai (datos, limitai)
-        $now = new DateTime();
-        if (!empty($discount['valid_from']) && new DateTime($discount['valid_from']) > $now) return ['valid' => false, 'error' => 'Kodas dar negalioja.'];
-        if (!empty($discount['valid_until']) && new DateTime($discount['valid_until']) < $now) return ['valid' => false, 'error' => 'Kodo galiojimas baigėsi.'];
-
+        // Tikrinimai (limitai)
         if (isset($discount['usage_limit']) && $discount['usage_limit'] > 0) {
             $used = $discount['used_count'] ?? 0;
             if ($used >= $discount['usage_limit']) return ['valid' => false, 'error' => 'Kodo panaudojimo limitas pasiektas.'];
-        }
-
-        if (!empty($discount['min_order_amount']) && $cartTotal < $discount['min_order_amount']) {
-            return ['valid' => false, 'error' => 'Minimali suma: ' . number_format($discount['min_order_amount'], 2) . ' €'];
         }
 
         // Skaičiavimas
@@ -92,7 +89,8 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
         ];
 
     } catch (Exception $e) {
-        return ['valid' => false, 'error' => 'Klaida tikrinant nuolaidą.'];
+        // Pridėtas tikslesnis klaidos išvedimas atvaizdavimui debugingui
+        return ['valid' => false, 'error' => 'Klaida tikrinant nuolaidą: ' . $e->getMessage()];
     }
 }
 
@@ -215,6 +213,7 @@ $discountAmount = 0;
 $activeDiscountCode = null;
 $couponGrantsFreeShipping = false;
 
+// Kodo nuolaida
 if (isset($_SESSION['applied_discount'])) {
     $check = checkDiscountCode($pdo, $_SESSION['applied_discount']['code'], $cartItemsTotal);
     if ($check['valid']) {
@@ -227,12 +226,33 @@ if (isset($_SESSION['applied_discount'])) {
     }
 }
 
-$totalAfterDiscount = max(0, $cartItemsTotal - $discountAmount);
+// Globali nuolaida (iš discount_settings)
+$globalDiscountAmount = 0;
+$globalGrantsFreeShipping = false;
+
+if ($globalDiscountSettings && $globalDiscountSettings['type'] !== 'none') {
+    if ($globalDiscountSettings['type'] === 'percent') {
+        $globalDiscountAmount = round(($cartItemsTotal * ($globalDiscountSettings['value'] / 100)), 2);
+    } elseif ($globalDiscountSettings['type'] === 'amount') {
+        $globalDiscountAmount = (float)$globalDiscountSettings['value'];
+    }
+    if ($globalDiscountSettings['type'] === 'free_shipping' || !empty($globalDiscountSettings['free_shipping'])) {
+        $globalGrantsFreeShipping = true;
+    }
+}
+
+$totalDiscount = $discountAmount + $globalDiscountAmount;
+if ($totalDiscount > $cartItemsTotal) {
+    $totalDiscount = $cartItemsTotal;
+}
+
+$totalAfterDiscount = max(0, $cartItemsTotal - $totalDiscount);
 
 // Siuntimo taisyklės
 $isShippingFree = false;
 if ($hasFreeShippingProduct) $isShippingFree = true;
 elseif ($couponGrantsFreeShipping) $isShippingFree = true;
+elseif ($globalGrantsFreeShipping) $isShippingFree = true;
 elseif (!empty($shippingSettings['free_over']) && $shippingSettings['free_over'] > 0 && $totalAfterDiscount >= $shippingSettings['free_over']) $isShippingFree = true;
 
 $lockerPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['locker_price'];
@@ -352,8 +372,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $phone,
                 $fullAddress,
                 $activeDiscountCode,
-                $discountAmount,
-                $finalShippingPrice, // Svarbu: čia įrašoma pristatymo kaina
+                $totalDiscount, // Įrašoma bendra pritaikyta nuolaida (kodas + globali)
+                $finalShippingPrice, 
                 $grandTotal,
                 $method,
                 $deliveryDetailsJson
@@ -374,13 +394,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     $orderId, 
                     $item['product_id'], 
                     $item['qty'], 
-                    $item['price'] // Čia įrašoma jau pritaikyta sale_price
+                    $item['price']
                 ]);
             }
 
-            // Atnaujiname nuolaidos panaudojimą
+            // Atnaujiname nuolaidos panaudojimą ištaisydami į discount_codes
             if (!empty($activeDiscountCode)) {
-                $pdo->prepare("UPDATE discounts SET used_count = used_count + 1 WHERE code = ?")->execute([$activeDiscountCode]);
+                $pdo->prepare("UPDATE discount_codes SET used_count = used_count + 1 WHERE code = ?")->execute([$activeDiscountCode]);
             }
 
             $pdo->commit();
@@ -733,9 +753,16 @@ if (!empty($_SESSION['user_id'])) {
                         <span><?php echo number_format($cartItemsTotal, 2); ?> €</span>
                     </div>
 
+                    <?php if ($globalDiscountAmount > 0): ?>
+                        <div class="summary-row discount">
+                            <span>Parduotuvės nuolaida</span>
+                            <span>-<?php echo number_format($globalDiscountAmount, 2); ?> €</span>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if ($discountAmount > 0): ?>
                         <div class="summary-row discount">
-                            <span>Nuolaida (<?php echo htmlspecialchars($activeDiscountCode); ?>)</span>
+                            <span>Kodo nuolaida (<?php echo htmlspecialchars($activeDiscountCode); ?>)</span>
                             <span>-<?php echo number_format($discountAmount, 2); ?> €</span>
                         </div>
                     <?php endif; ?>
