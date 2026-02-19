@@ -369,8 +369,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 <?php else: ?>
                                     <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
                                     <div class="item-details" style="opacity: 0.6;">
-                                      <span class="item-title">Nebeaktyvi prekė</span>
-                                      <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
+                                      <span class="item-title">Prekė iš turgelio</span>
                                     </div>
                                 <?php endif; ?>
                                 <div class="item-price"><?= number_format($itemTotal, 2); ?> €</div>
