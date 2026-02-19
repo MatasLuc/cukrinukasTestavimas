@@ -121,22 +121,28 @@ $orderStmt = $pdo->prepare('
 $orderStmt->execute([$userId]);
 $shopOrders = $orderStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Traukiame pavadinimą ir nuotrauką TIEK iš products, TIEK iš community_listings
+// Tikros parduotuvės prekės
 $itemStmt = $pdo->prepare('
     SELECT 
         oi.*, 
-        COALESCE(p.title, cl.title) as title, 
-        COALESCE(p.image_url, cl.image_url) as image_url,
-        CASE WHEN p.id IS NOT NULL THEN "product"
-             WHEN cl.id IS NOT NULL THEN "community"
-             ELSE "unknown" END as item_type
+        p.title, 
+        p.image_url,
+        "product" as item_type
     FROM order_items oi 
     LEFT JOIN products p ON p.id = oi.product_id 
-    LEFT JOIN community_listings cl ON cl.id = oi.product_id
     WHERE oi.order_id = ?
 ');
 
-// B. Turgelio pirkimai (Pirkėjas)
+// Užklausa turgelio prekėms, kurios buvo įsigytos TAME PAČIAME krepšelyje (laiko atžvilgiu)
+$commSameOrderStmt = $pdo->prepare("
+    SELECT co.*, cl.title, cl.image_url 
+    FROM community_orders co
+    LEFT JOIN community_listings cl ON co.item_id = cl.id
+    WHERE co.buyer_id = ? 
+      AND ABS(TIMESTAMPDIFF(SECOND, co.created_at, ?)) < 120
+");
+
+// B. Turgelio pirkimai (Pirkėjas) - atskiras tabas
 $commStmt = $pdo->prepare("
     SELECT co.*, cl.title, cl.image_url, u.name as seller_name 
     FROM community_orders co
@@ -149,7 +155,6 @@ $commStmt->execute([$userId]);
 $communityOrders = $commStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // C. Turgelio pardavimai (Pardavėjas)
-// Traukiame pirkėjo vardą ir el. paštą, o visą kitą imame iš community_orders stulpelių ir JSON
 $salesStmt = $pdo->prepare("
     SELECT co.*, cl.title, cl.image_url, u.name as p_name, u.email as p_email
     FROM community_orders co
@@ -330,10 +335,15 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                 <div class="order-list">
                   <?php foreach ($shopOrders as $order): ?>
                     <?php 
+                      // 1. Gauname parduotuvės prekes
                       $itemStmt->execute([$order['id']]); 
                       $orderItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC); 
-                      $statusLower = mb_strtolower($order['status'] ?? '');
                       
+                      // 2. Gauname bendruomenės prekes iš to paties krepšelio sesijos
+                      $commSameOrderStmt->execute([$userId, $order['created_at']]);
+                      $coItems = $commSameOrderStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                      $statusLower = mb_strtolower($order['status'] ?? '');
                       $stClass = 'status-default';
                       if (strpos($statusLower, 'apmokėta') !== false || strpos($statusLower, 'paid') !== false) $stClass = 'st-paid';
                       elseif (strpos($statusLower, 'laukiama') !== false) $stClass = 'st-pending';
@@ -344,7 +354,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       <div class="card-header">
                         <div class="order-meta">
                             <div class="meta-group"><span class="meta-label">Užsakymas</span><span class="meta-value">#<?= (int)$order['id']; ?></span></div>
-                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d', strtotime($order['created_at'] ?? 'now'))); ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d H:i', strtotime($order['created_at'] ?? 'now'))); ?></span></div>
                         </div>
                         <div class="<?= $stClass ?> status-badge"><?= htmlspecialchars($order['status'] ?? '-'); ?></div>
                       </div>
@@ -356,22 +366,14 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                   <?= htmlspecialchars($order['customer_address'] ?? '-'); ?>
                               </div>
                           </div>
+                          
                           <div class="item-list">
                             <?php foreach ($orderItems as $item): ?>
                               <?php 
                                   $isDeleted = empty($item['title']); 
                                   $itemTotal = (float)$item['price'] * (int)$item['quantity'];
                                   $itemsTotal += $itemTotal;
-                                  
-                                  // Nustatome, kur ves nuoroda, priklausomai nuo prekės tipo
-                                  $itemUrl = '#';
-                                  if (!$isDeleted) {
-                                      if ($item['item_type'] === 'community') {
-                                          $itemUrl = '/community_listing.php?id=' . (int)$item['product_id'];
-                                      } else {
-                                          $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id'];
-                                      }
-                                  }
+                                  $itemUrl = $isDeleted ? '#' : '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id'];
                               ?>
                               <div class="item">
                                 <?php if (!$isDeleted): ?>
@@ -392,28 +394,46 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 <div class="item-price"><?= number_format($itemTotal, 2); ?> €</div>
                               </div>
                             <?php endforeach; ?>
+
+                            <?php foreach ($coItems as $coItem): ?>
+                              <?php 
+                                  $isDeleted = empty($coItem['title']); 
+                                  $coItemPrice = (float)$coItem['item_price'];
+                                  $coItemTotal = (float)$coItem['total_amount'];
+                                  $coQty = ($coItemTotal > 0 && $coItemPrice > 0) ? round($coItemTotal / $coItemPrice) : 1;
+                                  
+                                  $itemsTotal += $coItemTotal;
+                                  $itemUrl = $isDeleted ? '#' : '/community_listing.php?id=' . (int)$coItem['item_id'];
+                              ?>
+                              <div class="item">
+                                <?php if (!$isDeleted): ?>
+                                    <a href="<?= htmlspecialchars($itemUrl); ?>">
+                                      <img src="<?= htmlspecialchars($coItem['image_url'] ?? '/uploads/default.png'); ?>" alt="">
+                                    </a>
+                                    <div class="item-details">
+                                      <a href="<?= htmlspecialchars($itemUrl); ?>" class="item-title"><?= htmlspecialchars($coItem['title']); ?> <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(Iš Turgelio)</span></a>
+                                      <div class="item-meta"><?= $coQty; ?> vnt. × <?= number_format($coItemPrice, 2); ?> €</div>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
+                                    <div class="item-details" style="opacity: 0.6;">
+                                      <span class="item-title">Ištrinta prekė (Iš Turgelio)</span>
+                                      <div class="item-meta"><?= $coQty; ?> vnt. × <?= number_format($coItemPrice, 2); ?> €</div>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="item-price"><?= number_format($coItemTotal, 2); ?> €</div>
+                              </div>
+                            <?php endforeach; ?>
                             
                             <?php 
-                              // Patikriname, ar užsakyme yra TIK turgelio prekės
-                              $isOnlyCommunity = count($orderItems) > 0;
-                              foreach ($orderItems as $checkItem) {
-                                  if ($checkItem['item_type'] !== 'community') {
-                                      $isOnlyCommunity = false;
-                                      break;
-                                  }
+                              $discountAmount = (float)($order['discount_amount'] ?? 0);
+                              $deliveryCost = (float)($order['shipping_amount'] ?? 0);
+
+                              // Jeigu pristatymo suma nebuvo aiškiai išsaugota (senesni užsakymai arba specifiniai), 
+                              // ją suskaičiuojame iš bendros sumos atėmę visų prekių sumą ir pridėję nuolaidą atgal.
+                              if ($deliveryCost <= 0) {
+                                  $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal + $discountAmount, 2));
                               }
-
-                              // Tikslus pristatymo mokestis iš duomenų bazės
-                              $deliveryCost = isset($order['shipping_amount']) ? (float)$order['shipping_amount'] : max(0, round((float)$order['total'] - $itemsTotal, 2));
-                              $discountAmount = isset($order['discount_amount']) ? (float)$order['discount_amount'] : 0;
-
-                              // Jei tai tik turgelio prekės
-                              if ($isOnlyCommunity) {
-                                  $deliveryCost = 0;
-                              }
-
-                              // Paskaičiuojame tikrąją sumą atvaizduojamą parduotuvės eilutėje
-                              $shopTotal = max(0, $itemsTotal + $deliveryCost - $discountAmount);
 
                               if ($deliveryCost > 0): 
                                 $deliveryMethodName = 'Pristatymas';
@@ -451,7 +471,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               <div style="flex-grow:1;"><a class="btn-outline" href="/products.php">Pirkti vėl</a></div>
                               <div class="total-price">
                                   <span class="total-label">Viso mokėti</span>
-                                  <span class="total-value"><?= number_format($shopTotal, 2); ?> €</span>
+                                  <span class="total-value"><?= number_format((float)$order['total'], 2); ?> €</span>
                               </div>
                           </div>
                       </div>
