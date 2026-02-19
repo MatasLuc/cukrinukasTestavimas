@@ -5,6 +5,11 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/env.php';
+
+if (file_exists(__DIR__ . '/lib/stripe/init.php')) {
+    require_once __DIR__ . '/lib/stripe/init.php';
+}
 
 if (empty($_SESSION['user_id'])) {
     header('Location: /login.php');
@@ -41,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if ($stmt->fetch()) {
                 $upd = $pdo->prepare("UPDATE community_orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?");
                 $upd->execute([$orderId]);
-                $message = '<div class="alert alert-success">Prekės gavimas patvirtintas! Lėšos pardavėjui bus pervestos po 48 val.</div>';
+                $message = '<div class="alert alert-success">Prekės gavimas patvirtintas!</div>';
             }
         }
         
@@ -108,13 +113,45 @@ if (!empty($_SESSION['flash_success']) && strpos($_SESSION['flash_success'], 'Ap
 }
 
 // -----------------------------------------------------------------------------
-// 3. DUOMENŲ GAVIMAS
+// 3. DUOMENŲ GAVIMAS IR STRIPE BALANSAS
 // -----------------------------------------------------------------------------
 
 // Vartotojo duomenys (Stripe statusui)
 $stmt = $pdo->prepare('SELECT id, name, email, stripe_account_id, stripe_onboarding_completed FROM users WHERE id = ?');
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Stripe Balanso gavimas, jei vartotojas susietas
+$stripeBalanceAvailable = 0;
+$stripeBalancePending = 0;
+
+if (!empty($user['stripe_account_id']) && !empty($user['stripe_onboarding_completed'])) {
+    try {
+        $stripeSecret = getenv('STRIPE_SECRET_KEY') ?: ($_ENV['STRIPE_SECRET_KEY'] ?? '');
+        if ($stripeSecret && class_exists('\Stripe\Stripe')) {
+            \Stripe\Stripe::setApiKey($stripeSecret);
+            
+            $balance = \Stripe\Balance::retrieve([], ['stripe_account' => $user['stripe_account_id']]);
+            
+            foreach ($balance->available as $av) {
+                if (strtolower($av->currency) === 'eur') {
+                    $stripeBalanceAvailable += $av->amount;
+                }
+            }
+            foreach ($balance->pending as $pe) {
+                if (strtolower($pe->currency) === 'eur') {
+                    $stripeBalancePending += $pe->amount;
+                }
+            }
+            
+            $stripeBalanceAvailable = $stripeBalanceAvailable / 100;
+            $stripeBalancePending = $stripeBalancePending / 100;
+        }
+    } catch (\Exception $e) {
+        error_log("Klaida gaunant Stripe balansą pardavėjui {$userId}: " . $e->getMessage());
+    }
+}
+
 
 // A. Parduotuvės užsakymai (Pirkėjas)
 $orderStmt = $pdo->prepare('
@@ -701,7 +738,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                         <?php if (($sale['payout_status'] ?? '') == 'hold'): ?>
                                             <span style="color:#d97706; display: flex; align-items: center; gap: 4px;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                                Pinigai įšaldyti (Laukiama patvirtinimo)
+                                                Laukiama pervedimo patvirtinimo
                                             </span>
                                         <?php endif; ?>
                                     </div>
@@ -738,6 +775,18 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
             </div>
 
             <?php if (!empty($user['stripe_onboarding_completed'])): ?>
+                
+                <div style="margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-size: 13px; color: var(--text-muted);">Prieinamas likutis:</span>
+                        <strong style="font-size: 14px; color: var(--success-text);"><?= number_format($stripeBalanceAvailable, 2) ?> €</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="font-size: 13px; color: var(--text-muted);">Laukiama (Pending):</span>
+                        <strong style="font-size: 14px; color: var(--warning-text);"><?= number_format($stripeBalancePending, 2) ?> €</strong>
+                    </div>
+                </div>
+                
                 <a href="stripe_connect.php" style="color: #635bff; text-decoration: none; font-weight: 500; font-size: 13px;">Stripe Valdymas &rarr;</a>
             <?php else: ?>
                 <a href="stripe_connect.php" style="display: inline-flex; align-items: center; background-color: #635bff; color: white; border: none; padding: 8px 12px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; transition: background-color 0.2s;">
