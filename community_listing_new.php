@@ -50,9 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        // Įtrauktas listing_type į SQL
-        $stmt = $pdo->prepare('INSERT INTO community_listings (user_id, category_id, listing_type, title, description, price, seller_email, seller_phone, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$user['id'], $categoryId ?: null, $listingType, $title, $description, $price, $sellerEmail ?: null, $sellerPhone ?: null, $img]);
+        // Įtrauktas listing_type ir status į SQL
+        $stmt = $pdo->prepare('INSERT INTO community_listings (user_id, category_id, listing_type, title, description, price, seller_email, seller_phone, image_url, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$user['id'], $categoryId ?: null, $listingType, $title, $description, $price, $sellerEmail ?: null, $sellerPhone ?: null, $img, 'active']);
         $_SESSION['flash_success'] = 'Skelbimas pridėtas';
         header('Location: /community_market.php');
         exit;
