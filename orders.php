@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $message = '<div class="alert alert-danger">Klaida: neteisingas saugumo raktas.</div>';
     } else {
         $action = $_POST['action'];
-        $orderId = (int)$_POST['order_id'];
+        $orderId = (int)($_POST['order_id'] ?? 0);
 
         // A. Pirkėjas patvirtina gavimą (Turgelis)
         if ($action === 'confirm_delivery') {
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 $stmt = $pdo->prepare("SELECT id, status, buyer_id FROM community_orders WHERE id = ? AND seller_id = ? AND status = 'apmokėta'");
                 $stmt->execute([$orderId, $userId]);
-                $order = $stmt->fetch();
+                $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($order) {
                     $stmt = $pdo->prepare("UPDATE community_orders SET status = 'shipped', tracking_number = ?, shipped_at = NOW() WHERE id = ?");
@@ -59,13 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // Siunčiame laišką pirkėjui
                     $buyerStmt = $pdo->prepare("SELECT email, name FROM users WHERE id = ?");
                     $buyerStmt->execute([$order['buyer_id']]);
-                    $buyer = $buyerStmt->fetch();
+                    $buyer = $buyerStmt->fetch(PDO::FETCH_ASSOC);
                     
                     if ($buyer) {
                         $subject = "Jūsų turgelio prekė išsiųsta!";
-                        $body = "Sveiki, {$buyer['name']},<br><br>";
+                        $body = "Sveiki, " . htmlspecialchars($buyer['name'] ?? 'Pirkėjau') . ",<br><br>";
                         $body .= "Pardavėjas išsiuntė jūsų užsakymą #C-{$orderId}.<br>";
-                        $body .= "Sekimo numeris: <strong>{$trackingNumber}</strong><br><br>";
+                        $body .= "Sekimo numeris: <strong>" . htmlspecialchars($trackingNumber) . "</strong><br><br>";
                         $body .= "Kai gausite prekę, prašome prisijungti prie paskyros ir patvirtinti gavimą.";
                         sendEmail($buyer['email'], $subject, $body);
                     }
@@ -84,7 +84,7 @@ $newPurchaseScript = '';
 if (!empty($_SESSION['flash_success']) && strpos($_SESSION['flash_success'], 'Apmokėjimas patvirtintas') !== false) {
     $latestOrderStmt = $pdo->prepare('SELECT id, total FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1');
     $latestOrderStmt->execute([$userId]);
-    $latest = $latestOrderStmt->fetch();
+    $latest = $latestOrderStmt->fetch(PDO::FETCH_ASSOC);
     
     if ($latest) {
         $safeTotal = (float)$latest['total'];
@@ -110,17 +110,16 @@ if (!empty($_SESSION['flash_success']) && strpos($_SESSION['flash_success'], 'Ap
 // Vartotojo duomenys (Stripe statusui)
 $stmt = $pdo->prepare('SELECT id, name, email, stripe_account_id, stripe_onboarding_completed FROM users WHERE id = ?');
 $stmt->execute([$userId]);
-$user = $stmt->fetch();
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // A. Parduotuvės užsakymai (Pirkėjas)
 $orderStmt = $pdo->prepare('
-    SELECT id, total, status, created_at, customer_name, customer_address, delivery_method, delivery_details 
-    FROM orders 
+    SELECT * FROM orders 
     WHERE user_id = ? 
     ORDER BY created_at DESC
 ');
 $orderStmt->execute([$userId]);
-$shopOrders = $orderStmt->fetchAll();
+$shopOrders = $orderStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $itemStmt = $pdo->prepare('
     SELECT oi.*, p.title, p.image_url 
@@ -139,7 +138,7 @@ $commStmt = $pdo->prepare("
     ORDER BY co.created_at DESC
 ");
 $commStmt->execute([$userId]);
-$communityOrders = $commStmt->fetchAll();
+$communityOrders = $commStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // C. Turgelio pardavimai (Pardavėjas)
 $salesStmt = $pdo->prepare("
@@ -308,7 +307,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
           <div class="nav-tabs">
               <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Parduotuvė (<?= count($shopOrders) ?>)</a>
-              <a href="?tab=community_buy" class="nav-tab <?= $activeTab === 'community_buy' ? 'active' : '' ?>">Turgelis (<?= count($communityOrders) ?>)</a>
+              <a href="?tab=community_buy" class="nav-tab <?= $activeTab === 'community_buy' ? 'active' : '' ?>">Turgelio pirkiniai (<?= count($communityOrders) ?>)</a>
               <a href="?tab=community_sell" class="nav-tab <?= $activeTab === 'community_sell' ? 'active' : '' ?>">Mano pardavimai (<?= count($sales) ?>)</a>
           </div>
 
@@ -325,8 +324,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                   <?php foreach ($shopOrders as $order): ?>
                     <?php 
                       $itemStmt->execute([$order['id']]); 
-                      $orderItems = $itemStmt->fetchAll(); 
-                      $statusLower = mb_strtolower($order['status']);
+                      $orderItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC); 
+                      $statusLower = mb_strtolower($order['status'] ?? '');
                       
                       $stClass = 'status-default';
                       if (strpos($statusLower, 'apmokėta') !== false || strpos($statusLower, 'paid') !== false) $stClass = 'st-paid';
@@ -336,27 +335,27 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       <div class="card-header">
                         <div class="order-meta">
                             <div class="meta-group"><span class="meta-label">Užsakymas</span><span class="meta-value">#<?= (int)$order['id']; ?></span></div>
-                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d', strtotime($order['created_at']))); ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d', strtotime($order['created_at'] ?? 'now'))); ?></span></div>
                         </div>
-                        <div class="<?= $stClass ?> status-badge"><?= htmlspecialchars($order['status']); ?></div>
+                        <div class="<?= $stClass ?> status-badge"><?= htmlspecialchars($order['status'] ?? '-'); ?></div>
                       </div>
                       <div class="card-body">
                           <div class="delivery-info">
                               <span style="margin-right:8px;">🚚</span>
                               <div>
-                                  <strong><?= htmlspecialchars($order['customer_name']); ?></strong><br>
-                                  <?= htmlspecialchars($order['customer_address']); ?>
+                                  <strong><?= htmlspecialchars($order['customer_name'] ?? '-'); ?></strong><br>
+                                  <?= htmlspecialchars($order['customer_address'] ?? '-'); ?>
                               </div>
                           </div>
                           <div class="item-list">
                             <?php foreach ($orderItems as $item): ?>
-                              <?php $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id']; ?>
+                              <?php $itemUrl = '/produktas/' . slugify($item['title'] ?? 'preke') . '-' . (int)$item['product_id']; ?>
                               <div class="item">
                                 <a href="<?= htmlspecialchars($itemUrl); ?>">
                                   <img src="<?= htmlspecialchars($item['image_url'] ?? '/uploads/default.png'); ?>" alt="">
                                 </a>
                                 <div class="item-details">
-                                  <a href="<?= htmlspecialchars($itemUrl); ?>" class="item-title"><?= htmlspecialchars($item['title']); ?></a>
+                                  <a href="<?= htmlspecialchars($itemUrl); ?>" class="item-title"><?= htmlspecialchars($item['title'] ?? 'Ištrinta prekė'); ?></a>
                                   <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
                                 </div>
                                 <div class="item-price"><?= number_format((float)$item['price'] * (int)$item['quantity'], 2); ?> €</div>
@@ -388,16 +387,16 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                   <?php foreach ($communityOrders as $order): ?>
                     <?php 
                       $stClass = 'status-default';
-                      $stText = $order['status'];
-                      if ($order['status'] == 'apmokėta') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
-                      if ($order['status'] == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
-                      if ($order['status'] == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
+                      $stText = $order['status'] ?? '';
+                      if ($stText == 'paid') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
+                      if ($stText == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
+                      if ($stText == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
                     ?>
                     <div class="card">
                       <div class="card-header">
                         <div class="order-meta">
                             <div class="meta-group"><span class="meta-label">Užsakymas</span><span class="meta-value">#C-<?= (int)$order['id']; ?></span></div>
-                            <div class="meta-group"><span class="meta-label">Pardavėjas</span><span class="meta-value date" style="color: var(--accent);"><?= htmlspecialchars($order['seller_name']); ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Pardavėjas</span><span class="meta-value date" style="color: var(--accent);"><?= htmlspecialchars($order['seller_name'] ?? '-'); ?></span></div>
                         </div>
                         <div class="<?= $stClass ?> status-badge"><?= htmlspecialchars($stText); ?></div>
                       </div>
@@ -414,7 +413,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                   <img src="<?= htmlspecialchars($order['image_url'] ?? '/uploads/default.png'); ?>" alt="">
                                 </a>
                                 <div class="item-details">
-                                  <span class="item-title"><?= htmlspecialchars($order['title']); ?></span>
+                                  <span class="item-title"><?= htmlspecialchars($order['title'] ?? 'Prekė'); ?></span>
                                   <div class="item-meta">1 vnt.</div>
                                 </div>
                                 <div class="item-price"><?= number_format((float)$order['total_amount'], 2); ?> €</div>
@@ -422,14 +421,14 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                           </div>
                           <div class="card-footer">
                               <div style="flex-grow:1;">
-                                <?php if ($order['status'] === 'shipped'): ?>
+                                <?php if (($order['status'] ?? '') === 'shipped'): ?>
                                     <form method="POST" onsubmit="return confirm('Ar tikrai gavote prekę?');">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                                         <input type="hidden" name="action" value="confirm_delivery">
                                         <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
                                         <button type="submit" class="btn btn-green">Gavau prekę</button>
                                     </form>
-                                <?php elseif ($order['status'] === 'delivered'): ?>
+                                <?php elseif (($order['status'] ?? '') === 'delivered'): ?>
                                     <span style="color: var(--success-text); font-weight: 600;">✓ Užsakymas baigtas</span>
                                 <?php endif; ?>
                               </div>
@@ -456,22 +455,22 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                 <div class="order-list">
                   <?php foreach ($sales as $sale): ?>
                     <?php 
-                        $isPending = ($sale['status'] === 'apmokėta');
+                        $isPending = (($sale['status'] ?? '') === 'apmokėta');
                         $statusText = '';
                         $statusClass = '';
                         
-                        switch($sale['status']) {
+                        switch($sale['status'] ?? '') {
                             case 'apmokėta': $statusText = 'REIKIA IŠSIŲSTI'; $statusClass='st-action-required'; break;
                             case 'shipped': $statusText = 'IŠSIŲSTA (Laukiama)'; $statusClass='st-shipped'; break;
                             case 'delivered': $statusText = 'UŽBAIGTA'; $statusClass='st-delivered'; break;
-                            default: $statusText = $sale['status']; $statusClass='st-pending';
+                            default: $statusText = $sale['status'] ?? 'Nežinoma'; $statusClass='st-pending';
                         }
                     ?>
                     <div class="card">
                       <div class="card-header">
                         <div class="order-meta">
                             <div class="meta-group"><span class="meta-label">Užsakymas</span><span class="meta-value">#C-<?= (int)$sale['id']; ?></span></div>
-                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d H:i', strtotime($sale['created_at']))); ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Data</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d H:i', strtotime($sale['created_at'] ?? 'now'))); ?></span></div>
                         </div>
                         <div class="status-badge <?= $statusClass; ?>"><?= htmlspecialchars($statusText); ?></div>
                       </div>
@@ -480,9 +479,9 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                           <div class="delivery-info">
                               <span style="margin-right:8px; color:var(--accent);">👤</span>
                               <div>
-                                  <strong>Pirkėjas: <?= htmlspecialchars($sale['buyer_name']); ?></strong><br>
+                                  <strong>Pirkėjas: <?= htmlspecialchars($sale['buyer_name'] ?? '-'); ?></strong><br>
                                   Miestas: <?= htmlspecialchars($sale['buyer_city'] ?? '-'); ?><br>
-                                  El. paštas: <?= htmlspecialchars($sale['buyer_email']); ?><br>
+                                  El. paštas: <?= htmlspecialchars($sale['buyer_email'] ?? '-'); ?><br>
                                   <small class="text-muted">(Pilnas adresas išsiųstas jums el. paštu)</small>
                               </div>
                           </div>
@@ -491,7 +490,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               <div class="item">
                                 <img src="<?= htmlspecialchars($sale['image_url'] ?? '/uploads/default.png'); ?>" alt="">
                                 <div class="item-details">
-                                  <span class="item-title"><?= htmlspecialchars($sale['title']); ?></span>
+                                  <span class="item-title"><?= htmlspecialchars($sale['title'] ?? 'Prekė'); ?></span>
                                   <div class="item-meta">1 vnt.</div>
                                 </div>
                                 <div class="item-price"><?= number_format((float)$sale['total_amount'], 2); ?> €</div>
@@ -502,7 +501,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               <div style="width: 100%;">
                                 <?php if ($isPending): ?>
                                     <form method="POST" style="margin-bottom:12px;">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                                         <input type="hidden" name="action" value="mark_shipped">
                                         <input type="hidden" name="order_id" value="<?= $sale['id'] ?>">
                                         
@@ -518,7 +517,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 
                                 <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);">
                                     <div style="font-size:12px; color:var(--text-muted);">
-                                        <?php if ($sale['payout_status'] == 'hold'): ?>
+                                        <?php if (($sale['payout_status'] ?? '') == 'hold'): ?>
                                             <span style="color:#d97706;">⏳ Pinigai įšaldyti (Escrow)</span>
                                         <?php endif; ?>
                                     </div>
@@ -538,7 +537,37 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
       </div>
 
       <aside>
-        <div class="card sidebar-card" style="margin-top:20px;">
+          <div class="card sidebar-card">
+              <h3>Vartotojo meniu</h3>
+              <nav class="sidebar-menu">
+                  <a href="/account.php">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                      Profilio nustatymai
+                  </a>
+                  <a href="/orders.php?tab=shop" class="<?= in_array($activeTab, ['shop', 'community_buy']) ? 'active' : '' ?>">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"></rect><line x1="6" y1="12" x2="18" y2="12"></line></svg>
+                      Mano užsakymai
+                  </a>
+                  <a href="/orders.php?tab=community_sell" class="<?= $activeTab === 'community_sell' ? 'active' : '' ?>">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                      Mano pardavimai
+                  </a>
+                  <a href="/saved.php">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                      Išsaugoti produktai
+                  </a>
+                  <a href="/messages.php">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                      Žinutės
+                  </a>
+                  <a href="/login.php?logout=1" style="color:#ef4444;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                      Atsijungti
+                  </a>
+              </nav>
+          </div>
+          
+          <div class="card sidebar-card" style="margin-top:20px;">
             <h3>Pardavėjo statusas</h3>
             <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
                 Norėdami parduoti prekes bendruomenės turgelyje, turite susieti savo sąskaitą su Stripe.
@@ -562,7 +591,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                 </a>
             <?php endif; ?>
           </div>
-          
+
           <div class="card sidebar-card" style="margin-top:20px; background: #f8fafc; border: 1px dashed var(--border);">
               <h3>Pagalba</h3>
               <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Kilo klausimų dėl užsakymo ar pardavimo? Susisiekite su mumis.</p>
