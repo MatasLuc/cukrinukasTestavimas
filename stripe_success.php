@@ -28,7 +28,7 @@ try {
     $checkout_session = \Stripe\Checkout\Session::retrieve($session_id);
 
     // Jei apmokėjimas dar neįvykdytas arba atšauktas
-    if ($checkout_session->payment_status !== 'paid') {
+    if ($checkout_session->payment_status !== 'apmokėta') {
         header("Location: cart.php?error=payment_failed");
         exit;
     }
@@ -53,7 +53,7 @@ try {
     }
 
     // Jei užsakymas jau apmokėtas, nebedarome nieko (kad nedubliuotume veiksmų)
-    if ($order['status'] === 'paid') {
+    if ($order['status'] === 'apmokėta') {
         unset($_SESSION['cart']);
         unset($_SESSION['cart_community']);
         unset($_SESSION['checkout_delivery']);
@@ -69,7 +69,7 @@ try {
     // ---------------------------------------------------
     // Vietoj INSERT, mes atnaujiname statusą į 'paid'.
     
-    $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'paid', stripe_session_id = ?, updated_at = NOW() WHERE id = ?");
+    $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta', stripe_session_id = ?, updated_at = NOW() WHERE id = ?");
     $stmtUpdate->execute([$session_id, $orderId]);
 
     // PASTABA: Prekės į `order_items` jau buvo įrašytos `checkout.php` faile,
@@ -124,7 +124,7 @@ try {
                     (buyer_id, seller_id, item_id, item_price, shipping_price, 
                      total_amount, admin_commission_rate, admin_commission_amount, seller_payout_amount, 
                      stripe_payment_intent_id, status, payout_status, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', 'hold', NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'apmokėta', 'hold', NOW())
                 ");
                 
                 $stmt->execute([
