@@ -149,9 +149,9 @@ $commStmt->execute([$userId]);
 $communityOrders = $commStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // C. Turgelio pardavimai (Pardavėjas)
-// Dabar pirkėjo vardą traukiame tikslesnį iš user, o visa kita imame iš JSON `delivery_details`
+// Traukiame pirkėjo vardą ir el. paštą, o visą kitą imame iš community_orders stulpelių ir JSON
 $salesStmt = $pdo->prepare("
-    SELECT co.*, cl.title, cl.image_url, u.name as p_name
+    SELECT co.*, cl.title, cl.image_url, u.name as p_name, u.email as p_email
     FROM community_orders co
     LEFT JOIN community_listings cl ON co.item_id = cl.id
     LEFT JOIN users u ON co.buyer_id = u.id
@@ -459,7 +459,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                     <?php 
                       $stClass = 'status-default';
                       $stText = $order['status'] ?? '';
-                      if ($stText == 'paid') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
+                      if ($stText == 'paid' || $stText == 'apmokėta') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
                       if ($stText == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
                       if ($stText == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
                       
@@ -551,16 +551,17 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         
                         $isSaleDeleted = empty($sale['title']);
 
-                        // Ištraukiame pirkėjo pristatymo informaciją (JSON formatu) iš DB
+                        // Ištraukiame pristatymo informaciją ir JSON
                         $deliveryDetails = json_decode($sale['delivery_details'] ?? '{}', true) ?: [];
                         
-                        // Informacija, kuri imama tiesiai iš išsaugoto JSON
-                        $method = $deliveryDetails['method'] ?? 'Nežinomas';
-                        $phone = $deliveryDetails['contact_phone'] ?? '-';
-                        $email = $deliveryDetails['contact_email'] ?? '-';
-                        $lockerName = $deliveryDetails['locker_name'] ?? '';
-                        $notes = $deliveryDetails['notes'] ?? '';
-                        $buyerName = $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
+                        // Gauname duomenis iš atitinkamų stulpelių bei JSON atgalinio suderinamumo
+                        $method = $sale['delivery_method'] ?? $deliveryDetails['method'] ?? 'Nežinomas';
+                        $phone = $sale['customer_phone'] ?? $deliveryDetails['phone'] ?? $deliveryDetails['contact_phone'] ?? '-';
+                        $email = $sale['p_email'] ?? $deliveryDetails['contact_email'] ?? '-';
+                        $lockerName = $deliveryDetails['locker_name'] ?? $deliveryDetails['locker_address'] ?? '';
+                        $address = $sale['customer_address'] ?? '-';
+                        $notes = $sale['note'] ?? $deliveryDetails['notes'] ?? '';
+                        $buyerName = $sale['customer_name'] ?? $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
 
                         // Formatuojame pristatymo būdo pavadinimą
                         $methodText = 'Nežinomas';
@@ -598,7 +599,10 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                       <p><strong>Pristatymo būdas:</strong> <?= $methodText ?></p>
                                       <?php if ($method === 'locker' && $lockerName): ?>
                                           <p><strong>Paštomatas:</strong> <?= htmlspecialchars($lockerName); ?></p>
+                                      <?php else: ?>
+                                          <p><strong>Adresas:</strong> <?= htmlspecialchars($address); ?></p>
                                       <?php endif; ?>
+                                      
                                       <?php if (!empty($notes)): ?>
                                           <p style="margin-top: 8px;"><strong>Pirkėjo pastaba:</strong><br> <em><?= nl2br(htmlspecialchars($notes)); ?></em></p>
                                       <?php endif; ?>
