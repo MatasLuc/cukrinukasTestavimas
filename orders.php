@@ -121,10 +121,18 @@ $orderStmt = $pdo->prepare('
 $orderStmt->execute([$userId]);
 $shopOrders = $orderStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// ATNAUJINTA: Traukiame pavadinimą ir nuotrauką TIEK iš products, TIEK iš community_listings
 $itemStmt = $pdo->prepare('
-    SELECT oi.*, p.title, p.image_url 
+    SELECT 
+        oi.*, 
+        COALESCE(p.title, cl.title) as title, 
+        COALESCE(p.image_url, cl.image_url) as image_url,
+        CASE WHEN p.id IS NOT NULL THEN "product"
+             WHEN cl.id IS NOT NULL THEN "community"
+             ELSE "unknown" END as item_type
     FROM order_items oi 
     LEFT JOIN products p ON p.id = oi.product_id 
+    LEFT JOIN community_listings cl ON cl.id = oi.product_id
     WHERE oi.order_id = ?
 ');
 
@@ -351,10 +359,19 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                   $isDeleted = empty($item['title']); 
                                   $itemTotal = (float)$item['price'] * (int)$item['quantity'];
                                   $itemsTotal += $itemTotal;
+                                  
+                                  // Nustatome, kur ves nuoroda, priklausomai nuo prekės tipo
+                                  $itemUrl = '#';
+                                  if (!$isDeleted) {
+                                      if ($item['item_type'] === 'community') {
+                                          $itemUrl = '/community_listing.php?id=' . (int)$item['product_id'];
+                                      } else {
+                                          $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id'];
+                                      }
+                                  }
                               ?>
                               <div class="item">
                                 <?php if (!$isDeleted): ?>
-                                    <?php $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id']; ?>
                                     <a href="<?= htmlspecialchars($itemUrl); ?>">
                                       <img src="<?= htmlspecialchars($item['image_url'] ?? '/uploads/default.png'); ?>" alt="">
                                     </a>
@@ -365,7 +382,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 <?php else: ?>
                                     <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
                                     <div class="item-details" style="opacity: 0.6;">
-                                      <span class="item-title">Prekė iš turgelio</span>
+                                      <span class="item-title">Ištrinta prekė</span>
+                                      <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
                                     </div>
                                 <?php endif; ?>
                                 <div class="item-price"><?= number_format($itemTotal, 2); ?> €</div>
