@@ -121,7 +121,7 @@ $orderStmt = $pdo->prepare('
 $orderStmt->execute([$userId]);
 $shopOrders = $orderStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ATNAUJINTA: Traukiame pavadinimą ir nuotrauką TIEK iš products, TIEK iš community_listings
+// Traukiame pavadinimą ir nuotrauką TIEK iš products, TIEK iš community_listings
 $itemStmt = $pdo->prepare('
     SELECT 
         oi.*, 
@@ -149,8 +149,9 @@ $commStmt->execute([$userId]);
 $communityOrders = $commStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // C. Turgelio pardavimai (Pardavėjas)
+// Dabar pirkėjo vardą traukiame tikslesnį iš user, o visa kita imame iš JSON `delivery_details`
 $salesStmt = $pdo->prepare("
-    SELECT co.*, cl.title, cl.image_url, u.name as buyer_name, u.email as buyer_email, u.city as buyer_city
+    SELECT co.*, cl.title, cl.image_url, u.name as p_name
     FROM community_orders co
     LEFT JOIN community_listings cl ON co.item_id = cl.id
     LEFT JOIN users u ON co.buyer_id = u.id
@@ -236,7 +237,9 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
     .st-action-required { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
     .card-body { padding: 24px; }
-    .delivery-info { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px dashed var(--border); }
+    .delivery-info { font-size: 13px; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px dashed var(--border); }
+    .delivery-info p { margin: 0 0 4px 0; }
+    .delivery-info p:last-child { margin: 0; }
 
     .item-list { display:grid; gap:16px; margin-bottom: 24px; }
     .item { display:flex; gap:16px; align-items:center; }
@@ -548,19 +551,23 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         
                         $isSaleDeleted = empty($sale['title']);
 
-                        // Ištraukiame pirkėjo pristatymo informaciją (JSON formatu)
+                        // Ištraukiame pirkėjo pristatymo informaciją (JSON formatu) iš DB
                         $deliveryDetails = json_decode($sale['delivery_details'] ?? '{}', true) ?: [];
-                        $method = $deliveryDetails['method'] ?? 'unknown';
+                        
+                        // Informacija, kuri imama tiesiai iš išsaugoto JSON
+                        $method = $deliveryDetails['method'] ?? 'Nežinomas';
                         $phone = $deliveryDetails['contact_phone'] ?? '-';
-                        $email = $deliveryDetails['contact_email'] ?? $sale['buyer_email'] ?? '-';
+                        $email = $deliveryDetails['contact_email'] ?? '-';
                         $lockerName = $deliveryDetails['locker_name'] ?? '';
                         $notes = $deliveryDetails['notes'] ?? '';
+                        $buyerName = $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
 
+                        // Formatuojame pristatymo būdo pavadinimą
                         $methodText = 'Nežinomas';
                         if ($method === 'locker') $methodText = 'Paštomatas';
                         elseif ($method === 'courier') $methodText = 'Kurjeris';
                         elseif ($method === 'pickup') $methodText = 'Atsiėmimas vietoje';
-                        else $methodText = htmlspecialchars($method);
+                        elseif ($method !== 'Nežinomas') $methodText = htmlspecialchars($method);
                     ?>
                     <div class="card">
                       <div class="card-header">
@@ -572,26 +579,28 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       </div>
 
                       <div class="card-body">
-                          <div class="delivery-info" style="display:flex; flex-direction:column; gap:12px;">
+                          <div class="delivery-info" style="display:flex; flex-direction:column; gap:16px;">
+                              
                               <div style="display:flex; align-items:flex-start; gap:10px;">
-                                  <span style="font-size:16px; color:var(--accent);">👤</span>
+                                  <span style="font-size:18px; color:var(--accent); margin-top:2px;">👤</span>
                                   <div>
-                                      <strong>Pirkėjas: <?= htmlspecialchars($sale['buyer_name'] ?? '-'); ?></strong><br>
-                                      El. paštas: <a href="mailto:<?= htmlspecialchars($email); ?>" style="color:var(--accent);"><?= htmlspecialchars($email); ?></a><br>
-                                      Telefonas: <?= htmlspecialchars($phone); ?>
+                                      <p><strong>Pirkėjas:</strong> <?= htmlspecialchars($buyerName); ?></p>
+                                      <p><strong>El. paštas:</strong> <a href="mailto:<?= htmlspecialchars($email); ?>" style="color:var(--accent);"><?= htmlspecialchars($email); ?></a></p>
+                                      <?php if ($phone !== '-'): ?>
+                                          <p><strong>Telefonas:</strong> <?= htmlspecialchars($phone); ?></p>
+                                      <?php endif; ?>
                                   </div>
                               </div>
-                              <div style="display:flex; align-items:flex-start; gap:10px; border-top:1px dashed var(--border); padding-top:12px;">
-                                  <span style="font-size:16px; color:var(--accent);">🚚</span>
+
+                              <div style="display:flex; align-items:flex-start; gap:10px; border-top:1px dashed var(--border); padding-top:16px;">
+                                  <span style="font-size:18px; color:var(--accent); margin-top:2px;">🚚</span>
                                   <div>
-                                      <strong>Pristatymo būdas:</strong> <?= $methodText ?><br>
+                                      <p><strong>Pristatymo būdas:</strong> <?= $methodText ?></p>
                                       <?php if ($method === 'locker' && $lockerName): ?>
-                                          <strong>Paštomatas:</strong> <?= htmlspecialchars($lockerName); ?>
-                                      <?php elseif ($method !== 'locker'): ?>
-                                          <span class="text-muted" style="font-size:12px;">(Tikslesnis adresas turėtų būti išsiųstas jums el. paštu arba susisiekite su pirkėju)</span>
+                                          <p><strong>Paštomatas:</strong> <?= htmlspecialchars($lockerName); ?></p>
                                       <?php endif; ?>
                                       <?php if (!empty($notes)): ?>
-                                          <br><strong>Pastabos:</strong> <em><?= nl2br(htmlspecialchars($notes)); ?></em>
+                                          <p style="margin-top: 8px;"><strong>Pirkėjo pastaba:</strong><br> <em><?= nl2br(htmlspecialchars($notes)); ?></em></p>
                                       <?php endif; ?>
                                   </div>
                               </div>
@@ -627,17 +636,22 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                         <label class="meta-label" style="display:block; margin-bottom:6px;">Įveskite siuntos sekimo numerį:</label>
                                         <div class="input-group">
                                             <input type="text" name="tracking_number" class="form-control" placeholder="pvz. LP123456789LT" required>
-                                            <button class="btn" type="submit">Patvirtinti</button>
+                                            <button class="btn" type="submit">Patvirtinti išsiuntimą</button>
                                         </div>
                                     </form>
                                 <?php elseif (!empty($sale['tracking_number'])): ?>
-                                    <div style="font-size: 14px;"><strong>Sekimo nr.:</strong> <?= htmlspecialchars($sale['tracking_number']); ?></div>
+                                    <div style="font-size: 14px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                                        <strong>Sekimo nr.:</strong> <span style="font-family: monospace; font-size: 15px; color: var(--accent);"><?= htmlspecialchars($sale['tracking_number']); ?></span>
+                                    </div>
                                 <?php endif; ?>
                                 
-                                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
                                     <div style="font-size:12px; color:var(--text-muted);">
                                         <?php if (($sale['payout_status'] ?? '') == 'hold'): ?>
-                                            <span style="color:#d97706;">⏳ Pinigai įšaldyti (Escrow)</span>
+                                            <span style="color:#d97706; display: flex; align-items: center; gap: 4px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                Pinigai įšaldyti (Laukiama patvirtinimo)
+                                            </span>
                                         <?php endif; ?>
                                     </div>
                                     <div class="total-price">
