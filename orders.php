@@ -391,8 +391,24 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                             <?php endforeach; ?>
                             
                             <?php 
+                              // Patikriname, ar užsakyme yra TIK turgelio prekės
+                              $isOnlyCommunity = count($orderItems) > 0;
+                              foreach ($orderItems as $checkItem) {
+                                  if ($checkItem['item_type'] !== 'community') {
+                                      $isOnlyCommunity = false;
+                                      break;
+                                  }
+                              }
+
                               // Pristatymo mokestis ir metodo formatavimas
                               $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal, 2));
+
+                              // Jei tai tik turgelio prekės, pristatymo neturi būti ir bendrą sumą pakoreguojame
+                              if ($isOnlyCommunity) {
+                                  $deliveryCost = 0;
+                                  $order['total'] = $itemsTotal; 
+                              }
+
                               if ($deliveryCost > 0): 
                                 $deliveryMethodName = 'Pristatymas';
                                 if (!empty($order['delivery_method'])) {
