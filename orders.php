@@ -403,14 +403,17 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                   }
                               }
 
-                              // Pristatymo mokestis ir metodo formatavimas
-                              $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal, 2));
+                              // Tikslus pristatymo mokestis iš duomenų bazės
+                              $deliveryCost = isset($order['shipping_amount']) ? (float)$order['shipping_amount'] : max(0, round((float)$order['total'] - $itemsTotal, 2));
+                              $discountAmount = isset($order['discount_amount']) ? (float)$order['discount_amount'] : 0;
 
-                              // Jei tai tik turgelio prekės, pristatymo neturi būti ir bendrą sumą pakoreguojame
+                              // Jei tai tik turgelio prekės
                               if ($isOnlyCommunity) {
                                   $deliveryCost = 0;
-                                  $order['total'] = $itemsTotal; 
                               }
+
+                              // Paskaičiuojame tikrąją sumą atvaizduojamą parduotuvės eilutėje
+                              $shopTotal = max(0, $itemsTotal + $deliveryCost - $discountAmount);
 
                               if ($deliveryCost > 0): 
                                 $deliveryMethodName = 'Pristatymas';
@@ -432,12 +435,23 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 <div class="item-price"><?= number_format($deliveryCost, 2); ?> €</div>
                               </div>
                             <?php endif; ?>
+                            
+                            <?php if ($discountAmount > 0): ?>
+                              <div class="item" style="border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px;">
+                                <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#fef2f2; color:#991b1b; border-radius:12px; border:1px dashed #fca5a5; font-size:24px; flex-shrink:0;">🎟️</div>
+                                <div class="item-details">
+                                  <span class="item-title">Nuolaida <?= !empty($order['discount_code']) ? '(' . htmlspecialchars($order['discount_code']) . ')' : '' ?></span>
+                                </div>
+                                <div class="item-price" style="color:#991b1b;">-<?= number_format($discountAmount, 2); ?> €</div>
+                              </div>
+                            <?php endif; ?>
                           </div>
+                          
                           <div class="card-footer">
                               <div style="flex-grow:1;"><a class="btn-outline" href="/products.php">Pirkti vėl</a></div>
                               <div class="total-price">
                                   <span class="total-label">Viso mokėti</span>
-                                  <span class="total-value"><?= number_format((float)$order['total'], 2); ?> €</span>
+                                  <span class="total-value"><?= number_format($shopTotal, 2); ?> €</span>
                               </div>
                           </div>
                       </div>
