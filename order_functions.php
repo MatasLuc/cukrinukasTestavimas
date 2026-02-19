@@ -84,10 +84,6 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId, $orderData = nul
 
 /**
  * Pagrindinė funkcija užsakymo užbaigimui (apmokėjimo patvirtinimas).
- * @param PDO $pdo
- * @param int $orderId
- * @param bool $sendEmail Ar siųsti numatytąjį laišką
- * @param string|null $realPaymentIntentId Stripe Intent ID atnaujinimui DB
  */
 function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId = null) {
     try {
@@ -105,7 +101,7 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
         if (!$order) {
             $errorMsg = "completeOrder: Užsakymas #$orderId nerastas.";
             logMailer($errorMsg);
-            throw new Exception($errorMsg); // Metama klaida į ekraną
+            throw new Exception($errorMsg); 
         }
         
         if (mb_strtolower($order['status']) === 'apmokėta') {
@@ -167,68 +163,10 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
             }
         }
 
-        // Patvirtiname visus duomenų bazės pakeitimus
         $pdo->commit();
 
         // ------------------------------------------------------------------
-        // STRIPE TRANSFERS - Pinigų paskirstymas (Pervedimai)
-        // ------------------------------------------------------------------
-        if ($communityOrders) {
-            if (!class_exists('\Stripe\Stripe')) {
-                @require_once __DIR__ . '/lib/stripe/init.php';
-            }
-            if (class_exists('\Stripe\Stripe')) {
-                @require_once __DIR__ . '/env.php';
-                $stripeSecret = getenv('STRIPE_SECRET_KEY') ?: ($_ENV['STRIPE_SECRET_KEY'] ?? '');
-                
-                if ($stripeSecret) {
-                    \Stripe\Stripe::setApiKey($stripeSecret);
-                    
-                    foreach ($communityOrders as $co) {
-                        // Tikriname, ar pinigai nebuvo pervesti anksčiau ir ar yra ką pervesti
-                        if ($co['payout_status'] !== 'transferred' && $co['seller_payout_amount'] > 0) {
-                            $stmtSeller = $pdo->prepare("SELECT stripe_account_id FROM users WHERE id = ?");
-                            $stmtSeller->execute([$co['seller_id']]);
-                            $sellerStripeAcc = $stmtSeller->fetchColumn();
-                            
-                            if (!empty($sellerStripeAcc)) {
-                                try {
-                                    $transferAmount = (int)round($co['seller_payout_amount'] * 100);
-                                    \Stripe\Transfer::create([
-                                        'amount' => $transferAmount,
-                                        'currency' => 'eur',
-                                        'destination' => $sellerStripeAcc,
-                                        'transfer_group' => 'ORDER_' . $orderId,
-                                        'metadata' => [
-                                            'order_id' => $orderId,
-                                            'community_order_id' => $co['id']
-                                        ]
-                                    ]);
-                                    
-                                    // Atnaujiname statusą DB, kad pinigai pervesti
-                                    $stmtUpdatePayout = $pdo->prepare("UPDATE community_orders SET payout_status = 'transferred' WHERE id = ?");
-                                    $stmtUpdatePayout->execute([$co['id']]);
-                                    
-                                    logMailer("Sėkmingas pervedimas pardavėjui {$co['seller_id']} (Stripe: $sellerStripeAcc). Suma: " . ($transferAmount/100) . " EUR. Užsakymas: #$orderId");
-                                    
-                                } catch (\Exception $e) {
-                                    logMailer("KLAIDA pervedant pinigus pardavėjui {$co['seller_id']} (Stripe: $sellerStripeAcc) užsakyme #$orderId: " . $e->getMessage());
-                                }
-                            } else {
-                                logMailer("KLAIDA: Pardavėjas {$co['seller_id']} neturi Stripe paskyros ID (Užsakymas: #$orderId). Pervedimas negalimas.");
-                            }
-                        }
-                    }
-                } else {
-                    logMailer("KLAIDA: Nerastas STRIPE_SECRET_KEY, todėl pervedimai nevykdomi.");
-                }
-            } else {
-                logMailer("KLAIDA: Stripe biblioteka nerasta, pervedimai nevykdomi.");
-            }
-        }
-
-        // ------------------------------------------------------------------
-        // Laiškų siuntimas atliekamas TIK PO sėkmingo DB išsaugojimo
+        // Laiškų siuntimas 
         // ------------------------------------------------------------------
         
         if ($communityOrders) {
@@ -251,7 +189,6 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                         </tr>";
                     }
 
-                    // Suformuojame pristatymo informaciją el. laiškui, kad pardavėjas žinotų, kur išsiųsti
                     $delDetails = json_decode($data['delivery_details'] ?? '{}', true) ?: [];
                     $provKey = strtolower($delDetails['locker_provider'] ?? '');
                     $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
@@ -340,8 +277,6 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
             $pdo->rollBack();
         }
         logMailer("completeOrder CRITICAL ERROR: " . $e->getMessage());
-        
-        // Ši eilutė užtikrins, kad stripe_success.php puslapis išvestų klaidą į ekraną
         throw new Exception("Duomenų bazės klaida patvirtinant užsakymą: " . $e->getMessage()); 
     }
 }
@@ -495,7 +430,6 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
 
 /**
  * Siunčia laišką, kai užsakymo statusas pakeičiamas į "išsiųsta".
- * Įtraukia sekimo numerį.
  */
 function sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo) {
     try {
