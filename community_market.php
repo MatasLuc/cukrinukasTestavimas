@@ -29,7 +29,7 @@ if ($typeFilter && !in_array($typeFilter, ['sell', 'buy'])) {
 }
 
 // 3. SQL konstravimas
-$whereParts = ["m.status = 'active'"];
+$whereParts = ["m.status IN ('active', 'sold')"];
 $params = [];
 
 if ($catFilter) {
@@ -234,6 +234,7 @@ echo headerStyles();
         transition: all .2s; width: 100%;
     }
     .btn:hover { background: #1e293b; transform: translateY(-1px); }
+    .btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; transform: none; box-shadow: none; }
     .btn-outline { 
         padding:8px 12px; border-radius:8px; border: 1px solid var(--border);
         background: #fff; color: var(--text-main); text-decoration: none; display: inline-block;
@@ -363,8 +364,11 @@ echo headerStyles();
                         <span>👤 <?php echo htmlspecialchars($item['username'] ?: 'Narys'); ?></span>
                         <span><?php echo date('m-d', strtotime($item['created_at'])); ?></span>
                     </div>
-                    <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
-                        <form action="cart.php" method="POST" style="display:inline;">
+                    
+                    <?php if ($item['status'] === 'sold'): ?>
+                        <button disabled class="btn" style="margin-top: 8px;">Parduotas</button>
+                    <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
+                        <form action="cart.php" method="POST" style="display:block; margin-top: 8px;">
                             <?php echo csrfField(); ?> <input type="hidden" name="action" value="add_community">
                             <input type="hidden" name="product_id" value="<?php echo $item['id']; ?>">
                             <button type="submit" class="btn btn-sm btn-primary">
