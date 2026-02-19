@@ -308,7 +308,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
           <div class="nav-tabs">
               <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Parduotuvė (<?= count($shopOrders) ?>)</a>
-              <a href="?tab=community_buy" class="nav-tab <?= $activeTab === 'community_buy' ? 'active' : '' ?>">Turgelio pirkiniai (<?= count($communityOrders) ?>)</a>
+              <a href="?tab=community_buy" class="nav-tab <?= $activeTab === 'community_buy' ? 'active' : '' ?>">Turgelis (<?= count($communityOrders) ?>)</a>
               <a href="?tab=community_sell" class="nav-tab <?= $activeTab === 'community_sell' ? 'active' : '' ?>">Mano pardavimai (<?= count($sales) ?>)</a>
           </div>
 
@@ -538,6 +538,31 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
       </div>
 
       <aside>
+        <div class="card sidebar-card" style="margin-top:20px;">
+            <h3>Pardavėjo statusas</h3>
+            <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
+                Norėdami parduoti prekes bendruomenės turgelyje, turite susieti savo sąskaitą su Stripe.
+            </p>
+            
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                <span style="font-size: 20px; color: #635bff; font-weight: bold;">S</span>
+                <span style="font-weight:600; font-size:14px;">Stripe Express</span>
+                <?php if (!empty($user['stripe_onboarding_completed'])): ?>
+                    <span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #bbf7d0;">Patvirtinta</span>
+                <?php else: ?>
+                    <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #e2e8f0;">Nepradėta</span>
+                <?php endif; ?>
+            </div>
+
+            <?php if (!empty($user['stripe_onboarding_completed'])): ?>
+                <a href="stripe_connect.php" style="color: #635bff; text-decoration: none; font-weight: 500; font-size: 13px;">Stripe Valdymas &rarr;</a>
+            <?php else: ?>
+                <a href="stripe_connect.php" style="display: inline-flex; align-items: center; background-color: #635bff; color: white; border: none; padding: 8px 12px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; transition: background-color 0.2s;">
+                   <span style="margin-right: 6px; font-weight: bold; font-family: sans-serif;">S</span> <?php echo !empty($user['stripe_account_id']) ? 'Tęsti registraciją' : 'Tapti pardavėju'; ?>
+                </a>
+            <?php endif; ?>
+          </div>
+          
           <div class="card sidebar-card">
               <h3>Vartotojo meniu</h3>
               <nav class="sidebar-menu">
@@ -568,31 +593,6 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
               </nav>
           </div>
           
-          <div class="card sidebar-card" style="margin-top:20px;">
-            <h3>Pardavėjo statusas</h3>
-            <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
-                Norėdami parduoti prekes bendruomenės turgelyje, turite susieti savo sąskaitą su Stripe.
-            </p>
-            
-            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-                <span style="font-size: 20px; color: #635bff; font-weight: bold;">S</span>
-                <span style="font-weight:600; font-size:14px;">Stripe Express</span>
-                <?php if (!empty($user['stripe_onboarding_completed'])): ?>
-                    <span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #bbf7d0;">Patvirtinta</span>
-                <?php else: ?>
-                    <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #e2e8f0;">Nepradėta</span>
-                <?php endif; ?>
-            </div>
-
-            <?php if (!empty($user['stripe_onboarding_completed'])): ?>
-                <a href="stripe_connect.php" style="color: #635bff; text-decoration: none; font-weight: 500; font-size: 13px;">Stripe Valdymas &rarr;</a>
-            <?php else: ?>
-                <a href="stripe_connect.php" style="display: inline-flex; align-items: center; background-color: #635bff; color: white; border: none; padding: 8px 12px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; transition: background-color 0.2s;">
-                   <span style="margin-right: 6px; font-weight: bold; font-family: sans-serif;">S</span> <?php echo !empty($user['stripe_account_id']) ? 'Tęsti registraciją' : 'Tapti pardavėju'; ?>
-                </a>
-            <?php endif; ?>
-          </div>
-
           <div class="card sidebar-card" style="margin-top:20px; background: #f8fafc; border: 1px dashed var(--border);">
               <h3>Pagalba</h3>
               <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Kilo klausimų dėl užsakymo ar pardavimo? Susisiekite su mumis.</p>
