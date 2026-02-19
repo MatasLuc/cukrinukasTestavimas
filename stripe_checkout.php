@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/lib/stripe/init.php';
+require_once __DIR__ . '/order_functions.php'; // Pridėta funkcijų biblioteka
 
 session_start();
 $pdo = getPdo();
@@ -137,7 +138,7 @@ if (isset($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0
                 continue; 
             }
 
-            $qty = 1; 
+            $qty = (int)$_SESSION['cart_community'][$item['id']]; 
             $price = floatval($item['price']);
             $unit_amount = round($price * 100);
 
@@ -184,6 +185,9 @@ if (!$has_items) {
     header("Location: cart.php?error=empty");
     exit;
 }
+
+// --- SUKURIAME LAUKIANČIUS BENDRUOMENĖS UŽSAKYMUS PRIEŠ MOKĖJIMĄ ---
+createPendingCommunityOrders($pdo, $orderId, $_SESSION['user_id'] ?? 0);
 
 // 5. KURIAME STRIPE SESIJĄ
 try {
