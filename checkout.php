@@ -298,7 +298,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $phone = trim($_POST['phone'] ?? '');
     $method = $_POST['delivery_method'] ?? 'locker';
     $notes = trim($_POST['notes'] ?? '');
+    
     $selectedLocker = trim($_POST['locker_select'] ?? '');
+    $lockerProvider = trim($_POST['locker_provider'] ?? '');
 
     $fullAddress = "";
     if ($method === 'courier') {
@@ -345,7 +347,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 'contact_phone' => $phone,
                 'contact_email' => $email,
                 'notes' => $notes,
-                'locker_name' => ($method === 'locker') ? $selectedLocker : null
+                'locker_name' => ($method === 'locker') ? $selectedLocker : null,
+                'locker_provider' => ($method === 'locker') ? $lockerProvider : null
             ];
             $deliveryDetailsJson = json_encode($deliveryDetailsArr);
 
@@ -692,6 +695,7 @@ if (!empty($_SESSION['user_id'])) {
                                 <label class="form-label">2. Pasirinkite paštomatą:</label>
                                 
                                 <input type="hidden" name="locker_select" id="locker-select-input">
+                                <input type="hidden" name="locker_provider" id="locker-provider-input">
                                 
                                 <div class="custom-select-wrapper" id="custom-select-wrapper">
                                     <div class="custom-select-trigger" onclick="toggleDropdown()">
@@ -890,6 +894,7 @@ if (!empty($_SESSION['user_id'])) {
 
         function filterLockers(provider, btnElement) {
             currentProvider = provider;
+            document.getElementById('locker-provider-input').value = provider;
             
             // Update buttons visual state
             document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
