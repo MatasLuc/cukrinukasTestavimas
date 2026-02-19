@@ -23,7 +23,11 @@ $message = "";
 // -----------------------------------------------------------------------------
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+    $sessionToken = getCsrfToken();
+    $submittedToken = $_POST['csrf_token'] ?? '';
+
+    // Kadangi norime parodyti gražią HTML žinutę vietoj 'exit', tikriname rankiniu būdu
+    if (!is_string($submittedToken) || empty($submittedToken) || !hash_equals($sessionToken, $submittedToken)) {
         $message = '<div class="alert alert-danger">Klaida: neteisingas saugumo raktas.</div>';
     } else {
         $action = $_POST['action'];
@@ -540,7 +544,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               <div style="flex-grow:1;">
                                 <?php if (($order['status'] ?? '') === 'shipped'): ?>
                                     <form method="POST" onsubmit="return confirm('Ar tikrai gavote prekę?');">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                                        <?= csrfField() ?>
                                         <input type="hidden" name="action" value="confirm_delivery">
                                         <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
                                         <button type="submit" class="btn btn-green">Gavau prekę</button>
@@ -667,7 +671,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                               <div style="width: 100%;">
                                 <?php if ($isPending): ?>
                                     <form method="POST" style="margin-bottom:12px;">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                                        <?= csrfField() ?>
                                         <input type="hidden" name="action" value="mark_shipped">
                                         <input type="hidden" name="order_id" value="<?= $sale['id'] ?>">
                                         
