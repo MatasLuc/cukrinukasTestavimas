@@ -161,14 +161,57 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
 
                 if ($seller) {
                     $sSubject = "Naujas užsakymas! (Cukrinukas Turgelis)";
-                    $sBody = "<h2>Sveiki, {$seller['name']}!</h2>";
-                    $sBody .= "<p>Turite naują užsakymą turgelyje.</p>";
-                    $sBody .= "<h3>Reikia išsiųsti:</h3><ul>";
+                    
+                    $sellerItemsRows = '';
                     foreach ($data['items'] as $item) {
-                        $sBody .= "<li>{$item['title']} (x{$item['qty']})</li>";
+                        $itemTitle = htmlspecialchars($item['title']);
+                        $itemQty = $item['qty'];
+                        $sellerItemsRows .= "
+                        <tr>
+                            <td style='color: #475467; font-size: 14px; padding: 12px; border-bottom: 1px solid #e2e8f0;'>$itemTitle</td>
+                            <td style='color: #475467; font-size: 14px; padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: center;'>$itemQty</td>
+                        </tr>";
                     }
-                    $sBody .= "</ul>";
-                    $sBody .= "<p>Gauta suma: " . number_format($data['total_paid'], 2) . " EUR</p>";
+
+                    $sBody = "
+                    <html>
+                    <head>
+                        <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
+                    </head>
+                    <body style='font-family: \"Inter\", Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;'>
+                        <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>
+                            
+                            <div style='padding: 32px; text-align: center; border-bottom: 1px solid #f1f5f9;'>
+                                <h1 style='margin: 0; color: #0f172a; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;'>Naujas užsakymas! 🎉</h1>
+                            </div>
+
+                            <div style='padding: 32px;'>
+                                <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 24px;'>Sveiki, <strong>" . htmlspecialchars($seller['name']) . "</strong>,</p>
+                                <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 32px;'>Turite naują užsakymą Cukrinukas turgelyje. Prašome paruošti šias prekes išsiuntimui:</p>
+                                
+                                <table style='width: 100%; border-collapse: collapse; margin-bottom: 32px;'>
+                                    <thead>
+                                        <tr>
+                                            <th style='color: #475467; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; font-weight: 600; text-align: left;'>Prekė</th>
+                                            <th style='color: #475467; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; font-weight: 600; text-align: center;'>Kiekis</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>$sellerItemsRows</tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td style='padding: 16px 12px; text-align: right; font-size: 16px; color: #0f172a;'><strong>Gauta suma:</strong></td>
+                                            <td style='padding: 16px 12px; text-align: center; font-size: 20px; color: #2563eb; font-weight: 700;'><strong>" . number_format($data['total_paid'], 2) . " €</strong></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <div style='background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Cukrinukas © " . date('Y') . ". Visos teisės saugomos.</p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>";
                     
                     try {
                         sendEmail($seller['email'], $sSubject, $sBody);
