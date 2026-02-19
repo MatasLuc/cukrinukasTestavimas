@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $message = '<div class="alert alert-danger">Būtina įvesti sekimo numerį!</div>';
         } else {
             // Tikriname, ar užsakymas priklauso šiam pardavėjui
-            $stmt = $pdo->prepare("SELECT id, status, buyer_id FROM community_orders WHERE id = ? AND seller_id = ? AND status = 'paid'");
+            $stmt = $pdo->prepare("SELECT id, status, buyer_id FROM community_orders WHERE id = ? AND seller_id = ? AND status = 'apmokėta'");
             $stmt->execute([$orderId, $userId]);
             $order = $stmt->fetch();
 
@@ -206,12 +206,12 @@ $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="order-list">
               <?php foreach ($sales as $sale): ?>
                 <?php 
-                    $isPending = ($sale['status'] === 'paid');
+                    $isPending = ($sale['status'] === 'apmokėta');
                     $statusText = '';
                     $statusClass = '';
                     
                     switch($sale['status']) {
-                        case 'paid': $statusText = 'REIKIA IŠSIŲSTI'; $statusClass='st-paid'; break;
+                        case 'apmokėta': $statusText = 'REIKIA IŠSIŲSTI'; $statusClass='st-paid'; break;
                         case 'shipped': $statusText = 'IŠSIŲSTA (Laukiama)'; $statusClass='st-shipped'; break;
                         case 'delivered': $statusText = 'UŽBAIGTA'; $statusClass='st-delivered'; break;
                         default: $statusText = $sale['status']; $statusClass='st-pending';
