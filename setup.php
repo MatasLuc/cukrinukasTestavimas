@@ -284,6 +284,31 @@ function ensureCommunityTables(PDO $pdo): void {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    // Papildomi stulpeliai community_orders lentelei, skirti delivery details ir finansams
+    $commOrderColumns = $pdo->query('SHOW COLUMNS FROM community_orders')->fetchAll(PDO::FETCH_COLUMN);
+    $newCommOrderCols = [
+        'seller_id' => 'INT NULL',
+        'item_id' => 'INT NULL',
+        'item_price' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
+        'shipping_price' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
+        'total_amount' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
+        'admin_commission_rate' => 'DECIMAL(5,2) NOT NULL DEFAULT 0',
+        'admin_commission_amount' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
+        'seller_payout_amount' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
+        'stripe_payment_intent_id' => 'VARCHAR(255) NULL',
+        'payout_status' => 'VARCHAR(50) NOT NULL DEFAULT "hold"',
+        'customer_name' => 'VARCHAR(200) NULL',
+        'customer_phone' => 'VARCHAR(50) NULL',
+        'customer_address' => 'TEXT NULL',
+        'delivery_method' => 'VARCHAR(50) NULL',
+        'delivery_details' => 'TEXT NULL'
+    ];
+    foreach ($newCommOrderCols as $col => $def) {
+        if (!in_array($col, $commOrderColumns, true)) {
+            $pdo->exec("ALTER TABLE community_orders ADD COLUMN `$col` $def");
+        }
+    }
+
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS community_order_messages (
             id INT AUTO_INCREMENT PRIMARY KEY,
