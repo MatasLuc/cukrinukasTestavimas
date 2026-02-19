@@ -5,20 +5,24 @@ require_once __DIR__ . '/mailer.php';
 
 /**
  * Pagrindinė funkcija užsakymo užbaigimui (apmokėjimo patvirtinimas).
+ * @param PDO $pdo
+ * @param int $orderId
+ * @param bool $sendEmail Ar siųsti numatytąjį laišką (naudojama webhooke, atjungiama stripe_success.php)
  */
-function completeOrder($pdo, $orderId) {
+function completeOrder($pdo, $orderId, $sendEmail = true) {
     try {
         // 1. Patikriname dabartinį statusą
         $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Jei užsakymas nerastas arba jau apmokėtas, nieko nedarome
         if (!$order) {
             logMailer("completeOrder: Užsakymas #$orderId nerastas.");
             return false;
         }
-        if ($order['status'] === 'Apmokėta') {
+        
+        // Naudojame mb_strtolower ir sutvarkome registrą, kad išvengtume Apmokėta vs apmokėta problemų
+        if (mb_strtolower($order['status']) === 'apmokėta') {
             return false;
         }
 
@@ -26,16 +30,17 @@ function completeOrder($pdo, $orderId) {
         $pdo->beginTransaction();
 
         // Atnaujiname statusą
-        $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'Apmokėta', updated_at = NOW() WHERE id = ?");
+        $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta', updated_at = NOW() WHERE id = ?");
         $stmtUpdate->execute([$orderId]);
 
-        // Sumažiname likučius
+        // Sumažiname prekių likučius
         $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
         if ($items) {
-            $stmtStock = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ?");
+            // Pridėtas GREATEST(0, ...), kad prekės kiekis sistemoje niekada netaptų neigiamas
+            $stmtStock = $pdo->prepare("UPDATE products SET quantity = GREATEST(0, quantity - ?) WHERE id = ?");
             foreach ($items as $item) {
                 $stmtStock->execute([$item['quantity'], $item['product_id']]);
             }
@@ -43,10 +48,12 @@ function completeOrder($pdo, $orderId) {
 
         $pdo->commit();
         
-        // 3. Siunčiame patvirtinimo laišką
-        sendOrderConfirmationEmail($orderId, $pdo);
+        // 3. Siunčiame patvirtinimo laišką tik jei leidžiama
+        if ($sendEmail) {
+            sendOrderConfirmationEmail($orderId, $pdo);
+        }
         
-        logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas ir laiškai išsiųsti.");
+        logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas.");
         return true;
 
     } catch (Exception $e) {
@@ -167,7 +174,6 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
         </body>
         </html>";
 
-        // Siunčiame
         if (!empty($order['customer_email'])) {
             sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId gautas", $emailContent);
         }
@@ -194,7 +200,6 @@ function sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo) {
 
         $trackingHtml = '';
         if (!empty($trackingNumber)) {
-            // Dizainas kaip admin/emails.php "styleBox" ir "styleCode"
             $trackingHtml = "
             <div style='background-color: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; margin: 32px 0; text-align: center;'>
                 <p style='margin: 0 0 12px 0; font-size: 14px; color: #64748b;'>Jūsų siuntos sekimo numeris:</p>
