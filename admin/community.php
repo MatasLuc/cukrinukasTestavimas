@@ -282,6 +282,7 @@ require_once 'header.php';
                     <div style="display:flex; justify-content:flex-end; gap:6px;">
                         <button class="btn secondary" style="padding:4px 8px; font-size:11px;" onclick='openCatModal("thread", <?php echo json_encode($cat); ?>)'>Redaguoti</button>
                         <form method="post" onsubmit="return confirm('Trinti kategoriją?');" style="margin:0;">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="delete_community_category">
                             <input type="hidden" name="id" value="<?php echo $cat['id']; ?>">
                             <button class="btn" style="padding:4px 8px; font-size:11px; background:#fff1f1; color:#b91c1c; border-color:#fecaca;">&times;</button>
@@ -307,6 +308,7 @@ require_once 'header.php';
                         <td><?php echo date('Y-m-d', strtotime($thread['created_at'])); ?></td>
                         <td>
                             <form method="post" onsubmit="return confirm('Trinti temą?');">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="delete_community_thread">
                                 <input type="hidden" name="id" value="<?php echo $thread['id']; ?>">
                                 <button class="btn" style="padding:4px 10px; font-size:11px; background:#f3f4f6; color:#111;">Ištrinti</button>
@@ -324,6 +326,7 @@ require_once 'header.php';
         <div class="card" style="margin-bottom:24px; background:#f0f9ff; border-color:#bae6fd;">
             <h3 style="color:#0369a1;">⚙️ Turgelio Nustatymai</h3>
             <form method="post" class="input-row" style="align-items:flex-end;">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="action" value="save_commission">
                 <div style="flex:1; max-width:300px;">
                     <label style="font-size:12px; font-weight:700; color:#0369a1;">Sistemos komisinis mokestis (%)</label>
@@ -345,6 +348,7 @@ require_once 'header.php';
                     <div style="display:flex; justify-content:flex-end; gap:6px;">
                         <button class="btn secondary" style="padding:4px 8px; font-size:11px;" onclick='openCatModal("listing", <?php echo json_encode($cat); ?>)'>Redaguoti</button>
                         <form method="post" onsubmit="return confirm('Trinti kategoriją?');" style="margin:0;">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="delete_listing_category">
                             <input type="hidden" name="id" value="<?php echo $cat['id']; ?>">
                             <button class="btn" style="padding:4px 8px; font-size:11px; background:#fff1f1; color:#b91c1c; border-color:#fecaca;">&times;</button>
@@ -400,6 +404,7 @@ require_once 'header.php';
                                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                                     <?php if ($ord['status'] !== 'refunded'): ?>
                                         <form method="post" onsubmit="return confirm('AR TIKRAI norite atšaukti užsakymą ir grąžinti pinigus pirkėjui?');" style="margin:0;">
+                                            <?php echo csrfField(); ?>
                                             <input type="hidden" name="action" value="refund_order">
                                             <input type="hidden" name="order_id" value="<?php echo $ord['id']; ?>">
                                             <button class="btn" style="padding:4px 8px; font-size:10px; background:#fff1f1; color:#991b1b; border-color:#fecaca;">Refund</button>
@@ -408,6 +413,7 @@ require_once 'header.php';
                                     
                                     <?php if ($ord['status'] !== 'completed' && $ord['status'] !== 'refunded'): ?>
                                         <form method="post" onsubmit="return confirm('AR TIKRAI norite priverstinai užbaigti užsakymą? Lėšos bus laikomos gautomis.');" style="margin:0;">
+                                            <?php echo csrfField(); ?>
                                             <input type="hidden" name="action" value="force_payout">
                                             <input type="hidden" name="order_id" value="<?php echo $ord['id']; ?>">
                                             <button class="btn" style="padding:4px 8px; font-size:10px; background:#ecfdf5; color:#065f46; border-color:#a7f3d0;">Force Payout</button>
@@ -445,6 +451,7 @@ require_once 'header.php';
                         </td>
                         <td>
                             <form method="post">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="update_listing_status">
                                 <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                 <select name="status" onchange="this.form.submit()" style="margin:0; padding:4px; font-size:12px; border-radius:6px;">
@@ -455,6 +462,7 @@ require_once 'header.php';
                         </td>
                         <td>
                             <form method="post" onsubmit="return confirm('Trinti skelbimą?');">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="delete_listing">
                                 <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                 <button class="btn" style="padding:4px 8px; font-size:11px; background:#fff1f1; color:#b91c1c; border-color:#fecaca;">&times;</button>
@@ -483,6 +491,7 @@ require_once 'header.php';
                         <td><?php echo $block['banned_until'] ? date('Y-m-d H:i', strtotime($block['banned_until'])) : 'Neribotai'; ?></td>
                         <td>
                             <form method="post" onsubmit="return confirm('Atblokuoti?');">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="unblock_user">
                                 <input type="hidden" name="id" value="<?php echo $block['id']; ?>">
                                 <button class="btn" style="padding:4px 10px; font-size:12px;">Atblokuoti</button>
@@ -506,6 +515,7 @@ require_once 'header.php';
             <button onclick="closeModal('catModal')" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button>
         </div>
         <form method="post">
+            <?php echo csrfField(); ?>
             <input type="hidden" name="action" id="catFormAction" value="">
             <input type="hidden" name="id" id="catId" value="">
             
@@ -526,6 +536,7 @@ require_once 'header.php';
             <button onclick="closeModal('blockModal')" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button>
         </div>
         <form method="post">
+            <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="block_user">
             
             <div class="form-group">
