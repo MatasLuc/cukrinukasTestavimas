@@ -23,6 +23,9 @@ if ((empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) && (empty($_SES
     exit;
 }
 
+// Patikriname ar krepšelyje TIK bendruomenės prekės
+$isCommunityOnly = empty($_SESSION['cart']) && !empty($_SESSION['cart_community']);
+
 // --- DUOMENŲ GAVIMAS IŠ DB (SETTINGS) ---
 $stmtSettings = $pdo->query("SELECT * FROM shipping_settings LIMIT 1");
 $shippingSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
@@ -325,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             $pdo->beginTransaction();
 
             $finalShippingPrice = 0;
-            if (!$isShippingFree) {
+            if (!$isShippingFree && !$isCommunityOnly) {
                 if ($method === 'courier') {
                     $finalShippingPrice = (float)$shippingSettings['courier_price'];
                 } else {
@@ -625,7 +628,12 @@ if (!empty($_SESSION['user_id'])) {
                             Pristatymas
                         </h3>
                         
-                        <?php if($isShippingFree): ?>
+                        <?php if($isCommunityOnly): ?>
+                            <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500; background: #eff6ff; color: #1e40af; border-color: #bfdbfe;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+                                Pristatymą apmoka arba derina prekės pardavėjas. Prašome nurodyti, kur pageidaujate gauti siuntą.
+                            </div>
+                        <?php elseif($isShippingFree): ?>
                             <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                 Jums taikomas nemokamas pristatymas!
@@ -644,9 +652,11 @@ if (!empty($_SESSION['user_id'])) {
                                         Paštomatas
                                     </span>
                                     <input type="radio" name="delivery_method" value="locker" checked>
+                                    <?php if (!$isCommunityOnly): ?>
                                     <span class="radio-price <?php echo $isShippingFree ? 'free' : ''; ?>">
                                         <?php echo number_format($lockerPriceDisplay, 2); ?> €
                                     </span>
+                                    <?php endif; ?>
                                 </div>
                             </label>
 
@@ -657,9 +667,11 @@ if (!empty($_SESSION['user_id'])) {
                                         Kurjeris į namus
                                     </span>
                                     <input type="radio" name="delivery_method" value="courier">
+                                    <?php if (!$isCommunityOnly): ?>
                                     <span class="radio-price <?php echo $isShippingFree ? 'free' : ''; ?>">
                                         <?php echo number_format($courierPriceDisplay, 2); ?> €
                                     </span>
+                                    <?php endif; ?>
                                 </div>
                             </label>
                         </div>
@@ -767,14 +779,16 @@ if (!empty($_SESSION['user_id'])) {
                         </div>
                     <?php endif; ?>
 
+                    <?php if (!$isCommunityOnly): ?>
                     <div class="summary-row">
                         <span>Pristatymas</span>
                         <span id="shipping-display"><?php echo number_format($lockerPriceDisplay, 2); ?> €</span>
                     </div>
+                    <?php endif; ?>
                     
                     <div class="summary-row total">
                         <span>VISO MOKĖTI</span>
-                        <span id="total-display"><?php echo number_format($totalAfterDiscount + $lockerPriceDisplay, 2); ?> €</span>
+                        <span id="total-display"><?php echo number_format($totalAfterDiscount + ($isCommunityOnly ? 0 : $lockerPriceDisplay), 2); ?> €</span>
                     </div>
 
                     <button type="submit" form="checkout-form" class="btn-primary" style="margin-top: 24px;">
@@ -811,6 +825,7 @@ if (!empty($_SESSION['user_id'])) {
     <script>
         // Data from PHP
         const totalAfterDiscount = <?php echo number_format($totalAfterDiscount, 2, '.', ''); ?>;
+        const isCommunityOnly = <?php echo $isCommunityOnly ? 'true' : 'false'; ?>;
         // Čia kainos jau ateina su įvertintu nemokamu siuntimu (jei jis priklauso)
         const prices = {
             locker: <?php echo number_format($lockerPriceDisplay, 2, '.', ''); ?>,
@@ -860,11 +875,15 @@ if (!empty($_SESSION['user_id'])) {
             }
 
             // Price update
-            const shipPrice = parseFloat(prices[method] || 0);
+            const shipPrice = isCommunityOnly ? 0 : parseFloat(prices[method] || 0);
             const finalPrice = totalAfterDiscount + shipPrice;
 
-            shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
-            totalDisplay.textContent = finalPrice.toFixed(2) + ' €';
+            if (!isCommunityOnly && shipDisplay) {
+                shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
+            }
+            if (totalDisplay) {
+                totalDisplay.textContent = finalPrice.toFixed(2) + ' €';
+            }
         }
 
         // --- PAŠTOMATŲ LOGIKA (CUSTOM SELECT) ---
