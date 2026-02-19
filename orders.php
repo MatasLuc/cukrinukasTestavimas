@@ -188,16 +188,12 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
         display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; 
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
-    .hero.sales-hero { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-color: #bbf7d0; }
     .hero h1 { margin:0 0 8px; font-size:28px; color:#1e3a8a; letter-spacing:-0.5px; }
-    .hero.sales-hero h1 { color:#166534; }
     .hero p { margin:0; color:#1e40af; line-height:1.5; max-width:520px; font-size:15px; }
-    .hero.sales-hero p { color:#15803d; }
     .pill { 
         display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; 
         background:#fff; border:1px solid #bfdbfe; font-weight:600; font-size:13px; color:#1e40af; margin-bottom: 12px;
     }
-    .hero.sales-hero .pill { border-color:#86efac; color:#166534; }
 
     /* Layout & Tabs */
     .layout { display:grid; grid-template-columns: 1fr 320px; gap:24px; align-items:start; }
@@ -281,14 +277,14 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
   
   <div class="page">
     <?php if ($activeTab === 'community_sell'): ?>
-    <section class="hero sales-hero">
+    <section class="hero">
       <div>
         <div class="pill">📈 Prekyba</div>
         <h1>Mano pardavimai</h1>
         <p>Čia matote visas parduotas prekes. Nepamirškite įvesti siuntos numerio, kai išsiųsite prekę.</p>
       </div>
       <div>
-          <a href="/community_listing_new.php" class="btn" style="background:#fff; color:#166534; border:1px solid #bbf7d0;">+ Naujas skelbimas</a>
+          <a href="/community_listing_new.php" class="btn" style="background:#fff; color:#1e40af; border:1px solid #bfdbfe;">+ Naujas skelbimas</a>
       </div>
     </section>
     <?php else: ?>
@@ -377,14 +373,24 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                             <?php endforeach; ?>
                             
                             <?php 
-                              // Pristatymo mokestis: atimame prekių kainą iš bendros sumos
+                              // Pristatymo mokestis ir metodo formatavimas
                               $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal, 2));
                               if ($deliveryCost > 0): 
+                                $deliveryMethodName = 'Pristatymas';
+                                if (!empty($order['delivery_method'])) {
+                                    if ($order['delivery_method'] === 'locker') {
+                                        $deliveryMethodName = 'Pristatymas paštomatu';
+                                    } elseif ($order['delivery_method'] === 'courier') {
+                                        $deliveryMethodName = 'Pristatymas kurjeriu';
+                                    } else {
+                                        $deliveryMethodName = 'Pristatymas (' . htmlspecialchars($order['delivery_method']) . ')';
+                                    }
+                                }
                             ?>
                               <div class="item" style="border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 8px;">
                                 <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:12px; border:1px dashed var(--border); font-size:24px; flex-shrink:0;">🚚</div>
                                 <div class="item-details">
-                                  <span class="item-title">Pristatymas <?= !empty($order['delivery_method']) ? '(' . htmlspecialchars($order['delivery_method']) . ')' : '' ?></span>
+                                  <span class="item-title"><?= $deliveryMethodName ?></span>
                                 </div>
                                 <div class="item-price"><?= number_format($deliveryCost, 2); ?> €</div>
                               </div>
