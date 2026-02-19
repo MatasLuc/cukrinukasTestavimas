@@ -547,6 +547,20 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         }
                         
                         $isSaleDeleted = empty($sale['title']);
+
+                        // Ištraukiame pirkėjo pristatymo informaciją (JSON formatu)
+                        $deliveryDetails = json_decode($sale['delivery_details'] ?? '{}', true) ?: [];
+                        $method = $deliveryDetails['method'] ?? 'unknown';
+                        $phone = $deliveryDetails['contact_phone'] ?? '-';
+                        $email = $deliveryDetails['contact_email'] ?? $sale['buyer_email'] ?? '-';
+                        $lockerName = $deliveryDetails['locker_name'] ?? '';
+                        $notes = $deliveryDetails['notes'] ?? '';
+
+                        $methodText = 'Nežinomas';
+                        if ($method === 'locker') $methodText = 'Paštomatas';
+                        elseif ($method === 'courier') $methodText = 'Kurjeris';
+                        elseif ($method === 'pickup') $methodText = 'Atsiėmimas vietoje';
+                        else $methodText = htmlspecialchars($method);
                     ?>
                     <div class="card">
                       <div class="card-header">
@@ -558,13 +572,28 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       </div>
 
                       <div class="card-body">
-                          <div class="delivery-info">
-                              <span style="margin-right:8px; color:var(--accent);">👤</span>
-                              <div>
-                                  <strong>Pirkėjas: <?= htmlspecialchars($sale['buyer_name'] ?? '-'); ?></strong><br>
-                                  Miestas: <?= htmlspecialchars($sale['buyer_city'] ?? '-'); ?><br>
-                                  El. paštas: <?= htmlspecialchars($sale['buyer_email'] ?? '-'); ?><br>
-                                  <small class="text-muted">(Pilnas adresas išsiųstas jums el. paštu)</small>
+                          <div class="delivery-info" style="display:flex; flex-direction:column; gap:12px;">
+                              <div style="display:flex; align-items:flex-start; gap:10px;">
+                                  <span style="font-size:16px; color:var(--accent);">👤</span>
+                                  <div>
+                                      <strong>Pirkėjas: <?= htmlspecialchars($sale['buyer_name'] ?? '-'); ?></strong><br>
+                                      El. paštas: <a href="mailto:<?= htmlspecialchars($email); ?>" style="color:var(--accent);"><?= htmlspecialchars($email); ?></a><br>
+                                      Telefonas: <?= htmlspecialchars($phone); ?>
+                                  </div>
+                              </div>
+                              <div style="display:flex; align-items:flex-start; gap:10px; border-top:1px dashed var(--border); padding-top:12px;">
+                                  <span style="font-size:16px; color:var(--accent);">🚚</span>
+                                  <div>
+                                      <strong>Pristatymo būdas:</strong> <?= $methodText ?><br>
+                                      <?php if ($method === 'locker' && $lockerName): ?>
+                                          <strong>Paštomatas:</strong> <?= htmlspecialchars($lockerName); ?>
+                                      <?php elseif ($method !== 'locker'): ?>
+                                          <span class="text-muted" style="font-size:12px;">(Tikslesnis adresas turėtų būti išsiųstas jums el. paštu arba susisiekite su pirkėju)</span>
+                                      <?php endif; ?>
+                                      <?php if (!empty($notes)): ?>
+                                          <br><strong>Pastabos:</strong> <em><?= nl2br(htmlspecialchars($notes)); ?></em>
+                                      <?php endif; ?>
+                                  </div>
                               </div>
                           </div>
 
