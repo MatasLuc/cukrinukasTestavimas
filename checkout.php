@@ -631,7 +631,7 @@ if (!empty($_SESSION['user_id'])) {
                         <?php if($isCommunityOnly): ?>
                             <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500; background: #eff6ff; color: #1e40af; border-color: #bfdbfe;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
-                                Pristatymą apmoka arba derina prekės pardavėjas. Prašome nurodyti, kur pageidaujate gauti siuntą.
+                                Už prekės pristatymą yra atsakingas pardavėjas. Prašome nurodyti, kur pageidaujate gauti siuntą.
                             </div>
                         <?php elseif($isShippingFree): ?>
                             <div class="alert alert-success" style="padding: 10px; margin-bottom: 16px; font-weight: 500;">
