@@ -187,7 +187,8 @@ if (!$has_items) {
 }
 
 // --- SUKURIAME LAUKIANČIUS BENDRUOMENĖS UŽSAKYMUS PRIEŠ MOKĖJIMĄ ---
-createPendingCommunityOrders($pdo, $orderId, $_SESSION['user_id'] ?? 0);
+// Paduodame ir pilną pagrindinio užsakymo masyvą ($order), kad išsaugotų delivery detales
+createPendingCommunityOrders($pdo, $orderId, $_SESSION['user_id'] ?? 0, $order);
 
 // 5. KURIAME STRIPE SESIJĄ
 try {
