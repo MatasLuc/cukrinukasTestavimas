@@ -162,7 +162,7 @@ echo headerStyles();
     
     <div class="hero-card">
       <?php if ($user['id']): ?>
-          <h3>Sveiki, <?php echo htmlspecialchars($user['username']); ?>! 👋</h3>
+          <h3>Sveiki, <?php echo htmlspecialchars($user['name'] ?? ''); ?>! 👋</h3>
           <p>Dalyvaukite diskusijose ar valdykite savo profilį.</p>
           <div class="hero-buttons">
               <a class="btn" href="/community_thread_new.php">Kurti naują temą</a>
