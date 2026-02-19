@@ -4,15 +4,76 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
 
 /**
+ * Sukuria bendruomenės užsakymus su statusu "laukiama". 
+ * Kviečiama prieš nukreipiant į Stripe.
+ */
+function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
+    if (empty($_SESSION['cart_community'])) return;
+
+    $stmtComm = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1");
+    $stmtComm->execute(['community_commission']);
+    $commissionRate = $stmtComm->fetchColumn() ?: 0;
+
+    $cIds = array_keys($_SESSION['cart_community']);
+    if (empty($cIds)) return;
+
+    // Apsauga nuo dublikatų (jei vartotojas perkrauna puslapį)
+    $tempIntent = 'ORDER_' . $orderId;
+    $stmtCheck = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ? LIMIT 1");
+    $stmtCheck->execute([$tempIntent]);
+    if ($stmtCheck->fetchColumn()) return; // Jau sukurta šiam užsakymui
+
+    $placeholders = implode(',', array_fill(0, count($cIds), '?'));
+    $stmtListings = $pdo->prepare("SELECT id, user_id as seller_id, title, price FROM community_listings WHERE id IN ($placeholders)");
+    $stmtListings->execute($cIds);
+    $listings = $stmtListings->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($listings as $listing) {
+        $sellerId = $listing['seller_id'];
+        $itemId = $listing['id'];
+        $qty = (int)$_SESSION['cart_community'][$itemId];
+        $unitPrice = $listing['price'];
+        $itemTotalPrice = $unitPrice * $qty;
+        
+        $shippingPrice = 0; 
+        $totalAmount = $itemTotalPrice + $shippingPrice;
+        
+        $adminCommissionAmount = ($itemTotalPrice * $commissionRate) / 100;
+        $sellerPayoutAmount = $totalAmount - $adminCommissionAmount;
+
+        $stmtIns = $pdo->prepare("
+            INSERT INTO community_orders 
+            (buyer_id, seller_id, item_id, item_price, shipping_price, 
+             total_amount, admin_commission_rate, admin_commission_amount, seller_payout_amount, 
+             stripe_payment_intent_id, status, payout_status, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'laukiama', 'hold', NOW())
+        ");
+        
+        $stmtIns->execute([
+            $buyerId, 
+            $sellerId,
+            $itemId,
+            $itemTotalPrice,
+            $shippingPrice,
+            $totalAmount,
+            $commissionRate,
+            $adminCommissionAmount,
+            $sellerPayoutAmount,
+            $tempIntent
+        ]);
+    }
+}
+
+/**
  * Pagrindinė funkcija užsakymo užbaigimui (apmokėjimo patvirtinimas).
  * @param PDO $pdo
  * @param int $orderId
- * @param bool $sendEmail Ar siųsti numatytąjį laišką (naudojama webhooke, atjungiama stripe_success.php)
+ * @param bool $sendEmail Ar siųsti numatytąjį laišką
+ * @param string|null $realPaymentIntentId Stripe Intent ID atnaujinimui DB
  */
-function completeOrder($pdo, $orderId, $sendEmail = true) {
+function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId = null) {
     try {
-        // 1. Patikriname dabartinį statusą
-        $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -26,14 +87,13 @@ function completeOrder($pdo, $orderId, $sendEmail = true) {
             return false;
         }
 
-        // 2. Pradedame transakciją
         $pdo->beginTransaction();
 
-        // Atnaujiname statusą
+        // 1. Atnaujiname pagrindinį užsakymą
         $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta', updated_at = NOW() WHERE id = ?");
         $stmtUpdate->execute([$orderId]);
 
-        // Sumažiname prekių likučius
+        // 2. Sumažiname parduotuvės prekių likučius
         $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
@@ -46,11 +106,64 @@ function completeOrder($pdo, $orderId, $sendEmail = true) {
             }
         }
 
+        // 3. Randame ir atnaujiname laukiančius BENDRUOMENĖS užsakymus
+        $tempIntent = 'ORDER_' . $orderId;
+        $stmtCommOrders = $pdo->prepare("SELECT * FROM community_orders WHERE stripe_payment_intent_id = ? AND status = 'laukiama'");
+        $stmtCommOrders->execute([$tempIntent]);
+        $communityOrders = $stmtCommOrders->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($communityOrders) {
+            $updateComm = $pdo->prepare("UPDATE community_orders SET status = 'apmokėta', stripe_payment_intent_id = ? WHERE id = ?");
+            $updateListing = $pdo->prepare("UPDATE community_listings SET status = 'sold' WHERE id = ?");
+            
+            $itemsBySellerForEmail = [];
+
+            foreach ($communityOrders as $co) {
+                $actualIntentId = $realPaymentIntentId ?: $tempIntent;
+                $updateComm->execute([$actualIntentId, $co['id']]);
+                $updateListing->execute([$co['item_id']]);
+
+                // Gaunam pavadinimą laiškams
+                $stmtTitle = $pdo->prepare("SELECT title FROM community_listings WHERE id = ?");
+                $stmtTitle->execute([$co['item_id']]);
+                $title = $stmtTitle->fetchColumn() ?: 'Prekė';
+
+                $sellerId = $co['seller_id'];
+                if (!isset($itemsBySellerForEmail[$sellerId])) {
+                    $itemsBySellerForEmail[$sellerId] = ['total_paid' => 0, 'items' => []];
+                }
+                $itemsBySellerForEmail[$sellerId]['total_paid'] += $co['total_amount'];
+                
+                $qty = ($co['total_amount'] > 0 && $co['item_price'] > 0) ? round($co['total_amount'] / $co['item_price']) : 1;
+                $itemsBySellerForEmail[$sellerId]['items'][] = ['title' => $title, 'qty' => $qty];
+            }
+
+            // Siunčiami laiškai atskiriems PARDAVĖJAMS
+            foreach ($itemsBySellerForEmail as $sellerId => $data) {
+                $stmtGetSeller = $pdo->prepare("SELECT email, username FROM users WHERE id = ?");
+                $stmtGetSeller->execute([$sellerId]);
+                $seller = $stmtGetSeller->fetch();
+
+                if ($seller) {
+                    $sSubject = "Naujas užsakymas! (Cukrinukas Turgelis)";
+                    $sBody = "<h2>Sveiki, {$seller['username']}!</h2>";
+                    $sBody .= "<p>Turite naują užsakymą turgelyje.</p>";
+                    $sBody .= "<h3>Reikia išsiųsti:</h3><ul>";
+                    foreach ($data['items'] as $item) {
+                        $sBody .= "<li>{$item['title']} (x{$item['qty']})</li>";
+                    }
+                    $sBody .= "</ul>";
+                    $sBody .= "<p>Gauta suma: " . number_format($data['total_paid'], 2) . " EUR</p>";
+                    sendEmail($seller['email'], $sSubject, $sBody);
+                }
+            }
+        }
+
         $pdo->commit();
         
-        // 3. Siunčiame patvirtinimo laišką tik jei leidžiama
+        // 4. Siunčiame patvirtinimo laišką pirkėjui (sujungtą)
         if ($sendEmail) {
-            sendOrderConfirmationEmail($orderId, $pdo);
+            sendOrderConfirmationEmail($orderId, $pdo, $communityOrders);
         }
         
         logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas.");
@@ -68,7 +181,7 @@ function completeOrder($pdo, $orderId, $sendEmail = true) {
 /**
  * Siunčia laišką apie gautą užsakymą (adminui ir klientui).
  */
-function sendOrderConfirmationEmail($orderId, $pdo) {
+function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
     try {
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
@@ -112,6 +225,28 @@ function sendOrderConfirmationEmail($orderId, $pdo) {
                 <td style='$styleText text-align: right;'>$price €</td>
                 <td style='$styleText text-align: right; color: #0f172a;'><strong>$totalItem €</strong></td>
             </tr>";
+        }
+
+        // PRIDEDAME BENDRUOMENĖS PREKES Į KLIENTO LAIŠKĄ
+        if (!empty($communityOrders)) {
+            foreach ($communityOrders as $co) {
+                $stmtTitle = $pdo->prepare("SELECT title FROM community_listings WHERE id = ?");
+                $stmtTitle->execute([$co['item_id']]);
+                $title = htmlspecialchars($stmtTitle->fetchColumn() ?: 'Prekė');
+                
+                $qty = ($co['total_amount'] > 0 && $co['item_price'] > 0) ? round($co['total_amount'] / $co['item_price']) : 1;
+                $price = number_format($co['item_price'], 2);
+                $totalItem = number_format($co['total_amount'], 2);
+                $itemsTotal += $co['total_amount'];
+
+                $itemsRows .= "
+                <tr>
+                    <td style='$styleText'>$title <span style='font-size:11px; color:#64748b;'><br>(Iš Turgelio)</span></td>
+                    <td style='$styleText text-align: center;'>$qty</td>
+                    <td style='$styleText text-align: right;'>$price €</td>
+                    <td style='$styleText text-align: right; color: #0f172a;'><strong>$totalItem €</strong></td>
+                </tr>";
+            }
         }
 
         $shippingPrice = $order['total'] - $itemsTotal;
