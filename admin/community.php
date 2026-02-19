@@ -3,8 +3,11 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
 require_once __DIR__ . '/../db.php';
-// Įkeliame Stripe biblioteką veiksmams (Refund)
+require_once __DIR__ . '/../env.php';
+
+// Įkeliame Stripe biblioteką veiksmams (Refund ir Payout)
 if (file_exists(__DIR__ . '/../lib/stripe/init.php')) {
     require_once __DIR__ . '/../lib/stripe/init.php';
 }
@@ -47,28 +50,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($action === 'refund_order') {
         $orderId = (int)$_POST['order_id'];
         
-        // Gauname užsakymo info ir Stripe Payment Intent ID
-        // PATAISYTA: total_price -> total_amount pagal duotą schemą
-        $stmt = $pdo->prepare("SELECT stripe_payment_intent_id, status, total_amount FROM community_orders WHERE id = ?");
+        // Gauname užsakymo info
+        $stmt = $pdo->prepare("SELECT * FROM community_orders WHERE id = ?");
         $stmt->execute([$orderId]);
-        $order = $stmt->fetch();
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($order && $order['status'] !== 'refunded') {
-            try {
-                // Jei yra Stripe ID, darome refund per Stripe
-                if (!empty($order['stripe_payment_intent_id']) && function_exists('requireEnv')) {
-                    $stripeKey = requireEnv('STRIPE_SECRET_KEY');
-                    if ($stripeKey) {
-                        $stripe = new \Stripe\StripeClient($stripeKey);
-                        $stripe->refunds->create(['payment_intent' => $order['stripe_payment_intent_id']]);
+            if (($order['payout_status'] ?? '') === 'transferred') {
+                $error = "Klaida: Negalima grąžinti pinigų, nes jie jau pervesti pardavėjui. Pirmiausia reikia atlikti lėšų susigrąžinimą (Transfer Reversal).";
+            } else {
+                try {
+                    $stripeSecret = getenv('STRIPE_SECRET_KEY') ?: ($_ENV['STRIPE_SECRET_KEY'] ?? '');
+                    
+                    // Jei yra Stripe ID, darome dalinį/pilną refund tik šiai prekei
+                    if (!empty($order['stripe_payment_intent_id']) && $stripeSecret && class_exists('\Stripe\Stripe')) {
+                        \Stripe\Stripe::setApiKey($stripeSecret);
+                        
+                        $refundAmount = (int)round((float)$order['total_amount'] * 100);
+                        
+                        if ($refundAmount > 0) {
+                            \Stripe\Refund::create([
+                                'payment_intent' => $order['stripe_payment_intent_id'],
+                                'amount' => $refundAmount,
+                                'reason' => 'requested_by_customer'
+                            ]);
+                        }
                     }
-                }
 
-                // Atnaujiname statusą DB
-                $pdo->prepare("UPDATE community_orders SET status = 'refunded' WHERE id = ?")->execute([$orderId]);
-                $message = "Užsakymas #{$orderId} sėkmingai atšauktas ir pinigai grąžinti.";
-            } catch (Exception $e) {
-                $error = "Nepavyko atlikti grąžinimo: " . $e->getMessage();
+                    // Atnaujiname statusą DB
+                    $pdo->prepare("UPDATE community_orders SET status = 'refunded', payout_status = 'refunded' WHERE id = ?")->execute([$orderId]);
+                    $message = "Užsakymas #{$orderId} sėkmingai atšauktas ir " . number_format((float)$order['total_amount'], 2) . " € grąžinti pirkėjui.";
+                } catch (Exception $e) {
+                    $error = "Nepavyko atlikti grąžinimo: " . $e->getMessage();
+                }
             }
         } else {
             $error = "Užsakymas nerastas arba jau grąžintas.";
@@ -78,9 +92,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 1.3 PRIVERSTINIS PERVEDIMAS (FORCE PAYOUT) ---
     elseif ($action === 'force_payout') {
         $orderId = (int)$_POST['order_id'];
-        // Pakeičiame statusą į 'completed' (arba jūsų sistemos atitikmenį), kad pardavėjas gautų pinigus
-        $pdo->prepare("UPDATE community_orders SET status = 'completed' WHERE id = ?")->execute([$orderId]);
-        $message = "Užsakymas #{$orderId} pažymėtas kaip įvykdytas. Lėšos bus įskaitytos pardavėjui.";
+        
+        $stmt = $pdo->prepare("SELECT * FROM community_orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $co = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($co && ($co['payout_status'] ?? '') !== 'transferred') {
+            $stmtSeller = $pdo->prepare("SELECT stripe_account_id FROM users WHERE id = ?");
+            $stmtSeller->execute([$co['seller_id']]);
+            $sellerStripeAcc = $stmtSeller->fetchColumn();
+
+            if (!empty($sellerStripeAcc)) {
+                try {
+                    $stripeSecret = getenv('STRIPE_SECRET_KEY') ?: ($_ENV['STRIPE_SECRET_KEY'] ?? '');
+                    
+                    if ($stripeSecret && class_exists('\Stripe\Stripe')) {
+                        \Stripe\Stripe::setApiKey($stripeSecret);
+                        
+                        $transferAmount = (int)round((float)$co['seller_payout_amount'] * 100);
+                        
+                        if ($transferAmount > 0) {
+                            \Stripe\Transfer::create([
+                                'amount' => $transferAmount,
+                                'currency' => 'eur',
+                                'destination' => $sellerStripeAcc,
+                                'transfer_group' => $co['stripe_payment_intent_id'],
+                                'metadata' => [
+                                    'community_order_id' => $co['id'],
+                                    'forced_by_admin' => 'true'
+                                ]
+                            ]);
+                        }
+                        
+                        $pdo->prepare("UPDATE community_orders SET status = 'delivered', payout_status = 'transferred' WHERE id = ?")->execute([$orderId]);
+                        $message = "Užsakymas #{$orderId} pažymėtas kaip įvykdytas. Lėšos (" . number_format((float)$co['seller_payout_amount'], 2) . " €) sėkmingai pervestos pardavėjui.";
+                    } else {
+                        $error = "Stripe konfigūracijos klaida (nerastas raktas arba biblioteka).";
+                    }
+                } catch (\Exception $e) {
+                    $error = "Stripe klaida atliekant pervedimą: " . $e->getMessage();
+                }
+            } else {
+                $error = "Klaida: Pardavėjas neturi prijungtos Stripe paskyros.";
+            }
+        } elseif ($co && ($co['payout_status'] ?? '') === 'transferred') {
+            $error = "Pinigai šiam užsakymui jau buvo pervesti anksčiau.";
+        } else {
+            $error = "Užsakymas nerastas.";
+        }
     }
 
     // --- 1.4 KITI VEIKSMAI (Iš senojo failo) ---
@@ -183,8 +242,6 @@ $listings = $pdo->query('
 ')->fetchAll();
 
 // --- TURGELIS (Užsakymai - Išplėstinė užklausa) ---
-// PATAISYTA: listing_id -> item_id
-// PATAISYTA: l.user_id -> o.seller_id (kad gautume pardavėją net jei skelbimas ištrintas, plius schema turi seller_id)
 $marketOrders = $pdo->query('
     SELECT o.*, 
            l.title as item_title, 
@@ -244,10 +301,10 @@ require_once 'header.php';
     .form-group label { display: block; font-size: 12px; font-weight: 700; color: #6b6b7a; margin-bottom: 6px; text-transform: uppercase; }
     
     .status-pill { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; border:1px solid transparent; display:inline-block; }
-    .status-active, .status-completed { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+    .status-active, .status-completed, .status-delivered { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
     .status-sold, .status-paid { background:#f3f4f6; color:#374151; border-color:#e5e7eb; }
     .status-refunded { background:#fff1f1; color:#991b1b; border-color:#fecaca; }
-    .status-pending { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .status-pending, .status-laukiama { background:#fffbeb; color:#92400e; border-color:#fde68a; }
 </style>
 
 <div class="page">
@@ -376,13 +433,13 @@ require_once 'header.php';
                     </thead>
                     <tbody>
                         <?php foreach ($marketOrders as $ord): 
-                            // PATAISYTA: commission_amount -> admin_commission_amount pagal schemą
                             $commission = isset($ord['admin_commission_amount']) ? $ord['admin_commission_amount'] : 0;
+                            $payoutStatusText = ($ord['payout_status'] ?? '') === 'transferred' ? '<span style="color:#16a34a;font-size:10px;display:block;">Pinigai išmokėti</span>' : '';
                         ?>
                         <tr>
                             <td>#<?php echo $ord['id']; ?></td>
                             <td>
-                                <?php echo htmlspecialchars($ord['item_title']); ?>
+                                <?php echo htmlspecialchars($ord['item_title'] ?? 'Prekė ištrinta'); ?>
                                 <div class="muted" style="font-size:10px;"><?php echo date('Y-m-d H:i', strtotime($ord['created_at'])); ?></div>
                             </td>
                             <td>
@@ -393,17 +450,18 @@ require_once 'header.php';
                                 <div><?php echo htmlspecialchars($ord['seller_name']); ?></div>
                                 <div class="muted" style="font-size:11px;"><?php echo htmlspecialchars($ord['seller_email']); ?></div>
                             </td>
-                            <td style="font-weight:bold;"><?php echo number_format($ord['total_amount'] ?? 0, 2); ?> €</td>
-                            <td style="color:#6b6b7a;"><?php echo number_format($commission, 2); ?> €</td>
+                            <td style="font-weight:bold;"><?php echo number_format((float)$ord['total_amount'] ?? 0, 2); ?> €</td>
+                            <td style="color:#6b6b7a;"><?php echo number_format((float)$commission, 2); ?> €</td>
                             <td>
                                 <span class="status-pill status-<?php echo htmlspecialchars($ord['status']); ?>">
                                     <?php echo htmlspecialchars(ucfirst($ord['status'])); ?>
                                 </span>
+                                <?php echo $payoutStatusText; ?>
                             </td>
                             <td>
                                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                                     <?php if ($ord['status'] !== 'refunded'): ?>
-                                        <form method="post" onsubmit="return confirm('AR TIKRAI norite atšaukti užsakymą ir grąžinti pinigus pirkėjui?');" style="margin:0;">
+                                        <form method="post" onsubmit="return confirm('AR TIKRAI norite atšaukti užsakymą ir grąžinti pinigus pirkėjui? Jei pinigai jau pervesti pardavėjui, grąžinimas neįvyks, kol nepadarysite Transfer Reversal.');" style="margin:0;">
                                             <?php echo csrfField(); ?>
                                             <input type="hidden" name="action" value="refund_order">
                                             <input type="hidden" name="order_id" value="<?php echo $ord['id']; ?>">
@@ -411,8 +469,8 @@ require_once 'header.php';
                                         </form>
                                     <?php endif; ?>
                                     
-                                    <?php if ($ord['status'] !== 'completed' && $ord['status'] !== 'refunded'): ?>
-                                        <form method="post" onsubmit="return confirm('AR TIKRAI norite priverstinai užbaigti užsakymą? Lėšos bus laikomos gautomis.');" style="margin:0;">
+                                    <?php if ($ord['status'] !== 'completed' && $ord['status'] !== 'delivered' && $ord['status'] !== 'refunded'): ?>
+                                        <form method="post" onsubmit="return confirm('AR TIKRAI norite priverstinai užbaigti užsakymą? Lėšos bus automatiškai pervestos pardavėjui.');" style="margin:0;">
                                             <?php echo csrfField(); ?>
                                             <input type="hidden" name="action" value="force_payout">
                                             <input type="hidden" name="order_id" value="<?php echo $ord['id']; ?>">
