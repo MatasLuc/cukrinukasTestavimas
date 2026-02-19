@@ -639,7 +639,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
           <div class="card sidebar-card" style="margin-top:20px; background: #f8fafc; border: 1px dashed var(--border);">
               <h3>Pagalba</h3>
               <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Kilo klausimų dėl užsakymo ar pardavimo? Susisiekite su mumis.</p>
-              <a href="mailto:info@cukrinukas.lt" style="font-size:13px; font-weight:600; color:var(--accent);">info@cukrinukas.lt</a>
+              <a href="mailto:labas@cukrinukas.lt" style="font-size:13px; font-weight:600; color:var(--accent);">labas@cukrinukas.lt</a>
           </div>
       </aside>
     </div>
