@@ -389,7 +389,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                     <?php 
                       $stClass = 'status-default';
                       $stText = $order['status'];
-                      if ($order['status'] == 'paid') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
+                      if ($order['status'] == 'apmokėta') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
                       if ($order['status'] == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
                       if ($order['status'] == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
                     ?>
