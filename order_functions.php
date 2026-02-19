@@ -195,9 +195,14 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                     }
 
                     // Suformuojame pristatymo informaciją el. laiškui, kad pardavėjas žinotų, kur išsiųsti
-                    $deliveryMethodName = $data['delivery_method'] === 'locker' ? 'Paštomatas' : 
+                    $delDetails = json_decode($data['delivery_details'] ?? '{}', true) ?: [];
+                    $provKey = strtolower($delDetails['locker_provider'] ?? '');
+                    $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
+                    $provName = $provMap[$provKey] ?? strtoupper($provKey);
+
+                    $deliveryMethodName = $data['delivery_method'] === 'locker' ? 'Paštomatas' . ($provName ? " ($provName)" : '') : 
                                          ($data['delivery_method'] === 'courier' ? 'Kurjeris' : 'Atsiėmimas');
-                    $delDetails = json_decode($data['delivery_details'] ?? '{}', true);
+                    
                     $lockerAddress = $delDetails['locker_name'] ?? ($delDetails['locker_address'] ?? '');
                     $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $data['customer_address'];
 
@@ -304,10 +309,14 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
-        $deliveryMethod = $order['delivery_method'] == 'locker' ? 'Paštomatas' : 
+        $deliveryDetails = json_decode($order['delivery_details'], true) ?: [];
+        $provKey = strtolower($deliveryDetails['locker_provider'] ?? '');
+        $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
+        $provName = $provMap[$provKey] ?? strtoupper($provKey);
+
+        $deliveryMethod = $order['delivery_method'] == 'locker' ? 'Paštomatas' . ($provName ? " ($provName)" : '') : 
                          ($order['delivery_method'] == 'courier' ? 'Kurjeris' : 'Atsiėmimas');
         
-        $deliveryDetails = json_decode($order['delivery_details'], true);
         $lockerAddress = isset($deliveryDetails['locker_name']) ? $deliveryDetails['locker_name'] : (isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '');
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
