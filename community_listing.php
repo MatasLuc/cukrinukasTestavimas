@@ -104,6 +104,7 @@ a { color:inherit; text-decoration:none; }
 /* Mygtukai */
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 18px; border-radius: 12px; background: #0b0b0b; color: #fff; border: 1px solid #0b0b0b; font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity 0.2s; font-size: 14px; }
 .btn:hover { opacity: 0.9; }
+.btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; border-color: #cbd5e1; }
 .btn.secondary { background: #fff; color: #0b0b0b; border-color: var(--border); }
 .btn.danger { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
 .btn.danger:hover { background: #fecaca; }
@@ -127,6 +128,7 @@ a { color:inherit; text-decoration:none; }
 .description { line-height: 1.6; color: #374151; white-space: pre-wrap; font-size: 15px; }
 
 .alert { border-radius:12px; padding:12px; margin-bottom: 20px; background:#ecfdf5; border:1px solid #a7f3d0; color: #065f46; }
+.alert-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
 
 /* Messages Box */
 .msg-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 16px; padding: 20px; margin-bottom: 24px; text-align: center; }
@@ -281,16 +283,20 @@ a { color:inherit; text-decoration:none; }
                  </div>
              <?php endif; ?>
 
-            <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
+            <?php if ($listing['status'] === 'sold'): ?>
+                <button disabled class="btn btn-lg btn-block" style="margin-top: 15px; width: 100%;">
+                    <?php echo $listingType === 'buy' ? 'Nebeieškoma' : 'Prekė parduota'; ?>
+                </button>
+            <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
                 <form action="cart.php" method="POST" style="margin-top: 15px;">
                     <?php echo csrfField(); ?> <input type="hidden" name="action" value="add_community">
                     <input type="hidden" name="product_id" value="<?php echo $listing['id']; ?>">
-                    <button type="submit" class="btn btn-primary btn-lg btn-block">
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" style="width: 100%;">
                         Įdėti į krepšelį (<?php echo number_format($listing['price'], 2); ?> €)
                     </button>
                 </form>
             <?php elseif(!isset($_SESSION['user_id'])): ?>
-                <div class="alert alert-info">Norėdami pirkti, turite prisijungti.</div>
+                <div class="alert alert-info" style="margin-top: 15px;">Norėdami pirkti, turite prisijungti.</div>
             <?php endif; ?>
              
              <div style="margin-top:20px; font-size:12px; color:var(--muted); line-height:1.5; background:#f9fafb; padding:10px; border-radius:12px;">
