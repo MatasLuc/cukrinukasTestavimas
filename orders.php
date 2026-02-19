@@ -330,6 +330,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       $stClass = 'status-default';
                       if (strpos($statusLower, 'apmokėta') !== false || strpos($statusLower, 'paid') !== false) $stClass = 'st-paid';
                       elseif (strpos($statusLower, 'laukiama') !== false) $stClass = 'st-pending';
+                      
+                      $itemsTotal = 0;
                     ?>
                     <div class="card">
                       <div class="card-header">
@@ -349,18 +351,45 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                           </div>
                           <div class="item-list">
                             <?php foreach ($orderItems as $item): ?>
-                              <?php $itemUrl = '/produktas/' . slugify($item['title'] ?? 'preke') . '-' . (int)$item['product_id']; ?>
+                              <?php 
+                                  $isDeleted = empty($item['title']); 
+                                  $itemTotal = (float)$item['price'] * (int)$item['quantity'];
+                                  $itemsTotal += $itemTotal;
+                              ?>
                               <div class="item">
-                                <a href="<?= htmlspecialchars($itemUrl); ?>">
-                                  <img src="<?= htmlspecialchars($item['image_url'] ?? '/uploads/default.png'); ?>" alt="">
-                                </a>
-                                <div class="item-details">
-                                  <a href="<?= htmlspecialchars($itemUrl); ?>" class="item-title"><?= htmlspecialchars($item['title'] ?? 'Ištrinta prekė'); ?></a>
-                                  <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
-                                </div>
-                                <div class="item-price"><?= number_format((float)$item['price'] * (int)$item['quantity'], 2); ?> €</div>
+                                <?php if (!$isDeleted): ?>
+                                    <?php $itemUrl = '/produktas/' . slugify($item['title']) . '-' . (int)$item['product_id']; ?>
+                                    <a href="<?= htmlspecialchars($itemUrl); ?>">
+                                      <img src="<?= htmlspecialchars($item['image_url'] ?? '/uploads/default.png'); ?>" alt="">
+                                    </a>
+                                    <div class="item-details">
+                                      <a href="<?= htmlspecialchars($itemUrl); ?>" class="item-title"><?= htmlspecialchars($item['title']); ?></a>
+                                      <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
+                                    <div class="item-details" style="opacity: 0.6;">
+                                      <span class="item-title">Nebeaktyvi prekė</span>
+                                      <div class="item-meta"><?= (int)$item['quantity']; ?> vnt. × <?= number_format((float)$item['price'], 2); ?> €</div>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="item-price"><?= number_format($itemTotal, 2); ?> €</div>
                               </div>
                             <?php endforeach; ?>
+                            
+                            <?php 
+                              // Pristatymo mokestis: atimame prekių kainą iš bendros sumos
+                              $deliveryCost = max(0, round((float)$order['total'] - $itemsTotal, 2));
+                              if ($deliveryCost > 0): 
+                            ?>
+                              <div class="item" style="border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 8px;">
+                                <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:12px; border:1px dashed var(--border); font-size:24px; flex-shrink:0;">🚚</div>
+                                <div class="item-details">
+                                  <span class="item-title">Pristatymas <?= !empty($order['delivery_method']) ? '(' . htmlspecialchars($order['delivery_method']) . ')' : '' ?></span>
+                                </div>
+                                <div class="item-price"><?= number_format($deliveryCost, 2); ?> €</div>
+                              </div>
+                            <?php endif; ?>
                           </div>
                           <div class="card-footer">
                               <div style="flex-grow:1;"><a class="btn-outline" href="/products.php">Pirkti vėl</a></div>
@@ -391,6 +420,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                       if ($stText == 'paid') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
                       if ($stText == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
                       if ($stText == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
+                      
+                      $isCommDeleted = empty($order['title']);
                     ?>
                     <div class="card">
                       <div class="card-header">
@@ -407,18 +438,28 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                                 <div><strong>Sekimo numeris:</strong> <?= htmlspecialchars($order['tracking_number']); ?></div>
                             </div>
                           <?php endif; ?>
+                          
                           <div class="item-list">
                               <div class="item">
-                                <a href="/community_listing.php?id=<?= $order['item_id'] ?>">
-                                  <img src="<?= htmlspecialchars($order['image_url'] ?? '/uploads/default.png'); ?>" alt="">
-                                </a>
-                                <div class="item-details">
-                                  <span class="item-title"><?= htmlspecialchars($order['title'] ?? 'Prekė'); ?></span>
-                                  <div class="item-meta">1 vnt.</div>
-                                </div>
+                                <?php if (!$isCommDeleted): ?>
+                                    <a href="/community_listing.php?id=<?= $order['item_id'] ?>">
+                                      <img src="<?= htmlspecialchars($order['image_url'] ?? '/uploads/default.png'); ?>" alt="">
+                                    </a>
+                                    <div class="item-details">
+                                      <a href="/community_listing.php?id=<?= $order['item_id'] ?>" class="item-title" style="text-decoration:none;"><?= htmlspecialchars($order['title']); ?></a>
+                                      <div class="item-meta">1 vnt.</div>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
+                                    <div class="item-details" style="opacity: 0.6;">
+                                      <span class="item-title">Skelbimas nebeaktyvus</span>
+                                      <div class="item-meta">1 vnt.</div>
+                                    </div>
+                                <?php endif; ?>
                                 <div class="item-price"><?= number_format((float)$order['total_amount'], 2); ?> €</div>
                               </div>
                           </div>
+                          
                           <div class="card-footer">
                               <div style="flex-grow:1;">
                                 <?php if (($order['status'] ?? '') === 'shipped'): ?>
@@ -465,6 +506,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                             case 'delivered': $statusText = 'UŽBAIGTA'; $statusClass='st-delivered'; break;
                             default: $statusText = $sale['status'] ?? 'Nežinoma'; $statusClass='st-pending';
                         }
+                        
+                        $isSaleDeleted = empty($sale['title']);
                     ?>
                     <div class="card">
                       <div class="card-header">
@@ -488,11 +531,19 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
                           <div class="item-list">
                               <div class="item">
-                                <img src="<?= htmlspecialchars($sale['image_url'] ?? '/uploads/default.png'); ?>" alt="">
-                                <div class="item-details">
-                                  <span class="item-title"><?= htmlspecialchars($sale['title'] ?? 'Prekė'); ?></span>
-                                  <div class="item-meta">1 vnt.</div>
-                                </div>
+                                <?php if (!$isSaleDeleted): ?>
+                                    <img src="<?= htmlspecialchars($sale['image_url'] ?? '/uploads/default.png'); ?>" alt="">
+                                    <div class="item-details">
+                                      <span class="item-title"><?= htmlspecialchars($sale['title']); ?></span>
+                                      <div class="item-meta">1 vnt.</div>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
+                                    <div class="item-details" style="opacity: 0.6;">
+                                      <span class="item-title">Skelbimas nebeaktyvus</span>
+                                      <div class="item-meta">1 vnt.</div>
+                                    </div>
+                                <?php endif; ?>
                                 <div class="item-price"><?= number_format((float)$sale['total_amount'], 2); ?> €</div>
                               </div>
                           </div>
