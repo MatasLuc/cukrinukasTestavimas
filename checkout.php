@@ -149,7 +149,8 @@ if (!empty($_SESSION['cart'])) {
                 $productsInCart[] = [
                     'product_id' => $pId,
                     'price' => $finalPrice,
-                    'qty' => $qty
+                    'qty' => $qty,
+                    'type' => 'shop'
                 ];
             }
         }
@@ -174,7 +175,8 @@ if (!empty($_SESSION['cart_community'])) {
             $productsInCart[] = [
                 'product_id' => $cp['id'],
                 'price' => $price,
-                'qty' => $qty
+                'qty' => $qty,
+                'type' => 'community'
             ];
         }
     }
@@ -363,6 +365,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
             
             foreach ($productsInCart as $item) {
+                // Praleidžiame bendruomenės prekes, kad jos nesidubliuotų ir neiškreiptų pristatymo kainos
+                if (isset($item['type']) && $item['type'] === 'community') {
+                    continue; 
+                }
+
                 $stmtItem->execute([
                     $orderId, 
                     $item['product_id'], 
