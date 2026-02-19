@@ -441,9 +441,14 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
                               if ($deliveryCost > 0): 
                                 $deliveryMethodName = 'Pristatymas';
+                                $orderDelDetails = json_decode($order['delivery_details'] ?? '{}', true) ?: [];
+                                $provKey = strtolower($orderDelDetails['locker_provider'] ?? '');
+                                $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
+                                $provName = $provMap[$provKey] ?? strtoupper($provKey);
+
                                 if (!empty($order['delivery_method'])) {
                                     if ($order['delivery_method'] === 'locker') {
-                                        $deliveryMethodName = 'Pristatymas paštomatu';
+                                        $deliveryMethodName = 'Pristatymas paštomatu' . ($provName ? " ($provName)" : '');
                                     } elseif ($order['delivery_method'] === 'courier') {
                                         $deliveryMethodName = 'Pristatymas kurjeriu';
                                     } else {
@@ -602,8 +607,12 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                         $buyerName = $sale['customer_name'] ?? $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
 
                         // Formatuojame pristatymo būdo pavadinimą
+                        $provKey = strtolower($deliveryDetails['locker_provider'] ?? '');
+                        $provMap = ['lpexpress' => 'LP EXPRESS', 'omniva' => 'OMNIVA'];
+                        $provName = $provMap[$provKey] ?? strtoupper($provKey);
+
                         $methodText = 'Nežinomas';
-                        if ($method === 'locker') $methodText = 'Paštomatas';
+                        if ($method === 'locker') $methodText = 'Paštomatas' . ($provName ? " ($provName)" : '');
                         elseif ($method === 'courier') $methodText = 'Kurjeris';
                         elseif ($method === 'pickup') $methodText = 'Atsiėmimas vietoje';
                         elseif ($method !== 'Nežinomas') $methodText = htmlspecialchars($method);
