@@ -7,7 +7,7 @@ require_once __DIR__ . '/mailer.php';
  * Sukuria bendruomenės užsakymus su statusu "laukiama". 
  * Kviečiama prieš nukreipiant į Stripe.
  */
-function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
+function createPendingCommunityOrders($pdo, $orderId, $buyerId, $orderData = null) {
     try {
         $pdo->exec("ALTER TABLE community_orders MODIFY status VARCHAR(50) NOT NULL DEFAULT 'laukiama'");
     } catch (Exception $e) {
@@ -27,6 +27,13 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
     $stmtCheck = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ? LIMIT 1");
     $stmtCheck->execute([$tempIntent]);
     if ($stmtCheck->fetchColumn()) return; 
+
+    // Ištraukiame pristatymo duomenis iš pagrindinio užsakymo
+    $customerName = $orderData['customer_name'] ?? null;
+    $customerPhone = $orderData['customer_phone'] ?? null;
+    $customerAddress = $orderData['customer_address'] ?? null;
+    $deliveryMethod = $orderData['delivery_method'] ?? null;
+    $deliveryDetails = $orderData['delivery_details'] ?? null;
 
     $placeholders = implode(',', array_fill(0, count($cIds), '?'));
     $stmtListings = $pdo->prepare("SELECT id, user_id as seller_id, title, price FROM community_listings WHERE id IN ($placeholders)");
@@ -50,8 +57,9 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
             INSERT INTO community_orders 
             (buyer_id, seller_id, item_id, item_price, shipping_price, 
              total_amount, admin_commission_rate, admin_commission_amount, seller_payout_amount, 
-             stripe_payment_intent_id, status, payout_status, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'laukiama', 'hold', NOW())
+             stripe_payment_intent_id, status, payout_status, 
+             customer_name, customer_phone, customer_address, delivery_method, delivery_details, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'laukiama', 'hold', ?, ?, ?, ?, ?, NOW())
         ");
         
         $stmtIns->execute([
@@ -64,7 +72,12 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
             $commissionRate,
             $adminCommissionAmount,
             $sellerPayoutAmount,
-            $tempIntent
+            $tempIntent,
+            $customerName,
+            $customerPhone,
+            $customerAddress,
+            $deliveryMethod,
+            $deliveryDetails
         ]);
     }
 }
@@ -137,7 +150,15 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
 
                 $sellerId = $co['seller_id'];
                 if (!isset($itemsBySellerForEmail[$sellerId])) {
-                    $itemsBySellerForEmail[$sellerId] = ['total_paid' => 0, 'items' => []];
+                    $itemsBySellerForEmail[$sellerId] = [
+                        'total_paid' => 0, 
+                        'items' => [],
+                        'customer_name' => $co['customer_name'],
+                        'customer_phone' => $co['customer_phone'],
+                        'customer_address' => $co['customer_address'],
+                        'delivery_method' => $co['delivery_method'],
+                        'delivery_details' => $co['delivery_details']
+                    ];
                 }
                 $itemsBySellerForEmail[$sellerId]['total_paid'] += $co['total_amount'];
                 
@@ -173,6 +194,22 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                         </tr>";
                     }
 
+                    // Suformuojame pristatymo informaciją el. laiškui, kad pardavėjas žinotų, kur išsiųsti
+                    $deliveryMethodName = $data['delivery_method'] === 'locker' ? 'Paštomatas' : 
+                                         ($data['delivery_method'] === 'courier' ? 'Kurjeris' : 'Atsiėmimas');
+                    $delDetails = json_decode($data['delivery_details'] ?? '{}', true);
+                    $lockerAddress = $delDetails['locker_name'] ?? ($delDetails['locker_address'] ?? '');
+                    $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $data['customer_address'];
+
+                    $deliveryHtml = "
+                    <div style='background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 32px;'>
+                        <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600;'>Pristatymo informacija</h3>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Pirkėjas:</strong> " . htmlspecialchars($data['customer_name'] ?? '-') . "</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($data['customer_phone'] ?? '-') . "</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Būdas:</strong> $deliveryMethodName</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress ?? '-') . "</p>
+                    </div>";
+
                     $sBody = "
                     <html>
                     <head>
@@ -204,6 +241,9 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                                         </tr>
                                     </tfoot>
                                 </table>
+
+                                $deliveryHtml
+
                             </div>
 
                             <div style='background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
@@ -268,7 +308,7 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
                          ($order['delivery_method'] == 'courier' ? 'Kurjeris' : 'Atsiėmimas');
         
         $deliveryDetails = json_decode($order['delivery_details'], true);
-        $lockerAddress = isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '';
+        $lockerAddress = isset($deliveryDetails['locker_name']) ? $deliveryDetails['locker_name'] : (isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '');
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
         $styleText = "color: #475467; font-size: 14px; padding: 12px; border-bottom: 1px solid #e2e8f0;";
@@ -362,7 +402,7 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
                         <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600;'>Pristatymo informacija</h3>
                         <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Būdas:</strong> $deliveryMethod</p>
                         <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
-                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? '-') . "</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? ($order['customer_phone'] ?? '-')) . "</p>
                     </div>
                 </div>
 
