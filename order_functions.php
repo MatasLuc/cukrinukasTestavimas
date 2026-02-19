@@ -8,11 +8,10 @@ require_once __DIR__ . '/mailer.php';
  * Kviečiama prieš nukreipiant į Stripe.
  */
 function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
-    // Apsauga nuo "Data truncated for column 'status'" klaidos
     try {
         $pdo->exec("ALTER TABLE community_orders MODIFY status VARCHAR(50) NOT NULL DEFAULT 'laukiama'");
     } catch (Exception $e) {
-        // Jei nepavyksta pakeisti arba jau pakeista, ignoruojame
+        // Ignoruojame
     }
 
     if (empty($_SESSION['cart_community'])) return;
@@ -24,11 +23,10 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
     $cIds = array_keys($_SESSION['cart_community']);
     if (empty($cIds)) return;
 
-    // Apsauga nuo dublikatų (jei vartotojas perkrauna puslapį)
     $tempIntent = 'ORDER_' . $orderId;
     $stmtCheck = $pdo->prepare("SELECT id FROM community_orders WHERE stripe_payment_intent_id = ? LIMIT 1");
     $stmtCheck->execute([$tempIntent]);
-    if ($stmtCheck->fetchColumn()) return; // Jau sukurta šiam užsakymui
+    if ($stmtCheck->fetchColumn()) return; 
 
     $placeholders = implode(',', array_fill(0, count($cIds), '?'));
     $stmtListings = $pdo->prepare("SELECT id, user_id as seller_id, title, price FROM community_listings WHERE id IN ($placeholders)");
@@ -80,8 +78,6 @@ function createPendingCommunityOrders($pdo, $orderId, $buyerId) {
  */
 function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId = null) {
     try {
-        // SPRENDIMAS: Pakeičiame ir kitų lentelių statuso stulpelius į VARCHAR, 
-        // kad užsakymo patvirtinimas nelūžtų įrašinėjant 'apmokėta' ar 'sold' reikšmes.
         try {
             $pdo->exec("ALTER TABLE orders MODIFY status VARCHAR(50)");
             $pdo->exec("ALTER TABLE community_listings MODIFY status VARCHAR(50)");
@@ -94,52 +90,47 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$order) {
-            logMailer("completeOrder: Užsakymas #$orderId nerastas.");
-            return false;
+            $errorMsg = "completeOrder: Užsakymas #$orderId nerastas.";
+            logMailer($errorMsg);
+            throw new Exception($errorMsg); // Metama klaida į ekraną
         }
         
-        // Naudojame mb_strtolower ir sutvarkome registrą, kad išvengtume Apmokėta vs apmokėta problemų
         if (mb_strtolower($order['status']) === 'apmokėta') {
             return false;
         }
 
         $pdo->beginTransaction();
 
-        // 1. Atnaujiname pagrindinį užsakymą
-        $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta', updated_at = NOW() WHERE id = ?");
+        $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta' WHERE id = ?");
         $stmtUpdate->execute([$orderId]);
 
-        // 2. Sumažiname parduotuvės prekių likučius
         $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
         if ($items) {
-            // Pridėtas GREATEST(0, ...), kad prekės kiekis sistemoje niekada netaptų neigiamas
             $stmtStock = $pdo->prepare("UPDATE products SET quantity = GREATEST(0, quantity - ?) WHERE id = ?");
             foreach ($items as $item) {
                 $stmtStock->execute([$item['quantity'], $item['product_id']]);
             }
         }
 
-        // 3. Randame ir atnaujiname laukiančius BENDRUOMENĖS užsakymus
         $tempIntent = 'ORDER_' . $orderId;
         $stmtCommOrders = $pdo->prepare("SELECT * FROM community_orders WHERE stripe_payment_intent_id = ? AND status = 'laukiama'");
         $stmtCommOrders->execute([$tempIntent]);
         $communityOrders = $stmtCommOrders->fetchAll(PDO::FETCH_ASSOC);
 
+        $itemsBySellerForEmail = [];
+
         if ($communityOrders) {
             $updateComm = $pdo->prepare("UPDATE community_orders SET status = 'apmokėta', stripe_payment_intent_id = ? WHERE id = ?");
             $updateListing = $pdo->prepare("UPDATE community_listings SET status = 'sold' WHERE id = ?");
             
-            $itemsBySellerForEmail = [];
-
             foreach ($communityOrders as $co) {
                 $actualIntentId = $realPaymentIntentId ?: $tempIntent;
                 $updateComm->execute([$actualIntentId, $co['id']]);
                 $updateListing->execute([$co['item_id']]);
 
-                // Gaunam pavadinimą laiškams
                 $stmtTitle = $pdo->prepare("SELECT title FROM community_listings WHERE id = ?");
                 $stmtTitle->execute([$co['item_id']]);
                 $title = $stmtTitle->fetchColumn() ?: 'Prekė';
@@ -153,8 +144,16 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                 $qty = ($co['total_amount'] > 0 && $co['item_price'] > 0) ? round($co['total_amount'] / $co['item_price']) : 1;
                 $itemsBySellerForEmail[$sellerId]['items'][] = ['title' => $title, 'qty' => $qty];
             }
+        }
 
-            // Siunčiami laiškai atskiriems PARDAVĖJAMS
+        // Patvirtiname visus duomenų bazės pakeitimus
+        $pdo->commit();
+
+        // ------------------------------------------------------------------
+        // Laiškų siuntimas atliekamas TIK PO sėkmingo DB išsaugojimo
+        // ------------------------------------------------------------------
+        
+        if ($communityOrders) {
             foreach ($itemsBySellerForEmail as $sellerId => $data) {
                 $stmtGetSeller = $pdo->prepare("SELECT email, username FROM users WHERE id = ?");
                 $stmtGetSeller->execute([$sellerId]);
@@ -170,16 +169,22 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
                     }
                     $sBody .= "</ul>";
                     $sBody .= "<p>Gauta suma: " . number_format($data['total_paid'], 2) . " EUR</p>";
-                    sendEmail($seller['email'], $sSubject, $sBody);
+                    
+                    try {
+                        sendEmail($seller['email'], $sSubject, $sBody);
+                    } catch (Exception $eMail) {
+                        logMailer("Nepavyko išsiųsti laiško pardavėjui {$seller['email']}: " . $eMail->getMessage());
+                    }
                 }
             }
         }
-
-        $pdo->commit();
         
-        // 4. Siunčiame patvirtinimo laišką pirkėjui (sujungtą)
         if ($sendEmail) {
-            sendOrderConfirmationEmail($orderId, $pdo, $communityOrders);
+            try {
+                sendOrderConfirmationEmail($orderId, $pdo, $communityOrders);
+            } catch (Exception $eMail) {
+                logMailer("Nepavyko išsiųsti laiško pirkėjui: " . $eMail->getMessage());
+            }
         }
         
         logMailer("completeOrder: Užsakymas #$orderId sėkmingai užbaigtas.");
@@ -190,7 +195,9 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
             $pdo->rollBack();
         }
         logMailer("completeOrder CRITICAL ERROR: " . $e->getMessage());
-        return false;
+        
+        // Ši eilutė užtikrins, kad stripe_success.php puslapis išvestų klaidą į ekraną
+        throw new Exception("Duomenų bazės klaida patvirtinant užsakymą: " . $e->getMessage()); 
     }
 }
 
@@ -221,7 +228,6 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
         $lockerAddress = isset($deliveryDetails['locker_address']) ? $deliveryDetails['locker_address'] : '';
         $fullAddress = $lockerAddress ? "Paštomatas: $lockerAddress" : $order['customer_address'];
 
-        // Stiliai
         $styleText = "color: #475467; font-size: 14px; padding: 12px; border-bottom: 1px solid #e2e8f0;";
         $styleHeader = "color: #475467; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; font-weight: 600;";
         
@@ -243,7 +249,6 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
             </tr>";
         }
 
-        // PRIDEDAME BENDRUOMENĖS PREKES Į KLIENTO LAIŠKĄ
         if (!empty($communityOrders)) {
             foreach ($communityOrders as $co) {
                 $stmtTitle = $pdo->prepare("SELECT title FROM community_listings WHERE id = ?");
@@ -330,7 +335,9 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
         }
         
         $adminEmail = requireEnv('SMTP_USER'); 
-        sendEmail($adminEmail, "[NAUJAS UŽSAKYMAS] #$orderId", $emailContent);
+        if($adminEmail) {
+            sendEmail($adminEmail, "[NAUJAS UŽSAKYMAS] #$orderId", $emailContent);
+        }
 
     } catch (Exception $e) {
         logMailer("CRITICAL MAILER ERROR: " . $e->getMessage());
