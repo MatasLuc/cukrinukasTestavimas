@@ -155,7 +155,7 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
         
         if ($communityOrders) {
             foreach ($itemsBySellerForEmail as $sellerId => $data) {
-                $stmtGetSeller = $pdo->prepare("SELECT email, username FROM users WHERE id = ?");
+                $stmtGetSeller = $pdo->prepare("SELECT email, name FROM users WHERE id = ?");
                 $stmtGetSeller->execute([$sellerId]);
                 $seller = $stmtGetSeller->fetch();
 
