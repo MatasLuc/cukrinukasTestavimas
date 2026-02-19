@@ -340,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     delivery_method, 
                     delivery_details, 
                     created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'laukiama apmokėjimo', ?, ?, NOW())
             ");
             
             $stmtOrder->execute([
