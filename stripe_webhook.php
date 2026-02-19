@@ -64,21 +64,28 @@ try {
 // ---------------------------------------------------
 
 $orderId = null;
+$paymentIntentId = null;
 
 if ($event->type == 'checkout.session.completed') {
     $session = $event->data->object;
+    
     if (!empty($session->client_reference_id)) {
         $orderId = $session->client_reference_id;
     } elseif (!empty($session->metadata->order_id)) {
         $orderId = $session->metadata->order_id;
     }
+    
+    $paymentIntentId = $session->payment_intent ?? $session->id;
     webhook_log("Checkout Session Completed. Order ID: " . ($orderId ?? 'NERASTAS'));
 } 
 elseif ($event->type == 'payment_intent.succeeded') {
     $intent = $event->data->object;
+    
     if (!empty($intent->metadata->order_id)) {
         $orderId = $intent->metadata->order_id;
     }
+    
+    $paymentIntentId = $intent->id;
     webhook_log("Payment Intent Succeeded. Order ID iš metadata: " . ($orderId ?? 'NERASTAS'));
 } 
 else {
@@ -94,9 +101,9 @@ else {
 if ($orderId) {
     $pdo = getPdo();
     
-    // Naudojame centralizuotą funkciją
+    // Naudojame centralizuotą funkciją ir paduodame Payment Intent ID, kad pririštų turgelio prekes
     if (function_exists('completeOrder')) {
-        $result = completeOrder($pdo, $orderId);
+        $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
         if ($result) {
             webhook_log("Užsakymas #$orderId sėkmingai užbaigtas (Webhooks inicijavo).");
         } else {
