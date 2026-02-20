@@ -142,7 +142,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // --- 1.4 KITI VEIKSMAI (Iš senojo failo) ---
+    // --- 1.4 SKUNDŲ / PRANEŠIMŲ VEIKSMAI ---
+    elseif ($action === 'close_ticket') {
+        $id = (int)$_POST['id'];
+        $pdo->prepare("UPDATE community_tickets SET status = 'closed' WHERE id = ?")->execute([$id]);
+        $message = "Skundas pažymėtas kaip išspręstas.";
+    }
+    elseif ($action === 'close_report') {
+        $id = (int)$_POST['id'];
+        $pdo->prepare("UPDATE community_reports SET status = 'closed' WHERE id = ?")->execute([$id]);
+        $message = "Skelbimo pranešimas pažymėtas kaip peržiūrėtas.";
+    }
+
+    // --- 1.5 KITI VEIKSMAI (Iš senojo failo) ---
     elseif ($action === 'delete_community_category') {
         $id = (int)$_POST['id'];
         $pdo->prepare("DELETE FROM community_thread_categories WHERE id = ?")->execute([$id]);
@@ -213,7 +225,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // --------------------------------------------------------
 
 // --- NUSTATYMAI ---
-// Bandome gauti nustatymus, jei lentelė dar nesukurta - grąžiname 0
 try {
     $commissionRate = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'market_commission_rate'")->fetchColumn();
 } catch (Exception $e) {
@@ -241,7 +252,7 @@ $listings = $pdo->query('
     ORDER BY l.created_at DESC LIMIT 50
 ')->fetchAll();
 
-// --- TURGELIS (Užsakymai - Išplėstinė užklausa) ---
+// --- TURGELIS (Užsakymai) ---
 $marketOrders = $pdo->query('
     SELECT o.*, 
            l.title as item_title, 
@@ -263,15 +274,23 @@ $blocks = $pdo->query('
     ORDER BY b.created_at DESC
 ')->fetchAll();
 
+// --- SKUNDAI IR RAPORTAI ---
+$tickets = [];
+$reports = [];
+try {
+    $tickets = $pdo->query("SELECT t.*, u.email, u.name FROM community_tickets t LEFT JOIN users u ON t.user_id = u.id ORDER BY t.created_at DESC")->fetchAll();
+    $reports = $pdo->query("SELECT r.*, u.email, u.name, l.title as listing_title FROM community_reports r LEFT JOIN users u ON r.reporter_id = u.id LEFT JOIN community_listings l ON r.listing_id = l.id ORDER BY r.created_at DESC")->fetchAll();
+} catch(Exception $e) {} // Ignoruojame jei lentelės dar nesukurtos
+
 require_once 'header.php';
 ?>
 
 <style>
     /* Tab'ų navigacija */
-    .tab-nav { display:flex; gap:0; border-bottom:1px solid #e1e3ef; margin-bottom:24px; }
+    .tab-nav { display:flex; gap:0; border-bottom:1px solid #e1e3ef; margin-bottom:24px; overflow-x:auto; }
     .tab-btn {
         padding: 12px 24px; background:transparent; border:none; border-bottom:2px solid transparent;
-        font-weight:600; color:#6b6b7a; cursor:pointer; font-size:14px; transition:0.2s;
+        font-weight:600; color:#6b6b7a; cursor:pointer; font-size:14px; transition:0.2s; white-space:nowrap;
     }
     .tab-btn:hover { color:#4f46e5; background:#f9f9ff; }
     .tab-btn.active { color:#4f46e5; border-bottom-color:#4f46e5; }
@@ -305,6 +324,9 @@ require_once 'header.php';
     .status-sold, .status-paid { background:#f3f4f6; color:#374151; border-color:#e5e7eb; }
     .status-refunded { background:#fff1f1; color:#991b1b; border-color:#fecaca; }
     .status-pending, .status-laukiama { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    
+    .badge-open { background:#ffedd5; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; }
+    .badge-closed { background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; }
 </style>
 
 <div class="page">
@@ -324,6 +346,7 @@ require_once 'header.php';
         <button class="tab-btn active" onclick="switchTab('discussions')">💬 Diskusijos</button>
         <button class="tab-btn" onclick="switchTab('market')">🛍️ Turgelis</button>
         <button class="tab-btn" onclick="switchTab('moderation')">🛡️ Blokavimai</button>
+        <button class="tab-btn" onclick="switchTab('support')">🆘 Skundai ir Pranešimai</button>
     </div>
 
     <div id="tab-discussions" class="tab-content active">
@@ -564,6 +587,81 @@ require_once 'header.php';
             </table>
         </div>
     </div>
+
+    <div id="tab-support" class="tab-content">
+        <div class="card" style="margin-bottom:24px;">
+            <h3>Pagalbos užklausos ir ginčai (Tickets)</h3>
+            <div style="overflow-x:auto;">
+                <table style="min-width:800px;">
+                    <thead><tr><th>Statusas</th><th>Vartotojas</th><th>Užsakymas ID</th><th>Problema</th><th>Tekstas</th><th>Data</th><th>Veiksmai</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($tickets as $t): ?>
+                        <tr>
+                            <td><span class="<?php echo $t['status'] === 'open' ? 'badge-open' : 'badge-closed'; ?>"><?php echo strtoupper($t['status']); ?></span></td>
+                            <td><?php echo htmlspecialchars($t['name']); ?><br><small class="muted"><?php echo htmlspecialchars($t['email']); ?></small></td>
+                            <td><?php echo $t['order_id'] ? '<b>#' . $t['order_id'] . '</b>' : '-'; ?></td>
+                            <td><?php echo htmlspecialchars($t['type']); ?></td>
+                            <td><div style="max-height:80px; overflow-y:auto; font-size:12px;"><?php echo nl2br(htmlspecialchars($t['message'])); ?></div></td>
+                            <td style="font-size:12px;"><?php echo date('Y-m-d H:i', strtotime($t['created_at'])); ?></td>
+                            <td>
+                                <?php if ($t['status'] === 'open'): ?>
+                                    <form method="post" style="margin:0;">
+                                        <?php echo csrfField(); ?>
+                                        <input type="hidden" name="action" value="close_ticket">
+                                        <input type="hidden" name="id" value="<?php echo $t['id']; ?>">
+                                        <button class="btn" style="padding:4px 8px; font-size:11px; background:#16a34a;">Išspręsta</button>
+                                    </form>
+                                <?php else: ?>
+                                    <span class="muted" style="font-size:11px;">Uždaryta</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php if(!$tickets): ?>
+                            <tr><td colspan="7" class="muted">Skundų nėra.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted" style="font-size:12px; margin-top:10px;">Norėdami grąžinti pinigus (Refund) arba atlikti pervedimą (Force Payout), eikite į "Turgelis" -> "Užsakymai" ir suraskite reikiamą ID.</p>
+        </div>
+
+        <div class="card">
+            <h3>Skelbimų pranešimai (Reports)</h3>
+            <div style="overflow-x:auto;">
+                <table style="min-width:800px;">
+                    <thead><tr><th>Statusas</th><th>Pranešėjas</th><th>Skelbimas</th><th>Priežastis</th><th>Detalės</th><th>Data</th><th>Veiksmai</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($reports as $r): ?>
+                        <tr>
+                            <td><span class="<?php echo $r['status'] === 'open' ? 'badge-open' : 'badge-closed'; ?>"><?php echo strtoupper($r['status']); ?></span></td>
+                            <td><?php echo htmlspecialchars($r['name']); ?></td>
+                            <td><a href="/community_listing.php?id=<?php echo $r['listing_id']; ?>" target="_blank" style="text-decoration:underline;"><?php echo htmlspecialchars($r['listing_title']); ?></a></td>
+                            <td style="color:#b91c1c; font-weight:bold;"><?php echo htmlspecialchars($r['reason']); ?></td>
+                            <td style="font-size:12px;"><?php echo nl2br(htmlspecialchars($r['details'])); ?></td>
+                            <td style="font-size:12px;"><?php echo date('Y-m-d H:i', strtotime($r['created_at'])); ?></td>
+                            <td>
+                                <?php if ($r['status'] === 'open'): ?>
+                                    <form method="post" style="margin:0;">
+                                        <?php echo csrfField(); ?>
+                                        <input type="hidden" name="action" value="close_report">
+                                        <input type="hidden" name="id" value="<?php echo $r['id']; ?>">
+                                        <button class="btn" style="padding:4px 8px; font-size:11px; background:#16a34a;">Peržiūrėta</button>
+                                    </form>
+                                <?php else: ?>
+                                    <span class="muted" style="font-size:11px;">Uždaryta</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php if(!$reports): ?>
+                            <tr><td colspan="7" class="muted">Pranešimų apie skelbimus nėra.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="catModal" class="modal-overlay">
@@ -635,6 +733,7 @@ require_once 'header.php';
         if(tabId === 'discussions') btns[0].classList.add('active');
         if(tabId === 'market') btns[1].classList.add('active');
         if(tabId === 'moderation') btns[2].classList.add('active');
+        if(tabId === 'support') btns[3].classList.add('active');
         
         localStorage.setItem('admin_community_tab', tabId);
     }
