@@ -266,13 +266,17 @@ echo headerStyles();
                 <h3>Nori įdėti skelbimą?</h3>
                 <p>Galite parduoti daiktus arba įkelti paieškos skelbimą.</p>
                 <a href="/community_listing_new.php" class="btn">Įdėti skelbimą</a>
-                <div style="margin-top:12px;">
+                <div style="margin-top:12px; display: flex; gap: 12px; justify-content: center; flex-wrap:wrap;">
                     <a href="/account.php" style="font-size:13px; color:var(--text-muted); text-decoration:underline;">Mano skelbimai</a>
+                    <a href="/community_help.php" style="font-size:13px; color:var(--text-muted); text-decoration:underline;">Kaip tai veikia? / Pagalba</a>
                 </div>
             <?php else: ?>
                 <h3>Prisijunkite</h3>
                 <p>Norėdami dėti skelbimus ar matyti kontaktus, turite prisijungti.</p>
                 <a href="/login.php" class="btn">Prisijunkite</a>
+                <div style="margin-top:12px;">
+                    <a href="/community_help.php" style="font-size:13px; color:var(--text-muted); text-decoration:underline;">Kaip tai veikia?</a>
+                </div>
             <?php endif; ?>
         </div>
     </section>
