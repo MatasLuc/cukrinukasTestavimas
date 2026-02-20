@@ -33,8 +33,24 @@ $isLoggedIn = !empty($currentUser['id']);
 
 $listingType = $listing['listing_type'] ?? 'sell'; // sell / buy
 
-// --- Veiksmai (Parduota / Ištrinti) ---
+// --- Veiksmai (Parduota / Ištrinti / Pranešti) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // Pranešti apie skelbimą
+    if (isset($_POST['submit_report'])) {
+        if (!$isLoggedIn) {
+            $_SESSION['flash_error'] = 'Turite prisijungti, kad praneštumėte.';
+        } else {
+            $reason = $_POST['reason'] ?? '';
+            $details = $_POST['details'] ?? '';
+            $stmtR = $pdo->prepare("INSERT INTO community_reports (reporter_id, listing_id, reason, details) VALUES (?, ?, ?, ?)");
+            $stmtR->execute([$currentUser['id'], $id, $reason, $details]);
+            $_SESSION['flash_success'] = 'Ačiū! Pranešimas išsiųstas administracijai.';
+        }
+        header("Location: /community_listing.php?id=$id");
+        exit;
+    }
+
     if (!$canEdit) {
         die('Neturite teisių.');
     }
@@ -58,9 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $messages = [];
+$errors = [];
 if (!empty($_SESSION['flash_success'])) {
     $messages[] = $_SESSION['flash_success'];
     unset($_SESSION['flash_success']);
+}
+if (!empty($_SESSION['flash_error'])) {
+    $errors[] = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
 }
 ?>
 <!doctype html>
@@ -128,12 +149,21 @@ a { color:inherit; text-decoration:none; }
 .description { line-height: 1.6; color: #374151; white-space: pre-wrap; font-size: 15px; }
 
 .alert { border-radius:12px; padding:12px; margin-bottom: 20px; background:#ecfdf5; border:1px solid #a7f3d0; color: #065f46; }
+.alert.alert-danger { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
 .alert-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
 
 /* Messages Box */
 .msg-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 16px; padding: 20px; margin-bottom: 24px; text-align: center; }
 .msg-title { font-weight: 700; color: #0369a1; margin-bottom: 8px; font-size: 16px; display:flex; align-items:center; justify-content:center; gap:8px; }
 .msg-text { font-size: 13px; color: #0c4a6e; margin: 0 0 16px 0; line-height: 1.5; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; }
+.modal-content { background: #fff; padding: 25px; border-radius: 16px; width: 400px; max-width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.modal-content h3 { margin-top: 0; color: #111; }
+.form-group-modal { margin-bottom: 15px; }
+.form-group-modal label { display: block; margin-bottom: 5px; font-weight: bold; font-size:13px; color:#444; }
+.form-group-modal select, .form-group-modal textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-family:inherit; }
 </style>
 </head>
 <body>
@@ -195,6 +225,9 @@ a { color:inherit; text-decoration:none; }
 
     <?php foreach ($messages as $msg): ?>
        <div class="alert">&check; <?php echo htmlspecialchars($msg); ?></div>
+    <?php endforeach; ?>
+    <?php foreach ($errors as $err): ?>
+       <div class="alert alert-danger">⚠️ <?php echo htmlspecialchars($err); ?></div>
     <?php endforeach; ?>
 
     <div class="content-grid">
@@ -283,11 +316,11 @@ a { color:inherit; text-decoration:none; }
                  </div>
              <?php endif; ?>
 
-            <?php if ($listing['status'] === 'sold'): ?>
+             <?php if ($listing['status'] === 'sold'): ?>
                 <button disabled class="btn btn-lg btn-block" style="margin-top: 15px; width: 100%;">
                     <?php echo $listingType === 'buy' ? 'Nebeieškoma' : 'Prekė parduota'; ?>
                 </button>
-            <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
+             <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $listing['user_id']): ?>
                 <form action="cart.php" method="POST" style="margin-top: 15px;">
                     <?php echo csrfField(); ?> <input type="hidden" name="action" value="add_community">
                     <input type="hidden" name="product_id" value="<?php echo $listing['id']; ?>">
@@ -295,18 +328,54 @@ a { color:inherit; text-decoration:none; }
                         Įdėti į krepšelį (<?php echo number_format($listing['price'], 2); ?> €)
                     </button>
                 </form>
-            <?php elseif(!isset($_SESSION['user_id'])): ?>
+             <?php elseif(!isset($_SESSION['user_id'])): ?>
                 <div class="alert alert-info" style="margin-top: 15px;">Norėdami pirkti, turite prisijungti.</div>
-            <?php endif; ?>
+             <?php endif; ?>
              
              <div style="margin-top:20px; font-size:12px; color:var(--muted); line-height:1.5; background:#f9fafb; padding:10px; border-radius:12px;">
                 <p style="margin:0;">⚠️ Būkite atsargūs pervesdami pinigus. Cukrinukas.lt neatsako už sandorius tarp narių.</p>
              </div>
+
+             <button onclick="document.getElementById('reportModal').style.display='flex';" style="background:none; border:none; color:#dc2626; text-decoration:underline; cursor:pointer; font-size:13px; margin-top:15px; padding:0; display:block; width:100%; text-align:center;">
+                Pranešti apie netinkamą skelbimą
+             </button>
           </div>
        </div>
     </div>
-
   </div>
+
+  <div id="reportModal" class="modal-overlay">
+      <div class="modal-content">
+          <h3>Pranešti apie skelbimą</h3>
+          <form method="POST" action="">
+              <?php echo csrfField(); ?>
+              <div class="form-group-modal">
+                  <label>Priežastis:</label>
+                  <select name="reason" required>
+                      <option value="Sukčiavimas">Galimas sukčiavimas</option>
+                      <option value="Netinkamas turinys">Netinkamas ar draudžiamas turinys</option>
+                      <option value="Neteisinga kaina">Klaidinanti kaina ar aprašymas</option>
+                      <option value="Kita">Kita</option>
+                  </select>
+              </div>
+              <div class="form-group-modal">
+                  <label>Plačiau (nebūtina):</label>
+                  <textarea name="details" rows="3" placeholder="Apibūdinkite situaciją plačiau..."></textarea>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                  <button type="button" class="btn secondary" onclick="document.getElementById('reportModal').style.display='none';">Atšaukti</button>
+                  <button type="submit" name="submit_report" class="btn danger" style="background:#dc2626; color:#fff;">Siųsti</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
+  <script>
+      // Uždaryti modalą paspaudus už jo ribų
+      document.getElementById('reportModal').addEventListener('click', function(e) {
+          if (e.target === this) this.style.display = 'none';
+      });
+  </script>
 
   <?php renderFooter($pdo); ?>
 </body>
