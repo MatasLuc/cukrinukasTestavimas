@@ -125,6 +125,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
         }
+        // C. Pažymėti skelbimą kaip parduotą
+        elseif ($action === 'mark_sold') {
+            $listingId = (int)($_POST['listing_id'] ?? 0);
+            $stmt = $pdo->prepare("UPDATE community_listings SET status = 'sold' WHERE id = ? AND user_id = ?");
+            $stmt->execute([$listingId, $userId]);
+            if ($stmt->rowCount() > 0) {
+                $message = '<div class="alert alert-success">Skelbimas pažymėtas kaip parduotas/užbaigtas.</div>';
+            }
+        }
+        // D. Ištrinti skelbimą
+        elseif ($action === 'delete_listing') {
+            $listingId = (int)($_POST['listing_id'] ?? 0);
+            $stmt = $pdo->prepare("DELETE FROM community_listings WHERE id = ? AND user_id = ?");
+            $stmt->execute([$listingId, $userId]);
+            if ($stmt->rowCount() > 0) {
+                $message = '<div class="alert alert-success">Skelbimas sėkmingai ištrintas.</div>';
+            }
+        }
     }
 }
 
@@ -224,17 +242,15 @@ $commSameOrderStmt = $pdo->prepare("
       AND ABS(TIMESTAMPDIFF(SECOND, co.created_at, ?)) < 120
 ");
 
-// B. Turgelio pirkimai (Pirkėjas) - atskiras tabas
-$commStmt = $pdo->prepare("
-    SELECT co.*, cl.title, cl.image_url, u.name as seller_name 
-    FROM community_orders co
-    LEFT JOIN community_listings cl ON co.item_id = cl.id
-    LEFT JOIN users u ON co.seller_id = u.id
-    WHERE co.buyer_id = ? 
-    ORDER BY co.created_at DESC
+// B. Mano skelbimai (Pardavėjas/Vartotojas) - vietoj Turgelio pirkimų
+$listingsStmt = $pdo->prepare("
+    SELECT *
+    FROM community_listings
+    WHERE user_id = ? 
+    ORDER BY created_at DESC
 ");
-$commStmt->execute([$userId]);
-$communityOrders = $commStmt->fetchAll(PDO::FETCH_ASSOC);
+$listingsStmt->execute([$userId]);
+$myListings = $listingsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // C. Turgelio pardavimai (Pardavėjas)
 $salesStmt = $pdo->prepare("
@@ -250,7 +266,7 @@ $sales = $salesStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Skirtukų logika
 $activeTab = $_GET['tab'] ?? 'shop';
-if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
+if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
     $activeTab = 'shop';
 }
 ?>
@@ -336,7 +352,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
     .item-meta { font-size:13px; color: var(--text-main); font-weight: 500; }
     .item-price { font-weight:700; font-size:15px; color:var(--text-main); text-align: right; white-space: nowrap; }
 
-    .card-footer { padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .card-footer { padding: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
     .card-footer.block-footer { display: block; }
     .total-price { display: flex; flex-direction: column; align-items: flex-end; }
     .total-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
@@ -389,8 +405,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
     <section class="hero">
       <div>
         <div class="pill">📦 Istorija</div>
-        <h1>Mano užsakymai</h1>
-        <p>Sekite užsakymų būseną ir peržiūrėkite pirkinių istoriją.</p>
+        <h1>Mano užsakymai ir skelbimai</h1>
+        <p>Sekite užsakymų būseną ir valdykite savo turgelio skelbimus.</p>
       </div>
     </section>
     <?php endif; ?>
@@ -400,8 +416,8 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
           <?= $message ?>
 
           <div class="nav-tabs">
-              <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Parduotuvė (<?= count($shopOrders) ?>)</a>
-              <a href="?tab=community_buy" class="nav-tab <?= $activeTab === 'community_buy' ? 'active' : '' ?>">Turgelio pirkiniai (<?= count($communityOrders) ?>)</a>
+              <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Parduotuvė ir Pirkiniai (<?= count($shopOrders) ?>)</a>
+              <a href="?tab=community_listings" class="nav-tab <?= $activeTab === 'community_listings' ? 'active' : '' ?>">Mano skelbimai (<?= count($myListings) ?>)</a>
               <a href="?tab=community_sell" class="nav-tab <?= $activeTab === 'community_sell' ? 'active' : '' ?>">Mano pardavimai (<?= count($sales) ?>)</a>
           </div>
 
@@ -563,80 +579,60 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
                 </div>
               <?php endif; ?>
 
-          <?php elseif ($activeTab === 'community_buy'): ?>
-              <?php if (!$communityOrders): ?>
+          <?php elseif ($activeTab === 'community_listings'): ?>
+              <?php if (empty($myListings)): ?>
                 <div class="empty-state">
-                  <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">🤝</div>
-                  <h3>Turgelyje dar nieko nepirkote</h3>
-                  <a class="btn" href="/community_market.php">Naršyti turgelį</a>
+                  <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📢</div>
+                  <h3>Jūs dar neturite įkeltų skelbimų</h3>
+                  <a class="btn" href="/community_listing_new.php">Įkelti skelbimą</a>
                 </div>
               <?php else: ?>
                 <div class="order-list">
-                  <?php foreach ($communityOrders as $order): ?>
+                  <?php foreach ($myListings as $listing): ?>
                     <?php 
-                      $stClass = 'status-default';
-                      $stText = $order['status'] ?? '';
-                      if ($stText == 'paid' || $stText == 'apmokėta') { $stClass = 'st-pending'; $stText = 'Laukiama išsiuntimo'; }
-                      if ($stText == 'shipped') { $stClass = 'st-shipped'; $stText = 'Išsiųsta'; }
-                      if ($stText == 'delivered') { $stClass = 'st-paid'; $stText = 'Gauta / Užbaigta'; }
-                      
-                      $isCommDeleted = empty($order['title']);
+                      $isSold = (($listing['status'] ?? '') === 'sold');
+                      $stClass = $isSold ? 'st-delivered' : 'st-paid';
+                      $stText = $isSold ? 'Parduota / Užbaigta' : 'Aktyvus';
                     ?>
                     <div class="card">
                       <div class="card-header">
                         <div class="order-meta">
-                            <div class="meta-group"><span class="meta-label">Užsakymas</span><span class="meta-value">#C-<?= (int)$order['id']; ?></span></div>
-                            <div class="meta-group"><span class="meta-label">Pardavėjas</span><span class="meta-value date" style="color: var(--accent);"><?= htmlspecialchars($order['seller_name'] ?? '-'); ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Skelbimas</span><span class="meta-value">#C-<?= (int)$listing['id']; ?></span></div>
+                            <div class="meta-group"><span class="meta-label">Sukurtas</span><span class="meta-value date"><?= htmlspecialchars(date('Y-m-d H:i', strtotime($listing['created_at']))); ?></span></div>
                         </div>
-                        <div class="<?= $stClass ?> status-badge"><?= htmlspecialchars($stText); ?></div>
+                        <div class="<?= $stClass ?> status-badge"><?= $stText; ?></div>
                       </div>
                       <div class="card-body">
-                          <?php if (!empty($order['tracking_number'])): ?>
-                            <div class="delivery-info">
-                                <span style="margin-right:8px; color:var(--accent);">📦</span>
-                                <div><strong>Sekimo numeris:</strong> <?= htmlspecialchars($order['tracking_number']); ?></div>
-                            </div>
-                          <?php endif; ?>
-                          
-                          <div class="item-list">
+                          <div class="item-list" style="margin-bottom:0;">
                               <div class="item">
-                                <?php if (!$isCommDeleted): ?>
-                                    <a href="/community_listing.php?id=<?= $order['item_id'] ?>">
-                                      <img src="<?= htmlspecialchars($order['image_url'] ?? '/uploads/default.png'); ?>" alt="">
-                                    </a>
-                                    <div class="item-details">
-                                      <a href="/community_listing.php?id=<?= $order['item_id'] ?>" class="item-title" style="text-decoration:none;"><?= htmlspecialchars($order['title']); ?></a>
-                                      <div class="item-meta">1 vnt.</div>
-                                    </div>
-                                <?php else: ?>
-                                    <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; border:1px dashed var(--border); font-size:24px; opacity:0.6; flex-shrink:0;">📦</div>
-                                    <div class="item-details" style="opacity: 0.6;">
-                                      <span class="item-title">Skelbimas nebeaktyvus</span>
-                                      <div class="item-meta">1 vnt.</div>
-                                    </div>
-                                <?php endif; ?>
-                                <div class="item-price"><?= number_format((float)$order['total_amount'], 2); ?> €</div>
+                                  <a href="/community_listing.php?id=<?= $listing['id'] ?>">
+                                    <img src="<?= htmlspecialchars($listing['image_url'] ?? '/uploads/default.png'); ?>" alt="">
+                                  </a>
+                                  <div class="item-details">
+                                    <a href="/community_listing.php?id=<?= $listing['id'] ?>" class="item-title" style="text-decoration:none;"><?= htmlspecialchars($listing['title']); ?></a>
+                                    <div class="item-meta">Kaina: <?= number_format((float)$listing['price'], 2); ?> €</div>
+                                  </div>
                               </div>
                           </div>
-                          
-                          <div class="card-footer">
-                              <div style="flex-grow:1;">
-                                <?php if (($order['status'] ?? '') === 'shipped'): ?>
-                                    <form method="POST" onsubmit="return confirm('Ar tikrai gavote prekę? Tai patvirtinus, pinigai bus pervesti pardavėjui ir veiksmo atšaukti negalėsite.');">
-                                        <?= csrfField() ?>
-                                        <input type="hidden" name="action" value="confirm_delivery">
-                                        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                                        <button type="submit" class="btn btn-green">Gavau prekę</button>
-                                    </form>
-                                <?php elseif (($order['status'] ?? '') === 'delivered'): ?>
-                                    <span style="color: var(--success-text); font-weight: 600;">✓ Užsakymas baigtas</span>
-                                <?php endif; ?>
-                              </div>
-                              <div class="total-price">
-                                  <span class="total-label">Sumokėta</span>
-                                  <span class="total-value"><?= number_format((float)$order['total_amount'], 2); ?> €</span>
-                              </div>
-                          </div>
+                      </div>
+                      
+                      <div class="card-footer" style="display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap;">
+                          <a href="/community_listing.php?id=<?= $listing['id'] ?>" class="btn-outline">Peržiūrėti</a>
+                          <a href="/community_listing_edit.php?id=<?= $listing['id'] ?>" class="btn-outline">Redaguoti</a>
+                          <?php if (!$isSold): ?>
+                          <form method="POST" style="margin:0;" onsubmit="return confirm('Ar tikrai norite pažymėti šį skelbimą kaip parduotą?');">
+                              <?= csrfField() ?>
+                              <input type="hidden" name="action" value="mark_sold">
+                              <input type="hidden" name="listing_id" value="<?= $listing['id'] ?>">
+                              <button type="submit" class="btn btn-green">Parduota</button>
+                          </form>
+                          <?php endif; ?>
+                          <form method="POST" style="margin:0;" onsubmit="return confirm('Ar tikrai norite ištrinti šį skelbimą?');">
+                              <?= csrfField() ?>
+                              <input type="hidden" name="action" value="delete_listing">
+                              <input type="hidden" name="listing_id" value="<?= $listing['id'] ?>">
+                              <button type="submit" class="btn btn-outline" style="color:var(--danger-text); border-color:var(--danger-border); background:var(--danger-bg);">Ištrinti</button>
+                          </form>
                       </div>
                     </div>
                   <?php endforeach; ?>
@@ -832,7 +828,7 @@ if (!in_array($activeTab, ['shop', 'community_buy', 'community_sell'])) {
 
           <div class="card sidebar-card" style="margin-top:20px; background: #f8fafc; border: 1px dashed var(--border);">
               <h3>Pagalba</h3>
-              <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Kilo klausimų dėl užsakymo ar pardavimo? Susisiekite su mumis.</p>
+              <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Kilo klausimų dėl skelbimų ar pardavimų? Susisiekite su mumis.</p>
               <a href="mailto:labas@cukrinukas.lt" style="font-size:13px; font-weight:600; color:var(--accent);">labas@cukrinukas.lt</a>
           </div>
       </aside>
