@@ -29,11 +29,41 @@ if (!function_exists('generateUniqueDiscountCode')) {
     }
 }
 
+// --- MAC TOKEN AUTENTIFIKACIJA ---
+if (!function_exists('buildMacAuthHeader')) {
+    function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url): string {
+        $parsed = parse_url($url);
+        $ts     = (string) time();
+        $nonce  = bin2hex(random_bytes(8));
+        $host   = $parsed['host'];
+        $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
+        $path   = $parsed['path'] ?? '/';
+        if (!empty($parsed['query'])) {
+            $path .= '?' . $parsed['query'];
+        }
+
+        $requestString = $ts    . "\n"
+                       . $nonce . "\n"
+                       . strtoupper($method) . "\n"
+                       . $path  . "\n"
+                       . $host  . "\n"
+                       . (string)$port . "\n"
+                       . "\n";
+
+        $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
+
+        return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+            $macId, $ts, $nonce, $mac);
+    }
+}
+
+// =================================================================
 // PAŠTOMATAI
+// =================================================================
 try {
-    $siteContent = getSiteContent($pdo);
+    $siteContent    = getSiteContent($pdo);
     $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
-    $forceSync = $forceSync ?? false;
+    $forceSync      = $forceSync ?? false;
 
     if ($forceSync || (time() - $lastLockerSync > 604800)) {
 
@@ -41,56 +71,25 @@ try {
         $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
         $baseUrl   = rtrim(getenv('PAYSERA_DELIVERY_API_URL') ?: ($_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1'), '/');
 
-        $allItems  = [];
-        $limit     = 200;
-        $offset    = 0;
-        $hasMore   = true;
-        $apiError  = false;
-
-        // MAC Token autentifikacija pagal OAuth 2.0 MAC spec
-        // project_id = mac_id, project_sign_password = mac_secret
-        if (!function_exists('buildMacAuthHeader')) {
-            function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url): string {
-                $parsed = parse_url($url);
-                $ts     = (string) time();
-                $nonce  = bin2hex(random_bytes(8));
-                $host   = $parsed['host'];
-                $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
-                $path   = $parsed['path'] ?? '/';
-                if (!empty($parsed['query'])) {
-                    $path .= '?' . $parsed['query'];
-                }
-
-                // Request string tiksliai pagal MAC spec (kiekvienas elementas atskirtas \n)
-                $requestString = $ts    . "\n"
-                               . $nonce . "\n"
-                               . strtoupper($method) . "\n"
-                               . $path  . "\n"
-                               . $host  . "\n"
-                               . (string)$port . "\n"
-                               . "\n";  // tuščias extension + galutinis \n
-
-                $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
-
-                return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
-                    $macId, $ts, $nonce, $mac);
-            }
-        }
+        $allItems = [];
+        $limit    = 200;
+        $offset   = 0;
+        $hasMore  = true;
+        $apiError = false;
+        $page     = 1;
 
         while ($hasMore) {
 
             $apiUrl = $baseUrl . "/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
-            $ch = curl_init($apiUrl);
-
-            $authHeader = buildMacAuthHeader($projectId, $password, 'GET', $apiUrl);
+            $ch     = curl_init($apiUrl);
 
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
-                    'Authorization: ' . $authHeader,
+                    'Authorization: ' . buildMacAuthHeader($projectId, $password, 'GET', $apiUrl),
                 ],
-                CURLOPT_TIMEOUT => 30
+                CURLOPT_TIMEOUT => 60,
             ]);
 
             $response  = curl_exec($ch);
@@ -99,29 +98,58 @@ try {
             curl_close($ch);
 
             if ($httpCode !== 200 || !$response) {
-                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
+                $log[] = "[LOCKERS] ❌ API klaida (puslapis {$page}). HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: " . substr($response, 0, 300);
                 $apiError = true;
                 break;
             }
 
             $data = json_decode($response, true);
 
-            // ParcelMachineCollection grąžina 'list', ne 'items'
+            // Loginame metadata tik pirmą kartą – padeda suprasti API struktūrą
+            if ($page === 1) {
+                $log[] = "[LOCKERS] Metadata: " . json_encode($data['_metadata'] ?? 'nėra');
+            }
+
+            // API gali grąžinti 'list' arba 'items'
             $items = $data['list'] ?? $data['items'] ?? null;
 
             if ($items === null) {
-                $log[] = "[LOCKERS] Nežinoma API struktūra. Raktai: " . json_encode(array_keys($data));
+                $log[] = "[LOCKERS] ❌ Nežinoma API struktūra. Raktai: " . json_encode(array_keys($data));
                 $apiError = true;
                 break;
             }
 
-            if (!empty($items)) {
+            $fetchedCount = count($items);
+            if ($fetchedCount > 0) {
                 $allItems = array_merge($allItems, $items);
             }
 
-            $hasMore = $data['_metadata']['has_next'] ?? false;
+            $log[] = "[LOCKERS] Puslapis {$page}: gauta {$fetchedCount} (iš viso surinkta: " . count($allItems) . ")";
+
+            // Paginacija — palaikome visus galimus API variantus
+            $metadata = $data['_metadata'] ?? [];
+
+            if (isset($metadata['has_next'])) {
+                // 1 variantas: has_next (bool arba string)
+                $hasMore = filter_var($metadata['has_next'], FILTER_VALIDATE_BOOLEAN);
+            } elseif (isset($metadata['total']) || isset($metadata['total_count'])) {
+                // 2 variantas: total skaičius
+                $total   = (int)($metadata['total'] ?? $metadata['total_count']);
+                $hasMore = ($offset + $limit) < $total;
+            } else {
+                // 3 variantas: jei grąžino mažiau nei limit — paskutinis puslapis
+                $hasMore = ($fetchedCount === $limit);
+            }
+
             if ($hasMore) {
                 $offset += $limit;
+                $page++;
+
+                // Apsauga nuo begalinės kilpos (max 100 puslapių = 20 000 paštomatų)
+                if ($page > 100) {
+                    $log[] = "[LOCKERS] ⚠️ Pasiektas 100 puslapių limitas. Stabdoma.";
+                    break;
+                }
             }
         }
 
@@ -137,7 +165,6 @@ try {
             $inserted = 0;
             foreach ($allItems as $item) {
 
-                // Tikriname enabled kaip bool arba int
                 if (!isset($item['enabled']) || $item['enabled'] == false) {
                     continue;
                 }
@@ -147,8 +174,8 @@ try {
                 $terminalId  = $item['id'] ?? '';
 
                 $locationName = $item['location_name'] ?? ($item['name'] ?? '');
-                $code  = $item['code'] ?? '';
-                $title = trim($locationName . ($code ? ' (' . $code . ')' : ''));
+                $code         = $item['code'] ?? '';
+                $title        = trim($locationName . ($code ? ' (' . $code . ')' : ''));
 
                 $addressObj   = $item['address'] ?? [];
                 $addressParts = [];
@@ -172,18 +199,19 @@ try {
             }
 
             saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: {$inserted} vnt. (Gauta iš API: " . count($allItems) . ")";
+            $log[] = "[LOCKERS] ✅ Sėkmingai atnaujinta. Įrašyta: {$inserted} vnt. (Gauta iš API iš viso: " . count($allItems) . ")";
 
         } elseif (!$apiError) {
-            $log[] = "[LOCKERS] API grąžino tuščią sąrašą.";
+            $log[] = "[LOCKERS] ⚠️ API grąžino tuščią sąrašą.";
         }
 
     } else {
-        $log[] = "[LOCKERS] Atnaujinimas praleistas (nepraėjo 7 dienos).";
+        $secondsLeft = 604800 - (time() - $lastLockerSync);
+        $log[] = "[LOCKERS] Atnaujinimas praleistas (nepraėjo 7 dienos, liko ~" . round($secondsLeft / 3600) . " val.).";
     }
 
 } catch (Exception $e) {
-    $log[] = "[LOCKERS] Klaida: " . $e->getMessage();
+    $log[] = "[LOCKERS] ❌ Klaida: " . $e->getMessage();
 }
 
 // =================================================================
@@ -201,18 +229,15 @@ $stmtShipped->execute();
 $ordersShipped = $stmtShipped->fetchAll();
 
 foreach ($ordersShipped as $order) {
-    // Bandome rasti sekimo informaciją delivery_details lauke
-    $details = json_decode($order['delivery_details'] ?? '{}', true);
+    $details      = json_decode($order['delivery_details'] ?? '{}', true);
     $trackingHtml = '';
-    
-    // Jei adminas įrašė tracking kodą į delivery_details (reikia tai numatyti admin dalyje)
-    // Arba jei tiesiog yra pristatymo būdas
+
     if (!empty($details['tracking_code'])) {
         $trackingHtml = "<p style='background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0; color: #166534;'>
                             Jūsų siuntos sekimo numeris: <strong>{$details['tracking_code']}</strong>
                          </p>";
     } elseif (!empty($details['method']) && $details['method'] === 'locker') {
-        $locTitle = $details['title'] ?? 'Paštomatas';
+        $locTitle     = $details['title'] ?? 'Paštomatas';
         $trackingHtml = "<p>Siunta keliauja į pasirinktą paštomatą: <strong>{$locTitle}</strong>.</p>";
     }
 
@@ -221,9 +246,9 @@ foreach ($ordersShipped as $order) {
                 <p>Geros žinios – jūsų užsakymas jau supakuotas ir perduotas kurjerių tarnybai.</p>
                 {$trackingHtml}
                 <p>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>";
-    
+
     $html = getEmailTemplate("Siunta jau kelyje", $content, "https://cukrinukas.lt/account.php", "Mano užsakymai");
-    
+
     if (sendEmail($order['customer_email'], $subject, $html)) {
         $pdo->prepare("UPDATE orders SET email_shipped_sent = 1 WHERE id = ?")->execute([$order['id']]);
         $log[] = "[SHIPPED] Išsiųstas patvirtinimas užsakymui #{$order['id']}";
@@ -246,7 +271,6 @@ $stmtReview->execute();
 $ordersReview = $stmtReview->fetchAll();
 
 foreach ($ordersReview as $order) {
-    // Gauname prekes
     $stmtItems = $pdo->prepare("
         SELECT oi.*, p.title, p.image_url, p.id as product_id 
         FROM order_items oi
@@ -259,10 +283,10 @@ foreach ($ordersReview as $order) {
     if (count($items) > 0) {
         $itemListHtml = '<table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top:20px;">';
         foreach ($items as $item) {
-            $prodUrl = "https://cukrinukas.lt/product.php?id=" . $item['product_id'] . "#reviews"; // #reviews anchor jei yra
-            $img = htmlspecialchars($item['image_url']);
-            $title = htmlspecialchars($item['title']);
-            
+            $prodUrl = "https://cukrinukas.lt/product.php?id=" . $item['product_id'] . "#reviews";
+            $img     = htmlspecialchars($item['image_url']);
+            $title   = htmlspecialchars($item['title']);
+
             $itemListHtml .= "
             <tr>
                 <td style='padding: 10px; border-bottom: 1px solid #eee; width: 60px;'>
@@ -284,8 +308,8 @@ foreach ($ordersReview as $order) {
                     <p>Jūsų nuomonė labai svarbi mums ir kitiems bendruomenės nariams. Būtume labai dėkingi, jei skirtumėte minutę įvertinimui:</p>
                     {$itemListHtml}";
 
-        $html = getEmailTemplate("Jūsų nuomonė svarbi", $content); // Be pagrindinio mygtuko, nes nuorodos lentelėje
-        
+        $html = getEmailTemplate("Jūsų nuomonė svarbi", $content);
+
         if (sendEmail($order['customer_email'], $subject, $html)) {
             $pdo->prepare("UPDATE orders SET email_review_sent = 1 WHERE id = ?")->execute([$order['id']]);
             $log[] = "[REVIEW] Išsiųstas prašymas įvertinti užsakymui #{$order['id']}";
@@ -311,10 +335,8 @@ $stmtBday->execute();
 $usersBday = $stmtBday->fetchAll();
 
 foreach ($usersBday as $user) {
-    // Generuojame kodą: GIMTADIENIS-XXXXX
     $code = generateUniqueDiscountCode($pdo, 'GIMTADIENIS');
-    
-    // Įrašome nuolaidą (pvz. 15% viskam, galioja 7 d.)
+
     $stmtCode = $pdo->prepare("INSERT INTO discount_codes (code, type, value, usage_limit, active, created_at) VALUES (?, 'percent', 15.00, 1, 1, NOW())");
     $stmtCode->execute([$code]);
 
@@ -329,7 +351,6 @@ foreach ($usersBday as $user) {
     $html = getEmailTemplate("Šventinė dovana Jums", $content, "https://cukrinukas.lt/products.php", "Apsipirkti");
 
     if (sendEmail($user['email'], $subject, $html)) {
-        // Pažymime, kad šiais metais (pvz. 2025) jau pasveikinome
         $pdo->prepare("UPDATE users SET last_birthday_promo = YEAR(NOW()) WHERE id = ?")->execute([$user['id']]);
         $log[] = "[BDAY] Išsiųstas sveikinimas vartotojui ID {$user['id']}";
     }
@@ -340,7 +361,6 @@ foreach ($usersBday as $user) {
 // (Paskutinis užsakymas > 90 d., Paskutinis win-back > 180 d. arba niekada)
 // =================================================================
 
-// Randame vartotojus, kurių paskutinis užsakymas senesnis nei 3 mėn
 $stmtWinback = $pdo->prepare("
     SELECT u.id, u.name, u.email, MAX(o.created_at) as last_order_date
     FROM users u
@@ -354,10 +374,8 @@ $stmtWinback->execute();
 $usersWinback = $stmtWinback->fetchAll();
 
 foreach ($usersWinback as $user) {
-    // Generuojame kodą: SUGRIZK-XXXXX
     $code = generateUniqueDiscountCode($pdo, 'SUGRIZK');
-    
-    // Įrašome nuolaidą (pvz. 10% viskam)
+
     $stmtCode = $pdo->prepare("INSERT INTO discount_codes (code, type, value, usage_limit, active, created_at) VALUES (?, 'percent', 10.00, 1, 1, NOW())");
     $stmtCode->execute([$code]);
 
@@ -372,21 +390,32 @@ foreach ($usersWinback as $user) {
     $html = getEmailTemplate("Laukiame sugrįžtant", $content, "https://cukrinukas.lt/products.php", "Peržiūrėti naujienas");
 
     if (sendEmail($user['email'], $subject, $html)) {
-        // Pažymime laiką, kada siuntėme win-back
         $pdo->prepare("UPDATE users SET last_winback_promo = NOW() WHERE id = ?")->execute([$user['id']]);
         $log[] = "[WINBACK] Išsiųstas kvietimas sugrįžti vartotojui ID {$user['id']}";
     }
 }
 
 // =================================================================
-// 5. ANKSTESNI SCENARIJAI (Neapmokėti krepšeliai ir Padėka)
+// 5. NEAPMOKĖTI KREPŠELIAI IR PADĖKA
 // =================================================================
 
 // 1h priminimas
-$stmt1h = $pdo->prepare("SELECT * FROM orders WHERE status = 'laukiama apmokėjimo' AND created_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND created_at > DATE_SUB(NOW(), INTERVAL 6 HOUR) AND email_rem_1h = 0 LIMIT 5");
+$stmt1h = $pdo->prepare("
+    SELECT * FROM orders 
+    WHERE status = 'laukiama apmokėjimo' 
+    AND created_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR) 
+    AND created_at > DATE_SUB(NOW(), INTERVAL 6 HOUR) 
+    AND email_rem_1h = 0 
+    LIMIT 5
+");
 $stmt1h->execute();
 foreach ($stmt1h->fetchAll() as $o) {
-    $html = getEmailTemplate("Jūsų krepšelis laukia", "<p>Sveiki, {$o['customer_name']}, nepamirškite savo prekių krepšelyje.</p>", "https://cukrinukas.lt/account.php", "Tęsti");
+    $html = getEmailTemplate(
+        "Jūsų krepšelis laukia",
+        "<p>Sveiki, {$o['customer_name']}, nepamirškite savo prekių krepšelyje.</p>",
+        "https://cukrinukas.lt/account.php",
+        "Tęsti"
+    );
     if (sendEmail($o['customer_email'], "Nepavyko apmokėti?", $html)) {
         $pdo->prepare("UPDATE orders SET email_rem_1h = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[1H] Priminimas užsakymui #{$o['id']}";
@@ -394,33 +423,54 @@ foreach ($stmt1h->fetchAll() as $o) {
 }
 
 // 24h priminimas
-$stmt24h = $pdo->prepare("SELECT * FROM orders WHERE status = 'laukiama apmokėjimo' AND created_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) AND email_rem_24h = 0 LIMIT 5");
+$stmt24h = $pdo->prepare("
+    SELECT * FROM orders 
+    WHERE status = 'laukiama apmokėjimo' 
+    AND created_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR) 
+    AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) 
+    AND email_rem_24h = 0 
+    LIMIT 5
+");
 $stmt24h->execute();
 foreach ($stmt24h->fetchAll() as $o) {
-    $html = getEmailTemplate("Ar dar domina prekės?", "<p>Sveiki, {$o['customer_name']}, praėjo para, o užsakymas dar neapmokėtas.</p>", "https://cukrinukas.lt/contact.php", "Susisiekti");
+    $html = getEmailTemplate(
+        "Ar dar domina prekės?",
+        "<p>Sveiki, {$o['customer_name']}, praėjo para, o užsakymas dar neapmokėtas.</p>",
+        "https://cukrinukas.lt/contact.php",
+        "Susisiekti"
+    );
     if (sendEmail($o['customer_email'], "Krepšelio priminimas", $html)) {
         $pdo->prepare("UPDATE orders SET email_rem_24h = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[24H] Priminimas užsakymui #{$o['id']}";
     }
 }
 
-// Padėka po 1 val. (Sėkmingi)
-$stmtThx = $pdo->prepare("SELECT * FROM orders WHERE (status = 'patvirtinta' OR status = 'įvykdyta') AND created_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) AND email_thankyou = 0 LIMIT 5");
+// Padėka po 1 val. (Sėkmingi užsakymai)
+$stmtThx = $pdo->prepare("
+    SELECT * FROM orders 
+    WHERE (status = 'patvirtinta' OR status = 'įvykdyta') 
+    AND created_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR) 
+    AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) 
+    AND email_thankyou = 0 
+    LIMIT 5
+");
 $stmtThx->execute();
 foreach ($stmtThx->fetchAll() as $o) {
     $code = generateUniqueDiscountCode($pdo, 'ACIU');
     $pdo->prepare("INSERT INTO discount_codes (code, type, value, usage_limit, active, created_at) VALUES (?, 'percent', 5.00, 1, 1, NOW())")->execute([$code]);
-    
+
     $content = "<p>Ačiū, kad perkate! Dovanojame 5% nuolaidą kitam kartui: <strong>{$code}</strong></p>";
-    $html = getEmailTemplate("Dovana Jums", $content, "https://cukrinukas.lt/products.php", "Panaudoti");
-    
+    $html    = getEmailTemplate("Dovana Jums", $content, "https://cukrinukas.lt/products.php", "Panaudoti");
+
     if (sendEmail($o['customer_email'], "Ačiū už užsakymą! 🎁", $html)) {
         $pdo->prepare("UPDATE orders SET email_thankyou = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[THANKYOU] Padėka užsakymui #{$o['id']}";
     }
 }
 
-// --- LOGO IŠVEDIMAS ---
+// =================================================================
+// REZULTATAI
+// =================================================================
 if (!empty($log)) {
     echo implode("<br>", $log);
 } else {
