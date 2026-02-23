@@ -243,6 +243,10 @@ if (function_exists('headerStyles')) {
                 <p>Paspaudę mygtuką „Įdėti skelbimą“ turgelio puslapyje, užpildykite visą informaciją: pasirinkite tipą „Parduodu“, įkelkite nuotraukas, detaliai aprašykite būklę bei nurodykite kainą.</p>
             </div>
             <div class="faq-item">
+                <h3>Kas yra atsakingas už siuntimo mokesčius?</h3>
+                <p>Visas siuntimo išlaidas apmoka pardavėjas, tad rekomenduojame šią sumą iškart įtraukti į pardavimo kainą.</p>
+            </div>
+            <div class="faq-item">
                 <h3>Kada ir kaip gausiu pinigus už parduotą prekę?</h3>
                 <p>Kai išsiunčiate prekę ir pirkėjas paspaudžia mygtuką „Gavau prekę“, lėšos (atskaičius komisinį mokestį) automatiškai pervedamos į jūsų susietą „Stripe“ banko sąskaitą. Susiejant savo paskyrą su „Stripe“ jūsų prašoma įvesti savo banko sąskaitos numerį, tad į tą sąskaitą jums pinigai ir įkris.</p>
             </div>
