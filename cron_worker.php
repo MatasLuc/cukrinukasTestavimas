@@ -9,19 +9,21 @@ $pdo = getPdo();
 $log = [];
 
 // --- PAGALBINĖ FUNKCIJA KODŲ GENERAVIMUI ---
-function generateUniqueDiscountCode(PDO $pdo, string $prefix): string {
-    $exists = true;
-    $code = '';
-    while ($exists) {
-        $random = strtoupper(substr(md5(uniqid()), 0, 5));
-        $code = $prefix . '-' . $random;
-        $stmt = $pdo->prepare("SELECT id FROM discount_codes WHERE code = ?");
-        $stmt->execute([$code]);
-        if (!$stmt->fetch()) {
-            $exists = false;
+if (!function_exists('generateUniqueDiscountCode')) {
+    function generateUniqueDiscountCode(PDO $pdo, string $prefix): string {
+        $exists = true;
+        $code = '';
+        while ($exists) {
+            $random = strtoupper(substr(md5(uniqid()), 0, 5));
+            $code = $prefix . '-' . $random;
+            $stmt = $pdo->prepare("SELECT id FROM discount_codes WHERE code = ?");
+            $stmt->execute([$code]);
+            if (!$stmt->fetch()) {
+                $exists = false;
+            }
         }
+        return $code;
     }
-    return $code;
 }
 
 // =================================================================
@@ -30,9 +32,10 @@ function generateUniqueDiscountCode(PDO $pdo, string $prefix): string {
 try {
     $siteContent = getSiteContent($pdo);
     $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
+    $forceSync = $forceSync ?? false; // Ateina iš admin/shipping.php
 
-    // Jei praėjo daugiau nei 7 dienos (604800 sekundės) nuo paskutinio atnaujinimo
-    if (time() - $lastLockerSync > 604800) {
+    // Jei praėjo daugiau nei 7 dienos (604800 sekundės) nuo paskutinio atnaujinimo ARBA paspausta "Atnaujinti iš API" administracijoje
+    if ($forceSync || (time() - $lastLockerSync > 604800)) {
         // Formuojame užklausą į Paysera Delivery API gauti visus atsiėmimo taškus
         $deliveryApiUrl = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
         $pickupPointsUrl = $deliveryApiUrl . '/pickup-points';
@@ -75,13 +78,15 @@ try {
 
                 // Užfiksuojame atnaujinimo laiką
                 saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-                $log[] = "[LOCKERS] Paštomatai sėkmingai atnaujinti iš Paysera API.";
+                $log[] = "[LOCKERS] Paštomatai sėkmingai atnaujinti iš Paysera API. Įrašyta: " . count($items) . " vnt.";
             } else {
-                $log[] = "[LOCKERS] Gautas tuščias paštomatų sąrašas.";
+                $log[] = "[LOCKERS] Gautas tuščias paštomatų sąrašas iš API (nėra elementų).";
             }
         } else {
             $log[] = "[LOCKERS] Nepavyko atnaujinti paštomatų. HTTP Kodas: {$httpCode}. Atsakas: {$response}";
         }
+    } else {
+        $log[] = "[LOCKERS] Paštomatų atnaujinimas praleistas (praėjo mažiau nei 7 dienos).";
     }
 } catch (Exception $e) {
     $log[] = "[LOCKERS] Klaida atnaujinant paštomatus: " . $e->getMessage();
