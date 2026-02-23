@@ -29,7 +29,7 @@ BEFORE writing any code or response, the AI MUST read and strictly adhere to the
 * **Database:** MySQL / MariaDB.
 * **DB Connection:** Use `db.php` (PDO).
 * **Frontend:** HTML5, CSS, Vanilla JS.
-* **Payments:** `libwebtopay` (Paysera).
+* **Payments:** Stripe (`stripe_checkout.php`, `stripe_webhook.php`) & Paysera (`libwebtopay`).
 * **Email:** `PHPMailer` (located in `lib/PHPMailer`).
 
 ---
@@ -42,11 +42,18 @@ AI must adhere to this structure when creating or referencing files:
 * **`lib/`** – External libraries (Do not touch unless updating).
 * **`uploads/`** – Image storage.
 * **`db.php`** – Database config (Must be included where DB is needed).
+* **`layout.php` / `header.php`** – UI layouts. Do not duplicate full HTML structures; use existing layout includes.
+
+**Configuration & Security:**
+* **API Keys & Passwords:** Never hardcode sensitive data. Always retrieve settings from the `.env` file (parsed via `env.php`).
 
 **Code Style:**
 * Variables: `snake_case` (e.g., `$user_id`, `$order_total`).
 * Functions: `snake_case` or `camelCase` (follow the existing file context).
-* Error Handling: Use `try { ... } catch (PDOException $e) { ... }`.
+* Error Handling: Use `try { ... } catch (PDOException $e) { ... }`. Log crucial background errors (especially in webhooks) using `logger.php`.
+
+**Session Management:**
+* Rely on established `$_SESSION` variables (e.g., checking if user or admin is logged in) before executing restricted logic.
 
 ---
 
@@ -62,11 +69,3 @@ AI must adhere to this structure when creating or referencing files:
 2.  AI reads `README.md` guidelines.
 3.  **Ambiguity Check:** If the task is unclear -> AI asks the user.
 4.  **Execution:** AI provides the **FULL** file code, ensuring existing design and features remain intact.
-
-
-TO DO LIST. 
-apmokėjus užsakymą, vis dar nemato, kad jis apmokėtas.
-el. laiškų siuntime turi būti galimybė išsiųsti laišką.
-sutvarkyti footerį.
-patobulinti viršutinę juostelę, nes baisiai ryški dabar.
-susitvarkyt normaliai el. paštą.
