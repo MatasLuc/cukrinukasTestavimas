@@ -10,6 +10,18 @@ ensureNavigationTable($pdo);
 tryAutoLogin($pdo);
 $user = currentUser();
 
+// Gauname 4 naujausius skelbimus iš turgaus
+$marketSql = "
+    SELECT m.*, u.name as username, c.name as cat_name
+    FROM community_listings m
+    LEFT JOIN users u ON m.user_id = u.id
+    LEFT JOIN community_listing_categories c ON m.category_id = c.id
+    WHERE m.status IN ('active', 'sold')
+    ORDER BY m.created_at DESC
+    LIMIT 4
+";
+$marketItems = $pdo->query($marketSql)->fetchAll();
+
 $messages = [];
 $errors = [];
 if (!empty($_SESSION['flash_success'])) {
@@ -64,7 +76,7 @@ echo headerStyles();
         margin-bottom: 16px;
     }
 
-    /* Hero Action Card (vietoje stat-card) */
+    /* Hero Action Card */
     .hero-card {
         background: #fff;
         border: 1px solid rgba(255,255,255,0.8);
@@ -142,6 +154,40 @@ echo headerStyles();
 
     .help-footer { text-align: center; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
     .help-footer a { color: var(--accent); font-weight: 600; text-decoration: underline; }
+
+    /* Minimalist Market Preview Grid */
+    .market-preview-section { margin-top: 8px; }
+    .market-preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .market-preview-header h2 { font-size: 22px; color: var(--text-main); margin: 0; }
+    .market-preview-header a { font-size: 14px; color: var(--accent); font-weight: 600; }
+    .market-preview-header a:hover { text-decoration: underline; }
+    
+    .market-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 20px;
+    }
+    .preview-card {
+        background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+        display: flex; flex-direction: column; transition: transform .2s, box-shadow .2s;
+        text-decoration: none; color: inherit; height: 100%;
+    }
+    .preview-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+    .preview-image {
+        height: 160px; background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+        font-size: 32px; color: #cbd5e1; position: relative; border-bottom: 1px solid var(--border);
+    }
+    .preview-image img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-badge {
+        position: absolute; top: 10px; left: 10px; padding: 4px 8px; border-radius: 6px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .preview-badge.sell { color: var(--accent); }
+    .preview-badge.buy { color: #b45309; background: #fff7ed; border: 1px solid #fed7aa; }
+    .preview-body { padding: 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .preview-title { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .preview-price { font-size: 16px; font-weight: 700; color: var(--accent); margin-top: auto; }
+    .preview-price.buy-price { color: #b45309; }
 
     @media (max-width: 768px) {
         .hero { padding: 24px; flex-direction: column; align-items: stretch; }
@@ -224,6 +270,49 @@ echo headerStyles();
       </a>
   </div>
 
+  <?php if (!empty($marketItems)): ?>
+  <div class="market-preview-section">
+      <div class="market-preview-header">
+          <h2>Naujausi skelbimai turgelyje</h2>
+          <a href="/community_market.php">Visi skelbimai →</a>
+      </div>
+      <div class="market-preview-grid">
+          <?php foreach ($marketItems as $item): 
+              $listingType = $item['listing_type'] ?? 'sell';
+              $itemUrl = '/community_listing.php?id=' . $item['id'];
+          ?>
+          <a href="<?php echo $itemUrl; ?>" class="preview-card">
+              <div class="preview-image">
+                  <?php if ($listingType === 'buy'): ?>
+                      <div class="preview-badge buy">Ieško</div>
+                  <?php else: ?>
+                      <div class="preview-badge sell">Parduoda</div>
+                  <?php endif; ?>
+
+                  <?php if (!empty($item['image_url'])): ?>
+                      <img src="<?php echo htmlspecialchars($item['image_url']); ?>" alt="<?php echo htmlspecialchars($item['title']); ?>">
+                  <?php else: ?>
+                      <span style="opacity:0.3;"><?php echo $listingType === 'buy' ? '🕵️' : '📷'; ?></span>
+                  <?php endif; ?>
+              </div>
+              <div class="preview-body">
+                  <h3 class="preview-title"><?php echo htmlspecialchars($item['title']); ?></h3>
+                  <div class="preview-price <?php echo $listingType === 'buy' ? 'buy-price' : ''; ?>">
+                      <?php 
+                      if ($listingType === 'buy') {
+                          echo ($item['price'] > 0) ? 'Biudžetas: ' . number_format($item['price'], 2) . ' €' : 'Sutartinė';
+                      } else {
+                          echo ($item['price'] > 0) ? number_format($item['price'], 2) . ' €' : 'Nemokamai / Sutartinė';
+                      }
+                      ?>
+                  </div>
+              </div>
+          </a>
+          <?php endforeach; ?>
+      </div>
+  </div>
+  <?php endif; ?>
+
   <div class="info-grid">
       <div class="card">
           <div class="card-body">
@@ -251,13 +340,12 @@ echo headerStyles();
 
       <div class="card" style="background: linear-gradient(135deg, #f8fafc, #fff);">
           <div class="card-body">
-              <h3 style="margin-top:0; font-size:18px;">🌟 Kultūra ir saugumas</h3>
+              <h3 style="margin-top:0; font-size:18px;">❓ Pagalba ir DUK</h3>
               <p style="margin:0 0 16px; font-size:14px; color:var(--text-muted); line-height:1.6;">
-                  Mes kuriame draugišką erdvę. Moderatoriai gali pašalinti netinkamą turinį, kad visi jaustųsi saugūs.
+                  Nežinote nuo ko pradėti ar kaip veikia bendruomenės platforma? Užsukite į pagalbos centrą, kuriame atsakome į dažniausiai užduodamus klausimus.
               </p>
-              <div style="margin-top:auto; display:flex; gap:8px; flex-wrap:wrap;">
-                  <span style="font-size:12px; background:#fff7ed; color:#9a3412; padding:6px 10px; border-radius:8px; border:1px solid #fed7aa; font-weight:600;">🧡 Draugiškumas</span>
-                  <span style="font-size:12px; background:#f0fdf4; color:#166534; padding:6px 10px; border-radius:8px; border:1px solid #bbf7d0; font-weight:600;">🌱 Pagalba</span>
+              <div style="margin-top:auto;">
+                  <a href="/community_help.php" class="btn-outline" style="width:100%; text-align:center;">Skaityti daugiau</a>
               </div>
           </div>
       </div>
