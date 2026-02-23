@@ -46,7 +46,7 @@ try {
         
         // Ciklas, kadangi API paštomatus grąžina puslapiais
         while ($hasMore) {
-            $apiUrl = $deliveryApiUrl . "/parcel-machines?limit={$limit}&offset={$offset}";
+            $apiUrl = "https://delivery-api.paysera.com/public/rest/v1/parcel-machines?limit={$limit}&offset={$offset}";
             
             $ch = curl_init($apiUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
