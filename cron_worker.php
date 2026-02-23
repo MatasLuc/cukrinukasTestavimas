@@ -32,94 +32,124 @@ if (!function_exists('generateUniqueDiscountCode')) {
 try {
     $siteContent = getSiteContent($pdo);
     $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
-    $forceSync = $forceSync ?? false; // Ateina iš admin/shipping.php
+    $forceSync = $forceSync ?? false;
 
-    // Jei praėjo daugiau nei 7 dienos (604800 sekundės) nuo paskutinio atnaujinimo ARBA paspausta "Atnaujinti iš API" administracijoje
     if ($forceSync || (time() - $lastLockerSync > 604800)) {
-        $deliveryApiUrl = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
-        
+
+        $baseUrl   = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
+        $projectId = requireEnv('PAYSERA_PROJECTID');
+        $password  = requireEnv('PAYSERA_PASSWORD');
+
         $allItems = [];
         $limit = 200;
         $offset = 0;
         $hasMore = true;
         $apiError = false;
-        
-        // Ciklas, kadangi API paštomatus grąžina puslapiais
+
         while ($hasMore) {
-            $apiUrl = "https://delivery-api.paysera.com/public/rest/v1/parcel-machines?limit={$limit}&offset={$offset}";
-            
+
+            $apiUrl = "{$baseUrl}/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
+
             $ch = curl_init($apiUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_USERPWD, requireEnv('PAYSERA_PROJECTID') . ':' . requireEnv('PAYSERA_PASSWORD'));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Accept: application/json',
-                'Content-Type: application/json'
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_USERPWD        => "{$projectId}:{$password}",
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json'
+                ],
+                CURLOPT_TIMEOUT        => 30
             ]);
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
             curl_close($ch);
 
             if ($httpCode === 200 && $response) {
+
                 $data = json_decode($response, true);
-                $items = $data['items'] ?? [];
-                
+                $items = $data['list'] ?? [];
+
                 if (!empty($items)) {
                     $allItems = array_merge($allItems, $items);
                     $offset += $limit;
                 } else {
-                    $hasMore = false; // Daugiau elementų nėra
+                    $hasMore = false;
                 }
+
             } else {
-                $log[] = "[LOCKERS] Nepavyko atnaujinti paštomatų. HTTP Kodas: {$httpCode}. Atsakas: {$response}";
-                $hasMore = false;
+                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
                 $apiError = true;
+                $hasMore = false;
             }
         }
 
-        // Jei gavome duomenų be klaidų – išsaugome į DB
         if (!$apiError && !empty($allItems)) {
-            // Išvalome seną paštomatų sąrašą
+
             $pdo->exec("TRUNCATE TABLE parcel_lockers");
 
-            $stmtInsertLocker = $pdo->prepare("
+            $stmt = $pdo->prepare("
                 INSERT INTO parcel_lockers (provider, terminal_id, title, address, note) 
                 VALUES (?, ?, ?, ?, ?)
             ");
 
             foreach ($allItems as $item) {
-                // Formatuojame provider'į, kad sutaptų su admin atvaizdavimu (pvz., 'lp_express' -> 'lpexpress')
+
+                if (!($item['enabled'] ?? false)) {
+                    continue;
+                }
+
                 $providerRaw = $item['shipment_gateway_code'] ?? 'paysera';
                 $provider = str_replace('_', '', strtolower($providerRaw));
-                
-                $terminalId = $item['id'] ?? '';
-                $title = $item['name'] ?? 'Paštomatas';
-                
-                // Sujungiame adresą
-                $addressParts = [];
-                if (!empty($item['street'])) $addressParts[] = $item['street'];
-                if (!empty($item['address'])) $addressParts[] = $item['address'];
-                if (!empty($item['city'])) $addressParts[] = $item['city'];
-                $address = !empty($addressParts) ? implode(', ', $addressParts) : '';
 
-                $note = ''; 
+                $terminalId = $item['id'] ?? '';
+                $title = $item['location_name'] ?? 'Paštomatas';
+
+                $addressParts = [];
+
+                if (!empty($item['address']['street'])) {
+                    $addressParts[] = $item['address']['street'];
+                }
+
+                if (!empty($item['address']['house_number'])) {
+                    $addressParts[] = $item['address']['house_number'];
+                }
+
+                if (!empty($item['address']['city'])) {
+                    $addressParts[] = $item['address']['city'];
+                }
+
+                if (!empty($item['address']['postal_code'])) {
+                    $addressParts[] = $item['address']['postal_code'];
+                }
+
+                $address = implode(', ', $addressParts);
+                $note = '';
 
                 if (!empty($terminalId)) {
-                    $stmtInsertLocker->execute([$provider, $terminalId, $title, $address, $note]);
+                    $stmt->execute([
+                        $provider,
+                        $terminalId,
+                        $title,
+                        $address,
+                        $note
+                    ]);
                 }
             }
 
-            // Užfiksuojame atnaujinimo laiką
             saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-            $log[] = "[LOCKERS] Sėkmingai atnaujinta iš Paysera API. Įrašyta: " . count($allItems) . " vnt.";
+            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: " . count($allItems);
+
         } elseif (!$apiError) {
-            $log[] = "[LOCKERS] Gautas tuščias paštomatų sąrašas iš API.";
+            $log[] = "[LOCKERS] API grąžino tuščią sąrašą.";
         }
+
     } else {
-        $log[] = "[LOCKERS] Paštomatų atnaujinimas praleistas (praėjo mažiau nei 7 dienos).";
+        $log[] = "[LOCKERS] Atnaujinimas praleistas (7 dienos nepraėjo).";
     }
+
 } catch (Exception $e) {
-    $log[] = "[LOCKERS] Klaida atnaujinant paštomatus: " . $e->getMessage();
+    $log[] = "[LOCKERS] Kritinė klaida: " . $e->getMessage();
 }
 
 // =================================================================
