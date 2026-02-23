@@ -39,7 +39,7 @@ try {
 
         $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
         $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
-        $baseUrl   = rtrim(getenv('PAYSERA_DELIVERY_API_URL') ?: ($_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/merchant/rest/v1/'), '/');
+        $baseUrl   = rtrim(getenv('PAYSERA_DELIVERY_API_URL') ?: ($_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1'), '/');
 
         $allItems  = [];
         $limit     = 200;
