@@ -1,6 +1,34 @@
 <?php
 // admin/orders.php
 
+// --- MAC TOKEN AUTENTIFIKACIJA ---
+if (!function_exists('buildMacAuthHeader')) {
+    function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url): string {
+        $parsed = parse_url($url);
+        $ts     = (string) time();
+        $nonce  = bin2hex(random_bytes(8));
+        $host   = $parsed['host'];
+        $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
+        $path   = $parsed['path'] ?? '/';
+        if (!empty($parsed['query'])) {
+            $path .= '?' . $parsed['query'];
+        }
+
+        $requestString = $ts    . "\n"
+                       . $nonce . "\n"
+                       . strtoupper($method) . "\n"
+                       . $path  . "\n"
+                       . $host  . "\n"
+                       . (string)$port . "\n"
+                       . "\n";
+
+        $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
+
+        return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+            $macId, $ts, $nonce, $mac);
+    }
+}
+
 // 0. IŠTRYNIMO LOGIKA
 if (isset($_POST['delete_id'])) {
     // Saugumo patikrinimas: ar tai validi užklausa
@@ -114,7 +142,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
-                'Authorization: Basic ' . base64_encode($projectId . ':' . $password)
+                'Authorization: ' . buildMacAuthHeader($projectId, $password, 'POST', $endpoint)
             ]);
 
             $response = curl_exec($ch);
