@@ -702,7 +702,7 @@ if (!empty($_SESSION['user_id'])) {
                             <label class="form-label" style="margin-bottom:10px;">1. Pasirinkite tiekėją:</label>
                             
                             <div class="provider-grid">
-                                <div class="provider-btn" onclick="filterLockers('lpexpress', this)">
+                                <div class="provider-btn" onclick="filterLockers('lp', this)">
                                     LP EXPRESS
                                 </div>
                                 <div class="provider-btn" onclick="filterLockers('omniva', this)">
