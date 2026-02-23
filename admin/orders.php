@@ -181,12 +181,16 @@ try {
         LEFT JOIN users u ON u.id = o.user_id 
         ORDER BY o.created_at DESC
     ')->fetchAll(PDO::FETCH_ASSOC);
-
-    // Gauname visus paštomatus admino pasirinkimui
-    $lockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city, title")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    echo "<div class='alert alert-danger'>Duomenų bazės klaida: " . $e->getMessage() . "</div>";
+    echo "<div class='alert alert-danger'>Duomenų bazės klaida (užsakymai): " . $e->getMessage() . "</div>";
     $allOrders = [];
+}
+
+// 1.1 Gauname paštomatus atskirame try-catch bloke, kad klaida nesustabdytų užsakymų atvaizdavimo
+try {
+    // PATAISYMAS: Pašalintas 'city' iš ORDER BY, nes DB gali jo nebūti. Rikiuojame tik pagal title.
+    $lockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY title")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
     $lockers = [];
 }
 
@@ -556,8 +560,8 @@ unset($order);
                 <select name="sender_locker_id" class="form-control" required>
                     <option value="">-- Pasirinkite paštomatą --</option>
                     <?php foreach ($lockers as $locker): ?>
-                        <option value="<?php echo htmlspecialchars($locker['note']); ?>">
-                            <?php echo htmlspecialchars($locker['city'] . ' - ' . $locker['title'] . ' (' . $locker['address'] . ')'); ?>
+                        <option value="<?php echo htmlspecialchars($locker['note'] ?? $locker['id'] ?? ''); ?>">
+                            <?php echo htmlspecialchars(($locker['city'] ?? 'Nežinomas miestas') . ' - ' . ($locker['title'] ?? '') . ' (' . ($locker['address'] ?? '') . ')'); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
