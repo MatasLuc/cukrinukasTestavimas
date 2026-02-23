@@ -26,6 +26,150 @@ if (isset($_POST['delete_id'])) {
     }
 }
 
+// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA
+if (isset($_POST['create_paysera_shipment'])) {
+    if (function_exists('validateCsrf')) {
+        validateCsrf();
+    }
+
+    $orderId = (int)$_POST['order_id'];
+    $senderLockerId = $_POST['sender_locker_id'];
+
+    try {
+        // Gauname užsakymo duomenis
+        $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($order) {
+            // Įkrauname aplinkos kintamuosius iš .env
+            $envFile = __DIR__ . '/../.env';
+            if (file_exists($envFile)) {
+                $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                foreach ($lines as $line) {
+                    if (strpos(trim($line), '#') === 0) continue;
+                    list($name, $value) = explode('=', $line, 2);
+                    $_ENV[trim($name)] = trim($value);
+                }
+            }
+
+            $projectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID');
+            $password = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD');
+            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/merchant/rest/v1/';
+            
+            $senderName = $_ENV['PAYSERA_SENDER_NAME'] ?? 'Siuntėjas';
+            $senderPhone = $_ENV['PAYSERA_SENDER_PHONE'] ?? '+37060000000';
+            $senderEmail = $_ENV['PAYSERA_SENDER_EMAIL'] ?? 'info@parduotuve.lt';
+
+            // Iššifruojame kliento pristatymo duomenis (iš checkout fiksavimo)
+            $delDetails = json_decode($order['delivery_details'], true);
+
+            // Formuojame užklausos kūną API (Pagal reikalavimus: dydis M, 1 kg)
+            $payload = [
+                'sender' => [
+                    'name' => $senderName,
+                    'phone' => $senderPhone,
+                    'email' => $senderEmail,
+                    'country_code' => 'LT',
+                    'parcel_machine_id' => $senderLockerId
+                ],
+                'receiver' => [
+                    'name' => $order['customer_name'],
+                    'phone' => !empty($order['customer_phone']) ? $order['customer_phone'] : '+37060000000',
+                    'email' => $order['customer_email'],
+                    'country_code' => 'LT'
+                ],
+                'parcels' => [
+                    [
+                        'weight' => 1.0,
+                        'package_size' => 'M'
+                    ]
+                ]
+            ];
+
+            // Priskiriame gavėjo duomenis pagal pristatymo tipą
+            if ($order['delivery_method'] === 'locker') {
+                $payload['receiver']['parcel_machine_id'] = $delDetails['locker_id'] ?? '';
+            } elseif ($order['delivery_method'] === 'courier') {
+                // Išskiriame adreso eilutę, jei įmanoma
+                $addr = $order['customer_address'];
+                $parts = explode(',', $addr);
+                if (count($parts) >= 3) {
+                    $payload['receiver']['street'] = trim($parts[0]);
+                    $payload['receiver']['city'] = trim($parts[1]);
+                    $payload['receiver']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
+                } else {
+                    $payload['receiver']['city'] = 'Lietuva';
+                    $payload['receiver']['street'] = $addr;
+                    $payload['receiver']['postal_code'] = '00000';
+                }
+            }
+
+            // Kreipiamės į Paysera API
+            $endpoint = rtrim($apiUrl, '/') . '/shipments';
+            $ch = curl_init($endpoint);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Basic ' . base64_encode($projectId . ':' . $password)
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            // Jei sukurta sėkmingai
+            if ($httpCode >= 200 && $httpCode < 300 && $response) {
+                $resData = json_decode($response, true);
+                
+                $payseraId = $resData['id'] ?? '';
+                $tracking = $resData['tracking_number'] ?? '';
+                $labelUrl = $resData['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$payseraId}/label");
+
+                // Atnaujiname užsakymą DB
+                $updateStmt = $pdo->prepare("
+                    UPDATE orders 
+                    SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'išsiųsta' 
+                    WHERE id = ?
+                ");
+                $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
+
+                // Automatinių el. laiškų siuntimas per mailer.php
+                $mailerPath = __DIR__ . '/../mailer.php';
+                if (file_exists($mailerPath)) {
+                    require_once $mailerPath;
+                    if (function_exists('sendEmail')) {
+                        $subject = "Jūsų užsakymas paruoštas siuntimui!";
+                        $body = "
+                            <div style='font-family: sans-serif; color: #333;'>
+                                <h2>Sveiki, " . htmlspecialchars($order['customer_name']) . ",</h2>
+                                <p>Norime pranešti, kad Jūsų užsakymas <strong>#" . (int)$order['id'] . "</strong> yra sėkmingai sugeneruotas sistemoje ir netrukus pajudės pas Jus.</p>";
+                        if (!empty($tracking)) {
+                            $body .= "<p>Siuntos sekimo numeris: <strong>{$tracking}</strong></p>";
+                        }
+                        $body .= "
+                                <p>Dėkojame, kad perkate pas mus!</p>
+                            </div>
+                        ";
+                        sendEmail($order['customer_email'], $subject, $body);
+                    }
+                }
+
+                echo "<script>window.location.href='index.php?page=orders';</script>";
+                exit;
+            } else {
+                $err = json_decode($response, true);
+                echo "<div class='alert alert-danger'>Paysera API Klaida: " . htmlspecialchars($err['message'] ?? 'Nežinoma klaida') . " (Kodas: $httpCode)</div>";
+            }
+        }
+    } catch (Exception $e) {
+        echo "<div class='alert alert-danger'>Sistemos klaida: " . $e->getMessage() . "</div>";
+    }
+}
+
 // 1. Surenkame duomenis
 try {
     // PATAISYMAS: Pašalintas u.phone, nes jo nėra users lentelėje. Naudojame orders.customer_phone
@@ -37,9 +181,13 @@ try {
         LEFT JOIN users u ON u.id = o.user_id 
         ORDER BY o.created_at DESC
     ')->fetchAll(PDO::FETCH_ASSOC);
+
+    // Gauname visus paštomatus admino pasirinkimui
+    $lockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY city, title")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     echo "<div class='alert alert-danger'>Duomenų bazės klaida: " . $e->getMessage() . "</div>";
     $allOrders = [];
+    $lockers = [];
 }
 
 $orderItemsStmt = $pdo->prepare('
@@ -183,6 +331,14 @@ unset($order);
     .badge-yes { background: #dcfce7; color: #166534; }
     .badge-no { background: #f3f4f6; color: #6b7280; }
 
+    /* Nauji siuntų mygtukai */
+    .btn-shipment {
+        background: #2563eb; color: #fff; font-size: 11px; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; display: inline-block; font-weight: 600; text-decoration: none;
+    }
+    .btn-shipment:hover { background: #1d4ed8; }
+    .btn-label { background: #f3f4f6; color: #111; border: 1px solid #ccc; font-size: 11px; padding: 6px 12px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 600; }
+    .btn-label:hover { background: #e5e7eb; }
+
     @media (max-width: 768px) {
         .modal-grid { grid-template-columns: 1fr; }
         .modal-footer { flex-direction: column; gap: 10px; }
@@ -212,6 +368,8 @@ unset($order);
         <tbody>
           <?php foreach ($allOrders as $order): 
                 $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($order['status']));
+                $isPhysical = in_array($order['delivery_method'], ['locker', 'courier']);
+                $hasPaysera = !empty($order['paysera_shipment_id']);
           ?>
             <tr>
               <td><strong>#<?php echo (int)$order['id']; ?></strong></td>
@@ -228,11 +386,27 @@ unset($order);
                 <span class="status-badge <?php echo $statusClass; ?>">
                     <?php echo ucfirst($order['status']); ?>
                 </span>
-                <?php if(!empty($order['tracking_number'])): ?>
+                
+                <?php if ($hasPaysera): ?>
+                    <div style="font-size:11px; color:#15803d; font-weight:bold; margin-top:4px;">
+                        📦 <?php echo htmlspecialchars($order['tracking_number']); ?>
+                    </div>
+                <?php elseif(!empty($order['tracking_number'])): ?>
                     <div style="font-size:10px; color:#666; margin-top:2px;">📦 <?php echo htmlspecialchars($order['tracking_number']); ?></div>
                 <?php endif; ?>
               </td>
               <td style="text-align:right;">
+                
+                <?php if ($isPhysical && !$hasPaysera): ?>
+                    <button class="btn-shipment open-paysera-modal" type="button" data-order-id="<?php echo $order['id']; ?>" style="margin-bottom: 5px;">
+                        Kurti Paysera siuntą
+                    </button><br>
+                <?php elseif ($hasPaysera && !empty($order['paysera_label_url'])): ?>
+                    <a href="<?php echo htmlspecialchars($order['paysera_label_url']); ?>" target="_blank" class="btn-label" style="margin-bottom: 5px;">
+                        Lipdukas (PDF)
+                    </a><br>
+                <?php endif; ?>
+
                 <button class="btn secondary open-order-modal" 
                         type="button"
                         data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
@@ -241,7 +415,6 @@ unset($order);
                 
                 <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
                     <?php if(function_exists('csrfField')) echo csrfField(); ?>
-                    
                     <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
                     <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
                 </form>
@@ -367,7 +540,38 @@ unset($order);
     </div>
 </div>
 
+<div id="payseraModal" class="modal-overlay">
+    <div class="modal-window" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Kurti Paysera siuntą</h3>
+            <button type="button" class="modal-close" onclick="closePayseraModal()">&times;</button>
+        </div>
+        <form method="POST">
+            <?php if(function_exists('csrfField')) echo csrfField(); ?>
+            <input type="hidden" name="create_paysera_shipment" value="1">
+            <input type="hidden" name="order_id" id="p_orderId">
+            
+            <div class="modal-body">
+                <p style="font-size:14px; margin-bottom:10px; color:#555;">Pasirinkite, iš kurio savo paštomato išsiųsite prekes klientui (Dydis M, 1kg):</p>
+                <select name="sender_locker_id" class="form-control" required>
+                    <option value="">-- Pasirinkite paštomatą --</option>
+                    <?php foreach ($lockers as $locker): ?>
+                        <option value="<?php echo htmlspecialchars($locker['note']); ?>">
+                            <?php echo htmlspecialchars($locker['city'] . ' - ' . $locker['title'] . ' (' . $locker['address'] . ')'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn secondary" onclick="closePayseraModal()">Atšaukti</button>
+                <button type="submit" class="btn btn-primary" style="background:#2563eb; color:#fff;">Patvirtinti ir sukurti</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+    // --- Bazinio Modalo Logika ---
     const modal = document.getElementById('orderModal');
     
     function boolBadge(val) {
@@ -381,7 +585,6 @@ unset($order);
         return dateStr;
     }
 
-    // Atidaryti modalą
     document.querySelectorAll('.open-order-modal').forEach(btn => {
         btn.addEventListener('click', function() {
             let data = {};
@@ -487,5 +690,27 @@ unset($order);
     
     modal.addEventListener('click', function(e) {
         if (e.target === modal) closeModal();
+    });
+
+    // --- Paysera Modalo Logika ---
+    const payseraModal = document.getElementById('payseraModal');
+
+    document.querySelectorAll('.open-paysera-modal').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const orderId = this.getAttribute('data-order-id');
+            document.getElementById('p_orderId').value = orderId;
+            
+            payseraModal.style.display = 'flex';
+            setTimeout(() => { payseraModal.classList.add('open'); }, 10);
+        });
+    });
+
+    function closePayseraModal() {
+        payseraModal.classList.remove('open');
+        setTimeout(() => { payseraModal.style.display = 'none'; }, 200);
+    }
+
+    payseraModal.addEventListener('click', function(e) {
+        if (e.target === payseraModal) closePayseraModal();
     });
 </script>
