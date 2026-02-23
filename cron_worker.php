@@ -29,9 +29,7 @@ if (!function_exists('generateUniqueDiscountCode')) {
     }
 }
 
-// =================================================================
-// 0. PAŠTOMATŲ SINCHRONIZACIJA SU PAYSERA
-// =================================================================
+// PAŠTOMATAI
 try {
     $siteContent = getSiteContent($pdo);
     $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
@@ -41,7 +39,7 @@ try {
 
         $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
         $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
-        $baseUrl   = "https://delivery-api.paysera.com/rest/v1";
+        $baseUrl   = rtrim(getenv('PAYSERA_DELIVERY_API_URL') ?: ($_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/merchant/rest/v1/'), '/');
 
         $allItems  = [];
         $limit     = 200;
@@ -76,11 +74,11 @@ try {
 
             $data = json_decode($response, true);
 
-            // Paysera /parcel-machines grąžina 'items', ne 'list'
-            $items = $data['items'] ?? $data['list'] ?? null;
+            // ✅ ParcelMachineCollection grąžina 'list', ne 'items'
+            $items = $data['list'] ?? $data['items'] ?? null;
 
             if ($items === null) {
-                $log[] = "[LOCKERS] Nežinoma API atsakymo struktūra: " . json_encode(array_keys($data));
+                $log[] = "[LOCKERS] Nežinoma API struktūra. Raktai: " . json_encode(array_keys($data));
                 $apiError = true;
                 break;
             }
