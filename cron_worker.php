@@ -27,129 +27,66 @@ if (!function_exists('generateUniqueDiscountCode')) {
 }
 
 // =================================================================
-// 0. PAŠTOMATŲ SINCHRONIZACIJA SU PAYSERA (KARTĄ PER SAVAITĘ)
+// 🔎 PAYSERA DELIVERY API DEBUG REŽIMAS
 // =================================================================
 try {
-    $siteContent = getSiteContent($pdo);
-    $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
-    $forceSync = $forceSync ?? false;
 
-    if ($forceSync || (time() - $lastLockerSync > 604800)) {
+    $baseUrl   = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
+    $projectId = requireEnv('PAYSERA_PROJECTID');
+    $password  = requireEnv('PAYSERA_PASSWORD');
 
-        $baseUrl   = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
-        $projectId = requireEnv('PAYSERA_PROJECTID');
-        $password  = requireEnv('PAYSERA_PASSWORD');
+    $testUrl = $baseUrl . '/parcel-machines?country=LT&limit=5';
 
-        $allItems = [];
-        $limit = 200;
-        $offset = 0;
-        $hasMore = true;
-        $apiError = false;
+    $log[] = "================ DEBUG START ================";
+    $log[] = "DEBUG BASE URL: " . $baseUrl;
+    $log[] = "DEBUG FULL URL: " . $testUrl;
+    $log[] = "DEBUG PROJECT ID: " . $projectId;
+    $log[] = "DEBUG AUTH: Basic Auth naudojamas";
 
-        while ($hasMore) {
+    $ch = curl_init($testUrl);
 
-            $apiUrl = "{$baseUrl}/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_USERPWD        => "{$projectId}:{$password}",
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json'
+        ],
+        CURLOPT_HEADER         => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_VERBOSE        => true
+    ]);
 
-            $ch = curl_init($apiUrl);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_USERPWD        => "{$projectId}:{$password}",
-                CURLOPT_HTTPHEADER     => [
-                    'Accept: application/json'
-                ],
-                CURLOPT_TIMEOUT        => 30
-            ]);
+    $response = curl_exec($ch);
 
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+    $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $curlError  = curl_error($ch);
 
-            if ($httpCode === 200 && $response) {
+    $headers = substr($response, 0, $headerSize);
+    $body    = substr($response, $headerSize);
 
-                $data = json_decode($response, true);
-                $items = $data['list'] ?? [];
+    curl_close($ch);
 
-                if (!empty($items)) {
-                    $allItems = array_merge($allItems, $items);
-                    $offset += $limit;
-                } else {
-                    $hasMore = false;
-                }
+    $log[] = "HTTP CODE: " . $httpCode;
+    $log[] = "CURL ERROR: " . ($curlError ?: 'NONE');
+    $log[] = "---------------- RESPONSE HEADERS ----------------";
+    $log[] = $headers;
+    $log[] = "---------------- RESPONSE BODY ----------------";
+    $log[] = $body;
 
-            } else {
-                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
-                $apiError = true;
-                $hasMore = false;
-            }
-        }
+    $decoded = json_decode($body, true);
 
-        if (!$apiError && !empty($allItems)) {
-
-            $pdo->exec("TRUNCATE TABLE parcel_lockers");
-
-            $stmt = $pdo->prepare("
-                INSERT INTO parcel_lockers (provider, terminal_id, title, address, note) 
-                VALUES (?, ?, ?, ?, ?)
-            ");
-
-            foreach ($allItems as $item) {
-
-                if (!($item['enabled'] ?? false)) {
-                    continue;
-                }
-
-                $providerRaw = $item['shipment_gateway_code'] ?? 'paysera';
-                $provider = str_replace('_', '', strtolower($providerRaw));
-
-                $terminalId = $item['id'] ?? '';
-                $title = $item['location_name'] ?? 'Paštomatas';
-
-                $addressParts = [];
-
-                if (!empty($item['address']['street'])) {
-                    $addressParts[] = $item['address']['street'];
-                }
-
-                if (!empty($item['address']['house_number'])) {
-                    $addressParts[] = $item['address']['house_number'];
-                }
-
-                if (!empty($item['address']['city'])) {
-                    $addressParts[] = $item['address']['city'];
-                }
-
-                if (!empty($item['address']['postal_code'])) {
-                    $addressParts[] = $item['address']['postal_code'];
-                }
-
-                $address = implode(', ', $addressParts);
-                $note = '';
-
-                if (!empty($terminalId)) {
-                    $stmt->execute([
-                        $provider,
-                        $terminalId,
-                        $title,
-                        $address,
-                        $note
-                    ]);
-                }
-            }
-
-            saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: " . count($allItems);
-
-        } elseif (!$apiError) {
-            $log[] = "[LOCKERS] API grąžino tuščią sąrašą.";
-        }
-
+    if (json_last_error() === JSON_ERROR_NONE) {
+        $log[] = "---------------- DECODED JSON ----------------";
+        $log[] = print_r($decoded, true);
     } else {
-        $log[] = "[LOCKERS] Atnaujinimas praleistas (7 dienos nepraėjo).";
+        $log[] = "JSON DECODE ERROR: " . json_last_error_msg();
     }
 
+    $log[] = "================ DEBUG END =================";
+
 } catch (Exception $e) {
-    $log[] = "[LOCKERS] Kritinė klaida: " . $e->getMessage();
+    $log[] = "DEBUG EXCEPTION: " . $e->getMessage();
 }
 
 // =================================================================
