@@ -47,16 +47,48 @@ try {
         $hasMore   = true;
         $apiError  = false;
 
+        // MAC Token autentifikacija pagal OAuth 2.0 MAC spec
+        // project_id = mac_id, project_sign_password = mac_secret
+        if (!function_exists('buildMacAuthHeader')) {
+            function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url): string {
+                $parsed = parse_url($url);
+                $ts     = (string) time();
+                $nonce  = bin2hex(random_bytes(8));
+                $host   = $parsed['host'];
+                $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
+                $path   = $parsed['path'] ?? '/';
+                if (!empty($parsed['query'])) {
+                    $path .= '?' . $parsed['query'];
+                }
+
+                // Request string tiksliai pagal MAC spec (kiekvienas elementas atskirtas \n)
+                $requestString = $ts    . "\n"
+                               . $nonce . "\n"
+                               . strtoupper($method) . "\n"
+                               . $path  . "\n"
+                               . $host  . "\n"
+                               . (string)$port . "\n"
+                               . "\n";  // tuščias extension + galutinis \n
+
+                $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
+
+                return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+                    $macId, $ts, $nonce, $mac);
+            }
+        }
+
         while ($hasMore) {
 
             $apiUrl = $baseUrl . "/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
             $ch = curl_init($apiUrl);
 
+            $authHeader = buildMacAuthHeader($projectId, $password, 'GET', $apiUrl);
+
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
-                    'Authorization: Basic ' . base64_encode($projectId . ':' . $password)
+                    'Authorization: ' . $authHeader,
                 ],
                 CURLOPT_TIMEOUT => 30
             ]);
@@ -74,7 +106,7 @@ try {
 
             $data = json_decode($response, true);
 
-            // ✅ ParcelMachineCollection grąžina 'list', ne 'items'
+            // ParcelMachineCollection grąžina 'list', ne 'items'
             $items = $data['list'] ?? $data['items'] ?? null;
 
             if ($items === null) {
@@ -118,7 +150,7 @@ try {
                 $code  = $item['code'] ?? '';
                 $title = trim($locationName . ($code ? ' (' . $code . ')' : ''));
 
-                $addressObj  = $item['address'] ?? [];
+                $addressObj   = $item['address'] ?? [];
                 $addressParts = [];
 
                 if (!empty($addressObj['street'])) {
