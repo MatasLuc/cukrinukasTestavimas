@@ -4,6 +4,9 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/env.php';
+loadEnvFile(__DIR__ . '/.env');
+
 
 $pdo = getPdo();
 $log = [];
