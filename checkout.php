@@ -26,6 +26,9 @@ if ((empty($_SESSION['cart']) || count($_SESSION['cart']) === 0) && (empty($_SES
 // Patikriname ar krepšelyje TIK bendruomenės prekės
 $isCommunityOnly = empty($_SESSION['cart']) && !empty($_SESSION['cart_community']);
 
+// Patikriname ar krepšelyje YRA BENT VIENA bendruomenės prekė
+$hasCommunityProducts = !empty($_SESSION['cart_community']) && count($_SESSION['cart_community']) > 0;
+
 // --- DUOMENŲ GAVIMAS IŠ DB (SETTINGS) ---
 $stmtSettings = $pdo->query("SELECT * FROM shipping_settings LIMIT 1");
 $shippingSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
@@ -297,10 +300,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $method = $_POST['delivery_method'] ?? 'locker';
+    $paymentMethod = $_POST['payment_method'] ?? 'stripe';
     $notes = trim($_POST['notes'] ?? '');
     
     $selectedLocker = trim($_POST['locker_select'] ?? '');
     $lockerProvider = trim($_POST['locker_provider'] ?? '');
+
+    // Mokėjimo būdų saugumo patikrinimas
+    if ($paymentMethod === 'paysera' && $hasCommunityProducts) {
+        $errors[] = 'Atsiprašome, tačiau perkant bendruomenės prekes, galimas tik apmokėjimas kortele (Stripe).';
+    }
 
     $fullAddress = "";
     if ($method === 'courier') {
@@ -410,8 +419,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             }
 
             $pdo->commit();
-            // Nukreipiame su order_id, kad stripe_checkout.php galėtų paimti pristatymo kainą
-            header("Location: stripe_checkout.php?order_id=" . $orderId);
+            
+            // Nukreipiame priklausomai nuo pasirinkto apmokėjimo būdo
+            if ($paymentMethod === 'paysera') {
+                header("Location: libwebtopay/redirect.php?order_id=" . $orderId);
+            } else {
+                header("Location: stripe_checkout.php?order_id=" . $orderId);
+            }
             exit;
 
         } catch (Exception $e) {
@@ -748,6 +762,44 @@ if (!empty($_SESSION['user_id'])) {
 
                     <div class="card">
                         <h3>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                            Apmokėjimo būdas
+                        </h3>
+                        
+                        <div class="shipping-options" id="payment-options">
+                            <label class="radio-card active" onclick="selectPayment(this)">
+                                <div class="radio-header">
+                                    <span class="radio-label">
+                                        <div class="radio-circle"></div>
+                                        Banko kortele (Stripe)
+                                    </span>
+                                    <input type="radio" name="payment_method" value="stripe" checked>
+                                </div>
+                            </label>
+
+                            <?php if (!$hasCommunityProducts): ?>
+                            <label class="radio-card" onclick="selectPayment(this)">
+                                <div class="radio-header">
+                                    <span class="radio-label">
+                                        <div class="radio-circle"></div>
+                                        El. bankininkystė (Paysera)
+                                    </span>
+                                    <input type="radio" name="payment_method" value="paysera">
+                                </div>
+                            </label>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($hasCommunityProducts): ?>
+                        <div style="font-size: 13px; color: var(--text-muted); margin-top: 10px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            Krepšelyje yra bendruomenės prekių, todėl galimas tik atsiskaitymas banko kortele.
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="card">
+                        <h3>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             Papildoma informacija
                         </h3>
@@ -818,7 +870,7 @@ if (!empty($_SESSION['user_id'])) {
                 
                 <div style="text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 10px;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                    Saugus atsiskaitymas per Stripe
+                    Saugus atsiskaitymas internetu
                 </div>
             </div>
         </div>
@@ -843,7 +895,9 @@ if (!empty($_SESSION['user_id'])) {
 
         function selectShipping(element, method) {
             // Visual Update
-            document.querySelectorAll('.radio-card').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('input[name="delivery_method"]').forEach(el => {
+                el.closest('.radio-card').classList.remove('active');
+            });
             element.classList.add('active');
             
             // Check hidden radio
@@ -851,6 +905,15 @@ if (!empty($_SESSION['user_id'])) {
             if(radio) radio.checked = true;
 
             updateUI(method);
+        }
+
+        function selectPayment(element) {
+            const container = document.getElementById('payment-options');
+            container.querySelectorAll('.radio-card').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            const radio = element.querySelector('input[type="radio"]');
+            if(radio) radio.checked = true;
         }
 
         function updateUI(method) {
