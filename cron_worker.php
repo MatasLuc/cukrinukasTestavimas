@@ -54,9 +54,11 @@ try {
 
             $ch = curl_init($apiUrl);
 
+            // NAUJA – pridėk prieš while ciklą:
             $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
-            $password  = getenv('PAYSERA_PASSWORD')   ?: ($_ENV['PAYSERA_PASSWORD']   ?? '');
+            $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
             
+            // Ir curl_setopt_array bloke:
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
