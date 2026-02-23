@@ -37,7 +37,7 @@ try {
 
     if ($forceSync || (time() - $lastLockerSync > 604800)) {
 
-        $baseUrl = "https://delivery-api.paysera.com/public/rest/v1";
+        $baseUrl = "https://delivery-api.paysera.com/rest/v1";
 
         $allItems = [];
         $limit = 200;
@@ -51,10 +51,14 @@ try {
 
             $ch = curl_init($apiUrl);
 
+            $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
+            $password  = getenv('PAYSERA_PASSWORD')   ?: ($_ENV['PAYSERA_PASSWORD']   ?? '');
+            
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
-                    'Accept: application/json'
+                    'Accept: application/json',
+                    'Authorization: Basic ' . base64_encode($projectId . ':' . $password)
                 ],
                 CURLOPT_TIMEOUT => 30
             ]);
@@ -66,7 +70,7 @@ try {
             curl_close($ch);
 
             if ($httpCode !== 200 || !$response) {
-                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
+                $log[] = "[LOCKERS] Nepavyko atnaujinti paštomatų. HTTP Kodas: {$httpCode}. CURL klaida: {$curlError}. Atsakas: {$response}";
                 $apiError = true;
                 break;
             }
