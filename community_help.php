@@ -180,13 +180,13 @@ if (function_exists('headerStyles')) {
     <section class="hero">
         <div class="hero-content">
             <div class="pill">🆘 Pagalba</div>
-            <h1>Pagalba ir Taisyklės</h1>
-            <p>Raskite atsakymus į dažniausiai užduodamus klausimus, sužinokite apie grąžinimus arba susisiekite su administracija ginčų atveju.</p>
+            <h1>Pagalba ir taisyklės</h1>
+            <p>Raskite atsakymus į dažniausiai užduodamus klausimus, sužinokite apie grąžinimus arba susisiekite su administracija dėl atsiradusių problemų.</p>
         </div>
     </section>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="showTab('faq', event)">D.U.K. ir Taisyklės</button>
+        <button class="tab-btn active" onclick="showTab('faq', event)">D.U.K. ir taisyklės</button>
         <button class="tab-btn" onclick="showTab('ticket', event)">Pateikti skundą</button>
     </div>
 
@@ -195,120 +195,120 @@ if (function_exists('headerStyles')) {
             
             <h2 class="faq-category-title">Bendra informacija</h2>
             <div class="faq-item">
-                <h3>1. Kas yra bendruomenės turgelis?</h3>
-                <p>Tai platformos erdvė, kurioje registruoti vartotojai gali pirkti, parduoti ar ieškoti įvairių priemonių, paslaugų bei daiktų, susijusių su mūsų bendruomenės pomėgiais.</p>
+                <h3>Kas yra bendruomenės turgelis?</h3>
+                <p>Tai platformos erdvė, kurioje registruoti vartotojai gali pirkti, parduoti ar ieškoti įvairių priemonių, paslaugų bei daiktų, susijusių su mūsų bendruomenės poreikiais.</p>
             </div>
             <div class="faq-item">
-                <h3>2. Ar man reikia paskyros norint naudotis turgeliu?</h3>
-                <p>Taip. Naršyti skelbimus galite ir be paskyros, tačiau norėdami įdėti savo skelbimą, matyti pardavėjų kontaktus arba atlikti pirkimą, privalote būti prisijungę.</p>
+                <h3>Ar man reikia paskyros norint naudotis turgeliu?</h3>
+                <p>Taip. Naršyti skelbimus galite ir be paskyros, tačiau norėdami įdėti savo skelbimą, matyti pardavėjų kontaktus arba pirkti, privalote būti prisijungę.</p>
             </div>
             <div class="faq-item">
-                <h3>3. Kuo skiriasi „Parduoda“ ir „Ieško“ skelbimai?</h3>
-                <p>„Parduoda“ skelbimai reiškia, kad vartotojas turi konkrečią prekę ir nori ją parduoti (ją galima įdėti į krepšelį). „Ieško“ skelbimai yra skirti vartotojams, kurie neranda norimos prekės ir nori paskelbti savo biudžetą bei pageidavimus, kad kiti nariai jiems ką nors pasiūlytų.</p>
+                <h3>Kuo skiriasi „Parduoda“ ir „Ieško“ skelbimai?</h3>
+                <p>„Parduoda“ skelbimai reiškia, kad vartotojas turi konkrečią prekę ir nori ją parduoti (ją galima įdėti į krepšelį). „Ieško“ skelbimai yra skirti vartotojams, kurie neranda norimos prekės.</p>
             </div>
             <div class="faq-item">
-                <h3>4. Kiek kainuoja įkelti skelbimą?</h3>
+                <h3>Kiek kainuoja įkelti skelbimą?</h3>
                 <p>Skelbimų įkėlimas platformoje yra visiškai nemokamas. Mokesčiai taikomi tik atliekant sėkmingą pardavimo transakciją per sistemą.</p>
             </div>
 
             <h2 class="faq-category-title">Pirkėjams</h2>
             <div class="faq-item">
-                <h3>5. Kaip veikia saugus pirkimas (Escrow)?</h3>
-                <p>Apmokėjus už prekę per platformą, jūsų lėšos yra saugiai rezervuojamos „Stripe“ sistemoje. Pardavėjas pinigus gauna tik tada, kai jūs platformoje patvirtinate, jog sėkmingai gavote prekę ir ji atitinka aprašymą.</p>
+                <h3>Kaip veikia saugus pirkimas?</h3>
+                <p>Apmokėjus už prekę per platformą, jūsų lėšos yra saugiai rezervuojamos mūsų partnerių „Stripe“ sistemoje. Pardavėjas pinigus gauna tik tada, kai jūs platformoje patvirtinate, jog sėkmingai gavote prekę ir ji atitinka aprašymą.</p>
             </div>
             <div class="faq-item">
-                <h3>6. Kaip galiu apmokėti už prekę?</h3>
+                <h3>Kaip galiu apmokėti už prekę?</h3>
                 <p>Turgelio skelbimuose esančias prekes galite įsidėti į krepšelį ir atsiskaityti įprastais mokėjimo būdais (kredito/debeto kortele, Apple Pay ir t.t.) per integruotą saugią „Stripe“ sistemą.</p>
             </div>
             <div class="faq-item">
-                <h3>7. Per kiek laiko privalau patvirtinti siuntos gavimą?</h3>
+                <h3>Per kiek laiko privalau patvirtinti siuntos gavimą?</h3>
                 <p>Gavę siuntą, privalote per 3 dienas nuo faktinio pristatymo patvirtinti gavimą sistemoje. Jei to nepadarysite, pardavėjas turės teisę prašyti sistemos priverstinio lėšų išmokėjimo.</p>
             </div>
             <div class="faq-item">
-                <h3>8. Ką daryti, jeigu prekė neatkeliavo?</h3>
+                <h3>Ką daryti, jeigu prekė neatkeliavo?</h3>
                 <p>Jeigu praėjo sutartas pristatymo terminas, bet prekės negavote, pirmiausia susisiekite su pardavėju. Jei situacija nesikeičia, per 3 dienas atidarykite ginčą skiltyje „Pateikti skundą“.</p>
             </div>
             <div class="faq-item">
-                <h3>9. Ką daryti, jeigu gauta prekė yra sugadinta arba neatitinka aprašymo?</h3>
+                <h3>Ką daryti, jeigu gauta prekė yra sugadinta arba neatitinka aprašymo?</h3>
                 <p>Nepatvirtinkite prekės gavimo. Nedelsiant (per 3 dienas nuo pristatymo) užpildykite skundą ir pasirinkite „Prekė neatitinka aprašymo“. Būkite pasiruošę pateikti nuotraukas ir kitus įrodymus administracijai.</p>
             </div>
             <div class="faq-item">
-                <h3>10. Ar galiu atšaukti užsakymą prieš išsiunčiant?</h3>
-                <p>Taip, bet turite kuo skubiau susisiekti su pardavėju per asmenines žinutes, kol jis nespėjo išsiųsti prekės, ir pateikti prašymą grąžinti pinigus.</p>
+                <h3>Ar galiu atšaukti užsakymą prieš išsiunčiant?</h3>
+                <p>Taip, bet turite kuo skubiau susisiekti su pardavėju per asmenines žinutes, kol jis nespėjo išsiųsti prekės ir pateikti prašymą grąžinti pinigus. Jeigu prekė jau buvo išsiųsta ir jį yra tvarkinga, administracija negarantuoja, kad už ją bus grąžinti pingai.</p>
             </div>
 
             <h2 class="faq-category-title">Pardavėjams</h2>
             <div class="faq-item">
-                <h3>11. Kaip įkelti pardavimo skelbimą?</h3>
+                <h3>Kaip įkelti pardavimo skelbimą?</h3>
                 <p>Paspaudę mygtuką „Įdėti skelbimą“ turgelio puslapyje, užpildykite visą informaciją: pasirinkite tipą „Parduodu“, įkelkite nuotraukas, detaliai aprašykite būklę bei nurodykite kainą.</p>
             </div>
             <div class="faq-item">
-                <h3>12. Kada ir kaip gausiu pinigus už parduotą prekę?</h3>
-                <p>Kai išsiunčiate prekę ir pirkėjas paspaudžia mygtuką „Gavau prekę“, lėšos (atskaičius komisinį mokestį) automatiškai pervedamos į jūsų susietą „Stripe“ banko sąskaitą.</p>
+                <h3>Kada ir kaip gausiu pinigus už parduotą prekę?</h3>
+                <p>Kai išsiunčiate prekę ir pirkėjas paspaudžia mygtuką „Gavau prekę“, lėšos (atskaičius komisinį mokestį) automatiškai pervedamos į jūsų susietą „Stripe“ banko sąskaitą. Susiejant savo paskyrą su „Stripe“ jūsų prašoma įvesti savo banko sąskaitos numerį, tad į tą sąskaitą jums pinigai ir įkris.</p>
             </div>
             <div class="faq-item">
-                <h3>13. Ar platforma taiko komisinius mokesčius pardavėjui?</h3>
-                <p>Taip. Kad galėtume palaikyti saugius mokėjimus ir administruoti platformą, nuo sėkmingo pardavimo atskaičiuojamas nedidelis platformos komisinis mokestis (tikslus % matomas jūsų Stripe Connect paskyroje).</p>
+                <h3>Ar platforma taiko komisinius mokesčius pardavėjui?</h3>
+                <p>Taip. Kad galėtume palaikyti saugius mokėjimus ir administruoti platformą, nuo sėkmingo pardavimo atskaičiuojamas 10 procentų platformos komisinis mokestis.</p>
             </div>
             <div class="faq-item">
-                <h3>14. Kas yra „Priverstinis išmokėjimas“ (Force Payout)?</h3>
+                <h3>Kas yra „Priverstinis išmokėjimas“?</h3>
                 <p>Jei pirkėjas ignoruoja žinutes ir ilgiau nei 3 dienas nepatvirtina gavimo, nors siuntų tarnybos sekimo numeris rodo, kad siunta įteikta, jūs galite pateikti skundą. Administracija patikrins įrodymus ir išmokės pinigus priverstinai.</p>
             </div>
             <div class="faq-item">
-                <h3>15. Kaip išsiųsti prekę pirkėjui?</h3>
-                <p>Gavę užsakymą, saugiai supakuokite prekę, išsiųskite pirkėjo nurodytu adresu arba į pasirinktą paštomatą. Būtinai išsaugokite siuntos sekimo (tracking) numerį ir pasidalinkite juo su pirkėju.</p>
+                <h3>Kaip išsiųsti prekę pirkėjui?</h3>
+                <p>Gavę užsakymą, saugiai supakuokite prekę, išsiųskite pirkėjo nurodytu adresu arba į pasirinktą paštomatą. Būtinai išsaugokite siuntos sekimo (tracking) numerį ir pasidalinkite juo su pirkėju. Už visus su siuntimu susijusius mokesčius yra atsakingas pats prekės pardavėjas.</p>
             </div>
             <div class="faq-item">
-                <h3>16. Ką daryti, jei pirkėjas melagingai teigia, kad negavo prekės?</h3>
+                <h3>Ką daryti, jei pirkėjas melagingai teigia, kad negavo prekės?</h3>
                 <p>Jei turite siuntos sekimo numerį, įrodantį įteikimą, pateikite jį administracijai ginčo metu. Sprendimas dažniausiai bus priimtas jūsų naudai.</p>
             </div>
             <div class="faq-item">
-                <h3>17. Kaip redaguoti arba ištrinti savo skelbimą?</h3>
+                <h3>Kaip redaguoti arba ištrinti savo skelbimą?</h3>
                 <p>Savo įkeltus skelbimus galite valdyti nuėję į skiltį „Mano paskyra“ -> „Mano skelbimai“. Ten galėsite keisti kainą, aprašymą ar pažymėti prekę kaip neparduodamą / ištrinti.</p>
             </div>
 
             <h2 class="faq-category-title">Grąžinimai ir ginčų sprendimas</h2>
             <div class="faq-item">
-                <h3>18. Kaip iškelti ginčą ar pateikti skundą?</h3>
-                <p>Šiame puslapyje pereikite į kortelę „Pateikti skundą“. Pasirinkite susijusį užsakymą, nurodykite problemos tipą ir detaliai aprašykite situaciją.</p>
+                <h3>Kaip iškelti ginčą ar pateikti skundą?</h3>
+                <p>Šiame puslapyje pereikite į kortelę „Pateikti skundą“. Pasirinkite susijusį užsakymą, nurodykite problemos tipą ir detaliai aprašykite situaciją. Jeigu kažkas nepavyksta drąsiai kreipkitės el. paštu labas@cukrinukas.lt</p>
             </div>
             <div class="faq-item">
-                <h3>19. Kokiomis sąlygomis galiu atgauti pinigus (Refund)?</h3>
+                <h3>Kokiomis sąlygomis galiu atgauti pinigus (Refund)?</h3>
                 <p>Pinigai grąžinami, jeigu prekė apskritai nebuvo išsiųsta, dingo tranzito metu, arba gauta prekė kardinaliai neatitinka skelbimo aprašymo (yra sugedusi, kita spalva, kt.) ir pirkėjas su pardavėju nesusitaria kitaip.</p>
             </div>
             <div class="faq-item">
-                <h3>20. Kas priima galutinį sprendimą kilus ginčui?</h3>
+                <h3>Kas priima galutinį sprendimą kilus ginčui?</h3>
                 <p>Jei pirkėjas ir pardavėjas neranda bendro sutarimo, platformos administracija įvertina abiejų šalių pateiktus įrodymus (nuotraukas, susirašinėjimus, sekimo numerius) ir priima galutinį, neskundžiamą sprendimą.</p>
             </div>
             <div class="faq-item">
-                <h3>21. Kiek laiko trunka ginčo nagrinėjimas?</h3>
+                <h3>Kiek laiko trunka ginčo nagrinėjimas?</h3>
                 <p>Ginčai paprastai peržiūrimi per 1-3 darbo dienas. Kartais procesas gali užtrukti ilgiau, jei reikalinga papildoma informacija iš abiejų šalių.</p>
             </div>
             <div class="faq-item">
-                <h3>22. Kaip atliekamas pinigų grąžinimas?</h3>
+                <h3>Kaip atliekamas pinigų grąžinimas?</h3>
                 <p>Jei priimamas sprendimas grąžinti lėšas pirkėjui, jos automatiškai pervedamos atgal į tą pačią kortelę arba banko sąskaitą, iš kurios buvo atliktas mokėjimas. Pinigų įskaitymas gali trukti 3–7 darbo dienas, priklausomai nuo banko.</p>
             </div>
             <div class="faq-item">
-                <h3>23. Ar galiu grąžinti prekę tiesiog persigalvojęs?</h3>
+                <h3>Ar galiu grąžinti prekę tiesiog persigalvojęs?</h3>
                 <p>Ne, platforma tarp privačių asmenų netaiko 14 dienų be priežasties grąžinimo taisyklės. Prekės grąžinamos tik tuo atveju, jei jos neatitinka skelbime nurodytos informacijos.</p>
             </div>
 
             <h2 class="faq-category-title">Saugumas ir taisyklės</h2>
             <div class="faq-item">
-                <h3>24. Kokias prekes draudžiama pardavinėti platformoje?</h3>
+                <h3>Kokias prekes draudžiama pardavinėti platformoje?</h3>
                 <p>Draudžiama parduoti nelegalius, suklastotus, pavogtus, pavojingus ar bet kokius kitus Lietuvos Respublikos įstatymams prieštaraujančius daiktus.</p>
             </div>
             <div class="faq-item">
-                <h3>25. Kodėl nerekomenduojama atsiskaitinėti už platformos ribų?</h3>
+                <h3>Kodėl nerekomenduojama atsiskaitinėti už platformos ribų?</h3>
                 <p>Mokant pavedimu ar grynaisiais ne per mūsų sistemą, jūs prarandate platformos teikiamą „Saugaus pirkimo“ garantiją. Apgavystės atveju platformos administracija negalės padėti susigrąžinti lėšų.</p>
             </div>
             <div class="faq-item">
-                <h3>26. Kas gresia už taisyklių pažeidimą ar sukčiavimą?</h3>
+                <h3>Kas gresia už taisyklių pažeidimą ar sukčiavimą?</h3>
                 <p>Nustačius sukčiavimo atvejį, piktybinį nepagarbų elgesį ar draudžiamų prekių prekybą, vartotojo paskyra yra nedelsiant visam laikui blokuojama, o informacija gali būti perduota atitinkamoms teisėsaugos institucijoms.</p>
             </div>
             <div class="faq-item">
-                <h3>27. Ar galiu dalintis asmeniniais kontaktais skelbimo aprašyme?</h3>
-                <p>Dėl jūsų pačių saugumo nerekomenduojame viešai skelbti telefonų numerių ar el. pašto adresų. Visą bendravimą raginame vykdyti per integruotą asmeninių žinučių sistemą.</p>
+                <h3>Ar galiu dalintis asmeniniais kontaktais skelbimo aprašyme?</h3>
+                <p>Taip, tokia galimybė yra, tačiau dėl jūsų pačių saugumo nerekomenduojame viešai skelbti telefonų numerių ar el. pašto adresų. Visą bendravimą raginame vykdyti per integruotą asmeninių žinučių sistemą. Jeigu skelbime įrašėte savo tel. nr ar el. paštą, mes užtikriname, kad jis yra matomas tik prisijungusiems nariams, o prekę pardavus ar nusipirkus, jūsų kontaktai yra paslepiami.</p>
             </div>
         </div>
     </div>
