@@ -280,7 +280,7 @@ try {
                 'city' => $derivedCity,
                 'type' => strtolower(trim($l['provider'] ?? 'other')), 
                 'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
-                'machine_id' => $l['note'] ?? '' // Paštomato ID integracijai
+                'machine_id' => $l['terminal_id'] ?? '' // Paštomato ID integracijai imamas iš terminal_id
             ];
         }
         usort($lockersForJs, function($a, $b) {
