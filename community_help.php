@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ticket'])) {
 $user_orders = [];
 if ($user) {
     $stmt = $pdo->prepare("
-        SELECT id, created_at, total_price 
+        SELECT id, created_at, total_amount
         FROM community_orders 
         WHERE buyer_id = :uid OR seller_id = :uid
         ORDER BY created_at DESC
