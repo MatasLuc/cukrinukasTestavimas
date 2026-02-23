@@ -46,10 +46,13 @@ if ($user) {
     $stmt = $pdo->prepare("
         SELECT id, created_at, total_amount
         FROM community_orders 
-        WHERE buyer_id = :uid OR seller_id = :uid
+        WHERE buyer_id = :uid1 OR seller_id = :uid2
         ORDER BY created_at DESC
     ");
-    $stmt->execute(['uid' => $user['id']]);
+    $stmt->execute([
+        'uid1' => $user['id'],
+        'uid2' => $user['id']
+    ]);
     $user_orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
@@ -136,7 +139,7 @@ if ($user) {
                     <select name="order_id">
                         <option value="">-- Kitas klausimas --</option>
                         <?php foreach ($user_orders as $o): ?>
-                            <option value="<?= $o['id'] ?>">Užsakymas #<?= $o['id'] ?> (<?= number_format($o['total_price'], 2) ?> €)</option>
+                            <option value="<?= $o['id'] ?>">Užsakymas #<?= $o['id'] ?> (<?= number_format($o['total_amount'], 2) ?> €)</option>
                         <?php endforeach; ?>
                     </select>
                 </div>
