@@ -78,7 +78,7 @@ if ($user) {
     </style>
 </head>
 <body>
-<?php renderHeader(); ?>
+<?php renderHeader($pdo); ?>
 
 <div class="help-container">
     <h1>Turgelio Pagalba ir Taisyklės</h1>
@@ -127,6 +127,7 @@ if ($user) {
             <p><a href="/login.php">Prisijunkite</a>, kad pateiktumėte skundą.</p>
         <?php else: ?>
             <form method="POST" action="">
+                <?php echo csrfField(); ?>
                 <div class="form-group">
                     <label>Susijęs užsakymas (nebūtina)</label>
                     <select name="order_id">
@@ -168,6 +169,6 @@ if ($user) {
     }
 </script>
 
-<?php renderFooter(); ?>
+<?php renderFooter($pdo); ?>
 </body>
 </html>
