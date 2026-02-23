@@ -105,12 +105,10 @@ try {
 
             $data = json_decode($response, true);
 
-            // Loginame metadata tik pirmą kartą – padeda suprasti API struktūrą
             if ($page === 1) {
                 $log[] = "[LOCKERS] Metadata: " . json_encode($data['_metadata'] ?? 'nėra');
             }
 
-            // API gali grąžinti 'list' arba 'items'
             $items = $data['list'] ?? $data['items'] ?? null;
 
             if ($items === null) {
@@ -126,18 +124,14 @@ try {
 
             $log[] = "[LOCKERS] Puslapis {$page}: gauta {$fetchedCount} (iš viso surinkta: " . count($allItems) . ")";
 
-            // Paginacija — palaikome visus galimus API variantus
             $metadata = $data['_metadata'] ?? [];
 
             if (isset($metadata['has_next'])) {
-                // 1 variantas: has_next (bool arba string)
                 $hasMore = filter_var($metadata['has_next'], FILTER_VALIDATE_BOOLEAN);
             } elseif (isset($metadata['total']) || isset($metadata['total_count'])) {
-                // 2 variantas: total skaičius
                 $total   = (int)($metadata['total'] ?? $metadata['total_count']);
                 $hasMore = ($offset + $limit) < $total;
             } else {
-                // 3 variantas: jei grąžino mažiau nei limit — paskutinis puslapis
                 $hasMore = ($fetchedCount === $limit);
             }
 
@@ -145,7 +139,6 @@ try {
                 $offset += $limit;
                 $page++;
 
-                // Apsauga nuo begalinės kilpos (max 100 puslapių = 20 000 paštomatų)
                 if ($page > 100) {
                     $log[] = "[LOCKERS] ⚠️ Pasiektas 100 puslapių limitas. Stabdoma.";
                     break;
@@ -155,6 +148,25 @@ try {
 
         if (!$apiError && !empty($allItems)) {
 
+            // --- DIAGNOSTIKA: suskaičiuojame kas yra prieš filtravimą ---
+            $providerStats  = [];
+            $skippedDisabled = 0;
+            $skippedNoId     = 0;
+            foreach ($allItems as $item) {
+                $raw = strtolower($item['shipment_gateway_code'] ?? 'unknown');
+                $providerStats[$raw] = ($providerStats[$raw] ?? 0) + 1;
+
+                // Tikriname enabled tipą — gali būti bool, int arba null
+                $enabledRaw = $item['enabled'] ?? null;
+                if ($enabledRaw === null || $enabledRaw === false || $enabledRaw === 0 || $enabledRaw === '0' || $enabledRaw === '') {
+                    $skippedDisabled++;
+                } elseif (empty($item['id'])) {
+                    $skippedNoId++;
+                }
+            }
+            $log[] = "[LOCKERS] Visi iš API pagal tiekėją: " . json_encode($providerStats);
+            $log[] = "[LOCKERS] Praleista (disabled): {$skippedDisabled}, praleista (be ID): {$skippedNoId}";
+
             $pdo->exec("TRUNCATE TABLE parcel_lockers");
 
             $stmt = $pdo->prepare("
@@ -162,16 +174,26 @@ try {
                 VALUES (?, ?, ?, ?, ?)
             ");
 
-            $inserted = 0;
+            $inserted        = 0;
+            $insertedByProv  = [];
+
             foreach ($allItems as $item) {
 
-                if (!isset($item['enabled']) || $item['enabled'] == false) {
+                // Enabled patikrinimas — palaikome bool, int, string
+                $enabledRaw = $item['enabled'] ?? null;
+                if ($enabledRaw === null || $enabledRaw === false || $enabledRaw === 0 || $enabledRaw === '0' || $enabledRaw === '') {
                     continue;
                 }
 
+                $terminalId = $item['id'] ?? '';
+                if (empty($terminalId)) {
+                    continue;
+                }
+
+                // Normalizuojame provider pavadinimą
+                // lp_express → lpexpress, omniva → omniva, dpd → dpd, venipak → venipak
                 $providerRaw = $item['shipment_gateway_code'] ?? 'unknown';
-                $provider    = str_replace('_', '', strtolower($providerRaw));
-                $terminalId  = $item['id'] ?? '';
+                $provider    = str_replace(['_', '-', ' '], '', strtolower($providerRaw));
 
                 $locationName = $item['location_name'] ?? ($item['name'] ?? '');
                 $code         = $item['code'] ?? '';
@@ -192,14 +214,13 @@ try {
 
                 $address = implode(', ', $addressParts);
 
-                if (!empty($terminalId)) {
-                    $stmt->execute([$provider, $terminalId, $title, $address, '']);
-                    $inserted++;
-                }
+                $stmt->execute([$provider, $terminalId, $title, $address, '']);
+                $inserted++;
+                $insertedByProv[$provider] = ($insertedByProv[$provider] ?? 0) + 1;
             }
 
             saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-            $log[] = "[LOCKERS] ✅ Sėkmingai atnaujinta. Įrašyta: {$inserted} vnt. (Gauta iš API iš viso: " . count($allItems) . ")";
+            $log[] = "[LOCKERS] ✅ Sėkmingai atnaujinta. Įrašyta: {$inserted} vnt. pagal tiekėją: " . json_encode($insertedByProv);
 
         } elseif (!$apiError) {
             $log[] = "[LOCKERS] ⚠️ API grąžino tuščią sąrašą.";
