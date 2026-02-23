@@ -87,10 +87,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $cronPath = __DIR__ . '/../cron_worker.php';
             if (file_exists($cronPath)) {
+                $forceSync = true; // Nurodome cron_worker failui praleisti 7 dienų patikrinimą
                 ob_start();
                 include $cronPath;
-                ob_get_clean();
-                $_SESSION['flash_success'] = "Paštomatai sėkmingai atnaujinti iš API.";
+                $cronOutput = ob_get_clean();
+                
+                // Išvalome HTML tagus ir pakeičiame naujas eilutes, kad gražiai atrodytų pranešime
+                $cleanOutput = strip_tags(str_replace('<br>', ' | ', $cronOutput));
+                
+                $_SESSION['flash_success'] = "API Užklausa įvykdyta. Rezultatas: " . $cleanOutput;
             } else {
                 $_SESSION['flash_error'] = "Nerastas cron_worker.php failas.";
             }
