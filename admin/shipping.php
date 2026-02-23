@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- PAŠTOMATAI (CSV IMPORTAS) ---
     if ($action === 'import_lockers') {
-        $provider = $_POST['provider'] ?? 'lpexpress';
+        $provider = $_POST['provider'] ?? 'lp';
         if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === 0) {
             $handle = fopen($_FILES['csv_file']['tmp_name'], 'r');
             if ($handle) {
@@ -231,7 +231,7 @@ foreach ($lockersGrouped as $prov => $list) {
         </div>
         
         <div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
-            <span class="stat-badge">LP Express: <?php echo $lockerCounts['lpexpress'] ?? 0; ?></span>
+            <span class="stat-badge">LP Express: <?php echo $lockerCounts['lp'] ?? 0; ?></span>
             <span class="stat-badge">Omniva: <?php echo $lockerCounts['omniva'] ?? 0; ?></span>
             <span class="stat-badge">DPD: <?php echo $lockerCounts['dpd'] ?? 0; ?></span>
             <span class="stat-badge">Venipak: <?php echo $lockerCounts['venipak'] ?? 0; ?></span>
@@ -265,7 +265,7 @@ foreach ($lockersGrouped as $prov => $list) {
                 <div style="flex:1;">
                     <label style="font-size:12px; display:block; margin-bottom:4px;">Tiekėjas</label>
                     <select name="provider" class="form-control" style="font-size:13px; padding:6px;">
-                        <option value="lpexpress">LP Express</option>
+                        <option value="lp">LP Express</option>
                         <option value="omniva">Omniva</option>
                         <option value="dpd">DPD</option>
                         <option value="venipak">Venipak</option>
@@ -289,7 +289,7 @@ foreach ($lockersGrouped as $prov => $list) {
                 <div>
                     <label style="font-size:12px;">Tiekėjas</label>
                     <select name="provider" class="form-control">
-                        <option value="lpexpress">LP Express</option>
+                        <option value="lp">LP Express</option>
                         <option value="omniva">Omniva</option>
                         <option value="dpd">DPD</option>
                         <option value="venipak">Venipak</option>
