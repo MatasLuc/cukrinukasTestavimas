@@ -200,7 +200,6 @@ if (isset($_POST['create_paysera_shipment'])) {
 
 // 1. Surenkame duomenis
 try {
-    // PATAISYMAS: Pašalintas u.phone, nes jo nėra users lentelėje. Naudojame orders.customer_phone
     $allOrders = $pdo->query('
         SELECT o.*, 
                u.name AS user_name, 
@@ -214,9 +213,8 @@ try {
     $allOrders = [];
 }
 
-// 1.1 Gauname paštomatus atskirame try-catch bloke, kad klaida nesustabdytų užsakymų atvaizdavimo
+// 1.1 Gauname paštomatus atskirame try-catch bloke
 try {
-    // PATAISYMAS: Pašalintas 'city' iš ORDER BY, nes DB gali jo nebūti. Rikiuojame tik pagal title.
     $lockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY title")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $lockers = [];
@@ -430,7 +428,13 @@ unset($order);
               <td style="text-align:right;">
                 
                 <?php if ($isPhysical && !$hasPaysera): ?>
-                    <button class="btn-shipment open-paysera-modal" type="button" data-order-id="<?php echo $order['id']; ?>" style="margin-bottom: 5px;">
+                    <button class="btn-shipment open-paysera-modal" type="button" 
+                            data-order-id="<?php echo $order['id']; ?>"
+                            data-receiver-locker="<?php 
+                                $dd = json_decode($order['delivery_details'], true);
+                                echo htmlspecialchars($dd['locker_name'] ?? 'Kurjeris/Nenurodyta'); 
+                            ?>"
+                            style="margin-bottom: 5px;">
                         Kurti Paysera siuntą
                     </button><br>
                 <?php elseif ($hasPaysera && !empty($order['paysera_label_url'])): ?>
@@ -584,11 +588,18 @@ unset($order);
             <input type="hidden" name="order_id" id="p_orderId">
             
             <div class="modal-body">
-                <p style="font-size:14px; margin-bottom:10px; color:#555;">Pasirinkite, iš kurio savo paštomato išsiųsite prekes klientui (Dydis M, 1kg):</p>
+                
+                <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#1e40af; border:1px solid #bfdbfe;">
+                    <strong style="display:block; margin-bottom:4px;">Gavėjo paštomatas (Pirkėjo pasirinkimas):</strong> 
+                    <span id="p_receiverLocker" style="font-weight:600;"></span>
+                    <div style="font-size:11px; margin-top:2px;">(Jau automatiškai priskirtas ir bus išsiųstas kurjeriui)</div>
+                </div>
+
+                <p style="font-size:14px; margin-bottom:10px; color:#555;">Pasirinkite <strong>savo (siuntėjo)</strong> paštomatą, iš kurio išsiųsite prekes klientui (Dydis M, 1kg):</p>
                 <select name="sender_locker_id" class="form-control" required>
                     <option value="">-- Pasirinkite paštomatą --</option>
                     <?php foreach ($lockers as $locker): ?>
-                        <option value="<?php echo htmlspecialchars($locker['note'] ?? $locker['id'] ?? ''); ?>">
+                        <option value="<?php echo htmlspecialchars($locker['terminal_id'] ?? $locker['id']); ?>">
                             <?php echo htmlspecialchars(($locker['city'] ?? 'Nežinomas miestas') . ' - ' . ($locker['title'] ?? '') . ' (' . ($locker['address'] ?? '') . ')'); ?>
                         </option>
                     <?php endforeach; ?>
@@ -730,7 +741,10 @@ unset($order);
     document.querySelectorAll('.open-paysera-modal').forEach(btn => {
         btn.addEventListener('click', function() {
             const orderId = this.getAttribute('data-order-id');
+            const recLocker = this.getAttribute('data-receiver-locker');
+            
             document.getElementById('p_orderId').value = orderId;
+            document.getElementById('p_receiverLocker').textContent = recLocker;
             
             payseraModal.style.display = 'flex';
             setTimeout(() => { payseraModal.classList.add('open'); }, 10);
