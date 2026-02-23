@@ -30,35 +30,30 @@ if (!function_exists('generateUniqueDiscountCode')) {
 }
 
 // =================================================================
-// 0. PAŠTOMATŲ SINCHRONIZACIJA SU PAYSERA (PUBLIC API - BE AUTH)
+// 0. PAŠTOMATŲ SINCHRONIZACIJA SU PAYSERA
 // =================================================================
 try {
-
     $siteContent = getSiteContent($pdo);
     $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
     $forceSync = $forceSync ?? false;
 
     if ($forceSync || (time() - $lastLockerSync > 604800)) {
 
-        $baseUrl = "https://delivery-api.paysera.com/rest/v1";
+        $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
+        $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
+        $baseUrl   = "https://delivery-api.paysera.com/rest/v1";
 
-        $allItems = [];
-        $limit = 200;
-        $offset = 0;
-        $hasMore = true;
-        $apiError = false;
+        $allItems  = [];
+        $limit     = 200;
+        $offset    = 0;
+        $hasMore   = true;
+        $apiError  = false;
 
         while ($hasMore) {
 
             $apiUrl = $baseUrl . "/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
-
             $ch = curl_init($apiUrl);
 
-            // NAUJA – pridėk prieš while ciklą:
-            $projectId = getenv('PAYSERA_PROJECTID') ?: ($_ENV['PAYSERA_PROJECTID'] ?? '');
-            $password  = getenv('PAYSERA_PASSWORD')  ?: ($_ENV['PAYSERA_PASSWORD']  ?? '');
-            
-            // Ir curl_setopt_array bloke:
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
@@ -68,34 +63,33 @@ try {
                 CURLOPT_TIMEOUT => 30
             ]);
 
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $response  = curl_exec($ch);
+            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
-
             curl_close($ch);
 
             if ($httpCode !== 200 || !$response) {
-                $log[] = "[LOCKERS] Nepavyko atnaujinti paštomatų. HTTP Kodas: {$httpCode}. CURL klaida: {$curlError}. Atsakas: {$response}";
+                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
                 $apiError = true;
                 break;
             }
 
             $data = json_decode($response, true);
 
-            if (!isset($data['list'])) {
-                $log[] = "[LOCKERS] API atsakyme nėra 'list' masyvo.";
+            // Paysera /parcel-machines grąžina 'items', ne 'list'
+            $items = $data['items'] ?? $data['list'] ?? null;
+
+            if ($items === null) {
+                $log[] = "[LOCKERS] Nežinoma API atsakymo struktūra: " . json_encode(array_keys($data));
                 $apiError = true;
                 break;
             }
-
-            $items = $data['list'];
 
             if (!empty($items)) {
                 $allItems = array_merge($allItems, $items);
             }
 
             $hasMore = $data['_metadata']['has_next'] ?? false;
-
             if ($hasMore) {
                 $offset += $limit;
             }
@@ -110,23 +104,23 @@ try {
                 VALUES (?, ?, ?, ?, ?)
             ");
 
+            $inserted = 0;
             foreach ($allItems as $item) {
 
-                if (empty($item['enabled'])) {
+                // Tikriname enabled kaip bool arba int
+                if (!isset($item['enabled']) || $item['enabled'] == false) {
                     continue;
                 }
 
                 $providerRaw = $item['shipment_gateway_code'] ?? 'unknown';
-                $provider = str_replace('_', '', strtolower($providerRaw));
+                $provider    = str_replace('_', '', strtolower($providerRaw));
+                $terminalId  = $item['id'] ?? '';
 
-                $terminalId = $item['id'] ?? '';
+                $locationName = $item['location_name'] ?? ($item['name'] ?? '');
+                $code  = $item['code'] ?? '';
+                $title = trim($locationName . ($code ? ' (' . $code . ')' : ''));
 
-                $locationName = $item['location_name'] ?? '';
-                $code = $item['code'] ?? '';
-                $title = trim($locationName . ' (' . $code . ')');
-
-                $addressObj = $item['address'] ?? [];
-
+                $addressObj  = $item['address'] ?? [];
                 $addressParts = [];
 
                 if (!empty($addressObj['street'])) {
@@ -136,33 +130,19 @@ try {
                     }
                     $addressParts[] = $street;
                 }
-
-                if (!empty($addressObj['city'])) {
-                    $addressParts[] = $addressObj['city'];
-                }
-
-                if (!empty($addressObj['postal_code'])) {
-                    $addressParts[] = $addressObj['postal_code'];
-                }
+                if (!empty($addressObj['city']))        { $addressParts[] = $addressObj['city']; }
+                if (!empty($addressObj['postal_code'])) { $addressParts[] = $addressObj['postal_code']; }
 
                 $address = implode(', ', $addressParts);
 
-                $note = '';
-
                 if (!empty($terminalId)) {
-                    $stmt->execute([
-                        $provider,
-                        $terminalId,
-                        $title,
-                        $address,
-                        $note
-                    ]);
+                    $stmt->execute([$provider, $terminalId, $title, $address, '']);
+                    $inserted++;
                 }
             }
 
             saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
-
-            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: " . count($allItems) . " vnt.";
+            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: {$inserted} vnt. (Gauta iš API: " . count($allItems) . ")";
 
         } elseif (!$apiError) {
             $log[] = "[LOCKERS] API grąžino tuščią sąrašą.";
