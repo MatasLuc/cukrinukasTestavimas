@@ -27,66 +27,144 @@ if (!function_exists('generateUniqueDiscountCode')) {
 }
 
 // =================================================================
-// 🔎 PAYSERA DELIVERY API DEBUG REŽIMAS
+// 0. PAŠTOMATŲ SINCHRONIZACIJA SU PAYSERA (PUBLIC API - BE AUTH)
 // =================================================================
 try {
 
-    $baseUrl   = rtrim(requireEnv('PAYSERA_DELIVERY_API_URL'), '/');
-    $projectId = requireEnv('PAYSERA_PROJECTID');
-    $password  = requireEnv('PAYSERA_PASSWORD');
+    $siteContent = getSiteContent($pdo);
+    $lastLockerSync = (int)($siteContent['last_locker_sync'] ?? 0);
+    $forceSync = $forceSync ?? false;
 
-    $testUrl = $baseUrl . '/parcel-machines?country=LT&limit=5';
+    if ($forceSync || (time() - $lastLockerSync > 604800)) {
 
-    $log[] = "================ DEBUG START ================";
-    $log[] = "DEBUG BASE URL: " . $baseUrl;
-    $log[] = "DEBUG FULL URL: " . $testUrl;
-    $log[] = "DEBUG PROJECT ID: " . $projectId;
-    $log[] = "DEBUG AUTH: Basic Auth naudojamas";
+        $baseUrl = "https://delivery-api.paysera.com/public/rest/v1";
 
-    $ch = curl_init($testUrl);
+        $allItems = [];
+        $limit = 200;
+        $offset = 0;
+        $hasMore = true;
+        $apiError = false;
 
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_USERPWD        => "{$projectId}:{$password}",
-        CURLOPT_HTTPHEADER     => [
-            'Accept: application/json'
-        ],
-        CURLOPT_HEADER         => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_VERBOSE        => true
-    ]);
+        while ($hasMore) {
 
-    $response = curl_exec($ch);
+            $apiUrl = $baseUrl . "/parcel-machines?country=LT&limit={$limit}&offset={$offset}";
 
-    $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    $curlError  = curl_error($ch);
+            $ch = curl_init($apiUrl);
 
-    $headers = substr($response, 0, $headerSize);
-    $body    = substr($response, $headerSize);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Accept: application/json'
+                ],
+                CURLOPT_TIMEOUT => 30
+            ]);
 
-    curl_close($ch);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
 
-    $log[] = "HTTP CODE: " . $httpCode;
-    $log[] = "CURL ERROR: " . ($curlError ?: 'NONE');
-    $log[] = "---------------- RESPONSE HEADERS ----------------";
-    $log[] = $headers;
-    $log[] = "---------------- RESPONSE BODY ----------------";
-    $log[] = $body;
+            curl_close($ch);
 
-    $decoded = json_decode($body, true);
+            if ($httpCode !== 200 || !$response) {
+                $log[] = "[LOCKERS] API klaida. HTTP: {$httpCode}. CURL: {$curlError}. Atsakas: {$response}";
+                $apiError = true;
+                break;
+            }
 
-    if (json_last_error() === JSON_ERROR_NONE) {
-        $log[] = "---------------- DECODED JSON ----------------";
-        $log[] = print_r($decoded, true);
+            $data = json_decode($response, true);
+
+            if (!isset($data['list'])) {
+                $log[] = "[LOCKERS] API atsakyme nėra 'list' masyvo.";
+                $apiError = true;
+                break;
+            }
+
+            $items = $data['list'];
+
+            if (!empty($items)) {
+                $allItems = array_merge($allItems, $items);
+            }
+
+            $hasMore = $data['_metadata']['has_next'] ?? false;
+
+            if ($hasMore) {
+                $offset += $limit;
+            }
+        }
+
+        if (!$apiError && !empty($allItems)) {
+
+            $pdo->exec("TRUNCATE TABLE parcel_lockers");
+
+            $stmt = $pdo->prepare("
+                INSERT INTO parcel_lockers (provider, terminal_id, title, address, note)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+
+            foreach ($allItems as $item) {
+
+                if (empty($item['enabled'])) {
+                    continue;
+                }
+
+                $providerRaw = $item['shipment_gateway_code'] ?? 'unknown';
+                $provider = str_replace('_', '', strtolower($providerRaw));
+
+                $terminalId = $item['id'] ?? '';
+
+                $locationName = $item['location_name'] ?? '';
+                $code = $item['code'] ?? '';
+                $title = trim($locationName . ' (' . $code . ')');
+
+                $addressObj = $item['address'] ?? [];
+
+                $addressParts = [];
+
+                if (!empty($addressObj['street'])) {
+                    $street = $addressObj['street'];
+                    if (!empty($addressObj['house_number'])) {
+                        $street .= ' ' . $addressObj['house_number'];
+                    }
+                    $addressParts[] = $street;
+                }
+
+                if (!empty($addressObj['city'])) {
+                    $addressParts[] = $addressObj['city'];
+                }
+
+                if (!empty($addressObj['postal_code'])) {
+                    $addressParts[] = $addressObj['postal_code'];
+                }
+
+                $address = implode(', ', $addressParts);
+
+                $note = '';
+
+                if (!empty($terminalId)) {
+                    $stmt->execute([
+                        $provider,
+                        $terminalId,
+                        $title,
+                        $address,
+                        $note
+                    ]);
+                }
+            }
+
+            saveSiteContent($pdo, ['last_locker_sync' => (string)time()]);
+
+            $log[] = "[LOCKERS] Sėkmingai atnaujinta. Įrašyta: " . count($allItems) . " vnt.";
+
+        } elseif (!$apiError) {
+            $log[] = "[LOCKERS] API grąžino tuščią sąrašą.";
+        }
+
     } else {
-        $log[] = "JSON DECODE ERROR: " . json_last_error_msg();
+        $log[] = "[LOCKERS] Atnaujinimas praleistas (nepraėjo 7 dienos).";
     }
 
-    $log[] = "================ DEBUG END =================";
-
 } catch (Exception $e) {
-    $log[] = "DEBUG EXCEPTION: " . $e->getMessage();
+    $log[] = "[LOCKERS] Klaida: " . $e->getMessage();
 }
 
 // =================================================================
