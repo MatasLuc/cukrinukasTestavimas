@@ -279,7 +279,8 @@ try {
                 'address' => $l['address'],
                 'city' => $derivedCity,
                 'type' => strtolower(trim($l['provider'] ?? 'other')), 
-                'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')'
+                'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
+                'machine_id' => $l['note'] ?? '' // Paštomato ID integracijai
             ];
         }
         usort($lockersForJs, function($a, $b) {
@@ -303,7 +304,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $paymentMethod = $_POST['payment_method'] ?? 'stripe';
     $notes = trim($_POST['notes'] ?? '');
     
-    $selectedLocker = trim($_POST['locker_select'] ?? '');
+    // Naujas kintamasis pritaikytas dinaminiai kainai
+    $dynamicShippingPrice = isset($_POST['dynamic_shipping_price']) ? (float)$_POST['dynamic_shipping_price'] : 0;
+    
+    $selectedLockerId = trim($_POST['locker_select'] ?? '');
+    $selectedLockerName = trim($_POST['locker_name'] ?? '');
     $lockerProvider = trim($_POST['locker_provider'] ?? '');
 
     // Mokėjimo būdų saugumo patikrinimas
@@ -324,10 +329,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         }
         $fullAddress = "$street g. $house" . ($flat ? "-$flat" : "") . ", $city, LT-$zip";
     } elseif ($method === 'locker') {
-        if (empty($selectedLocker)) {
+        if (empty($selectedLockerId)) {
             $errors[] = 'Pasirinkite paštomatą.';
         }
-        $fullAddress = "Paštomatas: " . $selectedLocker;
+        $fullAddress = "Paštomatas: " . $selectedLockerName;
     }
 
     if (empty($name) || empty($phone) || empty($email)) {
@@ -340,23 +345,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $finalShippingPrice = 0;
             if (!$isShippingFree && !$isCommunityOnly) {
-                if ($method === 'courier') {
-                    $finalShippingPrice = (float)$shippingSettings['courier_price'];
-                } else {
-                    $finalShippingPrice = (float)$shippingSettings['locker_price'];
-                }
+                // Palyginame bazinę ir gautą dinaminę kainą
+                $basePrice = ($method === 'courier') ? (float)$shippingSettings['courier_price'] : (float)$shippingSettings['locker_price'];
+                $finalShippingPrice = max($basePrice, $dynamicShippingPrice);
             }
 
             $grandTotal = $totalAfterDiscount + $finalShippingPrice;
 
-            // Formuojame JSON su papildoma informacija
+            // Formuojame JSON su papildoma informacija API ir adminui
             $deliveryDetailsArr = [
                 'method' => $method,
                 'shipping_price' => $finalShippingPrice,
                 'contact_phone' => $phone,
                 'contact_email' => $email,
                 'notes' => $notes,
-                'locker_name' => ($method === 'locker') ? $selectedLocker : null,
+                'locker_id' => ($method === 'locker') ? $selectedLockerId : null,
+                'locker_name' => ($method === 'locker') ? $selectedLockerName : null,
                 'locker_provider' => ($method === 'locker') ? $lockerProvider : null
             ];
             $deliveryDetailsJson = json_encode($deliveryDetailsArr);
@@ -617,6 +621,7 @@ if (!empty($_SESSION['user_id'])) {
                 <form id="checkout-form" method="POST">
                     <input type="hidden" name="place_order" value="1">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="hidden" name="dynamic_shipping_price" id="dynamic-shipping-price" value="">
 
                     <div class="card">
                         <h3>
@@ -709,6 +714,7 @@ if (!empty($_SESSION['user_id'])) {
                                 <label class="form-label">2. Pasirinkite paštomatą:</label>
                                 
                                 <input type="hidden" name="locker_select" id="locker-select-input">
+                                <input type="hidden" name="locker_name" id="locker-name-input">
                                 <input type="hidden" name="locker_provider" id="locker-provider-input">
                                 
                                 <div class="custom-select-wrapper" id="custom-select-wrapper">
@@ -882,16 +888,101 @@ if (!empty($_SESSION['user_id'])) {
         // Data from PHP
         const totalAfterDiscount = <?php echo number_format($totalAfterDiscount, 2, '.', ''); ?>;
         const isCommunityOnly = <?php echo $isCommunityOnly ? 'true' : 'false'; ?>;
-        // Čia kainos jau ateina su įvertintu nemokamu siuntimu (jei jis priklauso)
+        const isShippingFree = <?php echo $isShippingFree ? 'true' : 'false'; ?>;
         const prices = {
-            locker: <?php echo number_format($lockerPriceDisplay, 2, '.', ''); ?>,
-            courier: <?php echo number_format($courierPriceDisplay, 2, '.', ''); ?>
+            locker: <?php echo number_format($shippingSettings['locker_price'] ?? 0, 2, '.', ''); ?>,
+            courier: <?php echo number_format($shippingSettings['courier_price'] ?? 0, 2, '.', ''); ?>
         };
         const allLockers = <?php echo json_encode($lockersForJs); ?>;
 
         // UI State
         let currentProvider = '';
         let currentFilteredLockers = [];
+
+        // Dinaminės kainos užklausos funkcija
+        async function calculateDynamicPrice(method, payload) {
+            if (isCommunityOnly) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('method', method);
+                for (const key in payload) {
+                    formData.append(key, payload[key]);
+                }
+                
+                const response = await fetch('ajax_paysera_delivery.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let apiPrice = parseFloat(data.price);
+                    let basePrice = parseFloat(prices[method] || 0);
+                    let finalPrice = Math.max(apiPrice, basePrice);
+                    
+                    updatePriceUI(method, finalPrice);
+                }
+            } catch (e) {
+                console.error('Klaida gaunant pristatymo kainą:', e);
+                updatePriceUI(method, parseFloat(prices[method] || 0));
+            }
+        }
+
+        function updatePriceUI(method, calculatedPrice) {
+            let shipPrice = isCommunityOnly ? 0 : calculatedPrice;
+            
+            // Apsauga: jei krepšeliui priklauso nemokamas siuntimas, kaina visada 0
+            if (isShippingFree) {
+                shipPrice = 0;
+            }
+            
+            document.getElementById('dynamic-shipping-price').value = shipPrice.toFixed(2);
+            
+            const shipDisplay = document.getElementById('shipping-display');
+            const totalDisplay = document.getElementById('total-display');
+            
+            const finalTotal = totalAfterDiscount + shipPrice;
+            
+            if (!isCommunityOnly && shipDisplay) {
+                shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
+            }
+            if (totalDisplay) {
+                totalDisplay.textContent = finalTotal.toFixed(2) + ' €';
+            }
+            
+            // Atnaujiname radijo mygtuko vizualią kainą
+            const radioEl = document.querySelector(`input[name="delivery_method"][value="${method}"]`);
+            if (radioEl) {
+                const priceEl = radioEl.nextElementSibling;
+                if (priceEl && !isCommunityOnly) {
+                    if (isShippingFree) {
+                        priceEl.textContent = '0.00 €';
+                        priceEl.classList.add('free');
+                    } else {
+                        priceEl.textContent = shipPrice.toFixed(2) + ' €';
+                        priceEl.classList.remove('free');
+                    }
+                }
+            }
+        }
+
+        function triggerCourierCalculation() {
+            const method = document.querySelector('input[name="delivery_method"]:checked')?.value;
+            if (method !== 'courier') return;
+
+            const city = document.getElementById('input-city').value.trim();
+            const zip = document.getElementById('input-zip').value.trim();
+            
+            if (city.length >= 2 && zip.length >= 4) {
+                calculateDynamicPrice('courier', { city: city, zip: zip });
+            }
+        }
+
+        // Stebime kurjerio įvesties laukų pokyčius kainos perskaičiavimui
+        document.getElementById('input-city').addEventListener('blur', triggerCourierCalculation);
+        document.getElementById('input-zip').addEventListener('blur', triggerCourierCalculation);
 
         function selectShipping(element, method) {
             // Visual Update
@@ -919,8 +1010,6 @@ if (!empty($_SESSION['user_id'])) {
         function updateUI(method) {
             const addrField = document.getElementById('address-field');
             const lockerField = document.getElementById('locker-field');
-            const shipDisplay = document.getElementById('shipping-display');
-            const totalDisplay = document.getElementById('total-display');
             
             // Required inputs IDs
             const reqInputs = ['input-city', 'input-street', 'input-house', 'input-zip'];
@@ -936,20 +1025,17 @@ if (!empty($_SESSION['user_id'])) {
             if (method === 'courier') {
                 addrField.style.display = 'block';
                 reqInputs.forEach(id => document.getElementById(id).setAttribute('required', 'required'));
+                triggerCourierCalculation(); // Patikriname, ar jau yra įvestų duomenų perskaičiavimui
             } else if (method === 'locker') {
                 lockerField.style.display = 'block';
                 lockerInput.setAttribute('required', 'required');
-            }
-
-            // Price update
-            const shipPrice = isCommunityOnly ? 0 : parseFloat(prices[method] || 0);
-            const finalPrice = totalAfterDiscount + shipPrice;
-
-            if (!isCommunityOnly && shipDisplay) {
-                shipDisplay.textContent = shipPrice.toFixed(2) + ' €';
-            }
-            if (totalDisplay) {
-                totalDisplay.textContent = finalPrice.toFixed(2) + ' €';
+                
+                const selectedLockerId = document.getElementById('locker-select-input').value;
+                if (selectedLockerId) {
+                    calculateDynamicPrice('locker', { locker_id: selectedLockerId });
+                } else {
+                    updatePriceUI('locker', parseFloat(prices['locker']));
+                }
             }
         }
 
@@ -969,6 +1055,7 @@ if (!empty($_SESSION['user_id'])) {
             // Reset selection
             document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
             document.getElementById('locker-select-input').value = '';
+            document.getElementById('locker-name-input').value = '';
             document.getElementById('locker-search-input').value = '';
 
             // Generate list
@@ -1000,10 +1087,11 @@ if (!empty($_SESSION['user_id'])) {
             const div = document.createElement('div');
             div.className = 'custom-option';
             div.textContent = locker.full;
-            div.dataset.value = locker.full; // What gets sent to DB
+            // Priskiriame paštomato ID integracijai
+            div.dataset.value = locker.machine_id; 
             
             div.onclick = function() {
-                selectOption(locker.full);
+                selectOption(locker.machine_id, locker.full);
             };
             
             list.appendChild(div);
@@ -1019,10 +1107,14 @@ if (!empty($_SESSION['user_id'])) {
             }
         }
 
-        function selectOption(value) {
-            document.getElementById('locker-select-input').value = value;
-            document.getElementById('selected-locker-text').textContent = value;
+        function selectOption(machineId, fullName) {
+            document.getElementById('locker-select-input').value = machineId;
+            document.getElementById('locker-name-input').value = fullName;
+            document.getElementById('selected-locker-text').textContent = fullName;
             document.getElementById('custom-select-wrapper').classList.remove('open');
+            
+            // Pasirinkus paštomatą kviečiame dinaminį siuntimo kainos apskaičiavimą
+            calculateDynamicPrice('locker', { locker_id: machineId });
         }
 
         function filterCustomOptions() {
