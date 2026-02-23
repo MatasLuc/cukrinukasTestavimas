@@ -73,12 +73,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // --- IŠTRINTI PAŠTOMATĄ ---
+    // --- IŠTRINTI PAŠTOMATĄ (VIENĄ) ---
     if ($action === 'delete_locker') {
         $id = (int)$_POST['id'];
         $pdo->prepare("DELETE FROM parcel_lockers WHERE id = ?")->execute([$id]);
         $_SESSION['flash_success'] = 'Paštomatas ištrintas.';
         header('Location: /admin.php?view=shipping');
+        exit;
+    }
+
+    // --- PAŠTOMATŲ ATNAUJINIMAS IŠ PAYSERA API (SYNC) ---
+    if ($action === 'sync_terminals') {
+        try {
+            $cronPath = __DIR__ . '/../cron_worker.php';
+            if (file_exists($cronPath)) {
+                ob_start();
+                include $cronPath;
+                ob_get_clean();
+                $_SESSION['flash_success'] = "Paštomatai sėkmingai atnaujinti iš API.";
+            } else {
+                $_SESSION['flash_error'] = "Nerastas cron_worker.php failas.";
+            }
+        } catch (Exception $e) {
+            $_SESSION['flash_error'] = "Klaida atnaujinant paštomatus: " . $e->getMessage();
+        }
+        header("Location: /admin.php?view=shipping");
+        exit;
+    }
+
+    // --- IŠTRINTI VISUS PAŠTOMATUS ---
+    if ($action === 'delete_all_lockers') {
+        try {
+            $pdo->exec("DELETE FROM parcel_lockers");
+            $_SESSION['flash_success'] = "Visi paštomatai sėkmingai ištrinti iš duomenų bazės.";
+        } catch (PDOException $e) {
+            $_SESSION['flash_error'] = "Klaida trinant paštomatus: " . $e->getMessage();
+        }
+        header("Location: /admin.php?view=shipping");
         exit;
     }
 
@@ -199,6 +230,25 @@ foreach ($lockersGrouped as $prov => $list) {
             <span class="stat-badge">Omniva: <?php echo $lockerCounts['omniva'] ?? 0; ?></span>
             <span class="stat-badge">DPD: <?php echo $lockerCounts['dpd'] ?? 0; ?></span>
             <span class="stat-badge">Venipak: <?php echo $lockerCounts['venipak'] ?? 0; ?></span>
+        </div>
+
+        <div style="background:#eff6ff; padding:16px; border-radius:8px; border:1px solid #bfdbfe; margin-bottom:24px;">
+            <h4 style="margin:0 0 12px 0; font-size:14px; color:#1e40af;">Paysera API Sinchronizacija</h4>
+            <p style="font-size:12px; color:#3b82f6; margin-top:0; margin-bottom:12px;">Gaukite naujausią paštomatų sąrašą tiesiai iš vežėjų per Paysera integraciją.</p>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <form method="post" onsubmit="return confirm('Atnaujinti paštomatus iš Paysera API? Šis procesas gali užtrukti kelias sekundes.');" style="margin:0;">
+                    <?php echo csrfField(); ?>
+                    <input type="hidden" name="action" value="sync_terminals">
+                    <button type="submit" class="btn" style="background:#2563eb; border-color:#2563eb;">Atnaujinti iš API</button>
+                </form>
+                
+                <form method="post" onsubmit="return confirm('DĖMESIO: Ar tikrai norite ištrinti VISUS paštomatus iš duomenų bazės?');" style="margin:0;">
+                    <?php echo csrfField(); ?>
+                    <input type="hidden" name="action" value="delete_all_lockers">
+                    <button type="submit" class="btn" style="background:#ef4444; border-color:#ef4444;">Ištrinti visus</button>
+                </form>
+            </div>
         </div>
 
         <div style="background:#f9fafb; padding:16px; border-radius:8px; border:1px dashed #d1d5db; margin-bottom:24px;">
