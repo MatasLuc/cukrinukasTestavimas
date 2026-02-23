@@ -275,7 +275,7 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Užsakymai ir Pardavimai | Cukrinukas.lt</title>
+  <title>Užsakymai ir pardavimai | Cukrinukas.lt</title>
   <?php echo headerStyles(); ?>
   <style>
     :root {
@@ -416,7 +416,7 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
           <?= $message ?>
 
           <div class="nav-tabs">
-              <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Parduotuvė ir Pirkiniai (<?= count($shopOrders) ?>)</a>
+              <a href="?tab=shop" class="nav-tab <?= $activeTab === 'shop' ? 'active' : '' ?>">Pirkiniai (<?= count($shopOrders) ?>)</a>
               <a href="?tab=community_listings" class="nav-tab <?= $activeTab === 'community_listings' ? 'active' : '' ?>">Mano skelbimai (<?= count($myListings) ?>)</a>
               <a href="?tab=community_sell" class="nav-tab <?= $activeTab === 'community_sell' ? 'active' : '' ?>">Mano pardavimai (<?= count($sales) ?>)</a>
           </div>
@@ -567,7 +567,6 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
                           </div>
                           
                           <div class="card-footer">
-                              <div style="flex-grow:1;"><a class="btn-outline" href="/products.php">Pirkti vėl</a></div>
                               <div class="total-price">
                                   <span class="total-label">Viso mokėti</span>
                                   <span class="total-value"><?= number_format((float)$order['total'], 2); ?> €</span>
