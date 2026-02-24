@@ -93,11 +93,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            // ✅ PATAISYTA: Pašaliname galimas kabutes ir konvertuojame ID į Integer tipą
+            // PATAISYTA: Pašaliname galimas kabutes, bet PALIiekame STRING tipą, kaip reikalauja API
             $rawProjectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID') ?? '';
             $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             
-            $projectId = (int)str_replace(['"', "'"], '', trim($rawProjectId));
+            // Paverčiame į String
+            $projectId = (string)str_replace(['"', "'"], '', trim($rawProjectId));
             $password = str_replace(['"', "'"], '', trim($rawPassword));
             $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
             
@@ -117,16 +118,16 @@ if (isset($_POST['create_paysera_shipment'])) {
 
             // Pilna struktūra pagal Paysera dokumentaciją
             $payload = [
-                'project_id' => $projectId, // Dabar užtikrintai siunčiamas kaip Integer (Sveikasis skaičius)
+                'project_id' => $projectId, // BŪTINAS String tipas
                 'shipment_gateway_code' => $gatewayCode,
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
                     'type' => 'sender',
-                    'project_id' => $projectId, // Integer
+                    'project_id' => $projectId, // BŪTINAS String tipas
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
-                    'default_contact' => false,
+                    'default_contact' => false, // Būtinas Boolean
                     'contact' => [
                         'party' => [
                             'title' => 'Cukrinukas.lt',
@@ -144,10 +145,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'receiver' => [
                     'type' => 'receiver',
-                    'project_id' => $projectId, // Integer
+                    'project_id' => $projectId, // BŪTINAS String tipas
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
-                    'default_contact' => false,
+                    'default_contact' => false, // Būtinas Boolean
                     'contact' => [
                         'party' => [
                             'title' => $order['customer_name'],
@@ -196,8 +197,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Paverčiame payload į JSON eilutę
             $payloadJson = json_encode($payload);
             
-            // Sugeneruojame MAC tokeną (pastaba: funkcijai reikalingas string tipo ID)
-            $macAuth = buildMacAuthHeader((string)$projectId, $password, 'POST', $endpoint, $payloadJson);
+            // Sugeneruojame MAC tokeną (projectId jau yra String)
+            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
