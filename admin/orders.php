@@ -109,7 +109,7 @@ if (isset($_POST['create_paysera_shipment'])) {
 
             $gatewayCode = (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false)
                 ? 'omniva'
-                : 'lp_express';
+                : 'lp';
 
             $methodCode = ($order['delivery_method'] === 'courier')
                 ? 'parcel-machine2courier'
