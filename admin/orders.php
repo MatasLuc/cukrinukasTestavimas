@@ -5,42 +5,42 @@
 // --- MAC TOKEN AUTENTIFIKACIJA ---
 if (!function_exists('buildMacAuthHeader')) {
     function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
-
         $parsed = parse_url($url);
-
-        $ts    = time();
-        $nonce = bin2hex(random_bytes(8));
-
-        $host = $parsed['host'];
-        $port = $parsed['port'] ?? ($parsed['scheme'] === 'https' ? 443 : 80);
-
-        $requestUri = $parsed['path'] ?? '/';
+        $ts     = (string) time();
+        $nonce  = bin2hex(random_bytes(8));
+        $host   = $parsed['host'];
+        $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
+        
+        // PATAISYMAS: Paysera MAC reikalauja tikslaus path. Pvz.: /rest/v1/orders
+        $path   = $parsed['path'] ?? '/';
         if (!empty($parsed['query'])) {
-            $requestUri .= '?' . $parsed['query'];
+            $path .= '?' . $parsed['query'];
         }
 
-        $bodyHash = '';
+        $ext = '';
         if ($body !== '') {
             $bodyHash = base64_encode(hash('sha256', $body, true));
+            $ext = 'body_hash=' . urlencode($bodyHash);
         }
 
-        // MAC string pagal OAuth 2.0 MAC spec
-        $macString =
-            $ts . "\n" .
-            $nonce . "\n" .
-            strtoupper($method) . "\n" .
-            $requestUri . "\n" .
-            $host . "\n" .
-            $port . "\n" .
-            $bodyHash . "\n";
+        // MAC parašo formatas privalo būti tikslus!
+        $requestString = $ts    . "\n"
+                       . $nonce . "\n"
+                       . strtoupper($method) . "\n"
+                       . $path  . "\n"
+                       . $host  . "\n"
+                       . (string)$port . "\n"
+                       . $ext   . "\n";
 
-        $mac = base64_encode(hash_hmac('sha256', $macString, $macSecret, true));
+        $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
-        if ($bodyHash !== '') {
-            return 'MAC id="' . $macId . '", ts="' . $ts . '", nonce="' . $nonce . '", bodyhash="' . $bodyHash . '", mac="' . $mac . '"';
+        if ($ext !== '') {
+            return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
+                $macId, $ts, $nonce, $mac, $ext);
         }
 
-        return 'MAC id="' . $macId . '", ts="' . $ts . '", nonce="' . $nonce . '", mac="' . $mac . '"';
+        return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+            $macId, $ts, $nonce, $mac);
     }
 }
 
