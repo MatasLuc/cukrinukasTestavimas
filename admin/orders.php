@@ -10,6 +10,8 @@ if (!function_exists('buildMacAuthHeader')) {
         $nonce  = bin2hex(random_bytes(8));
         $host   = $parsed['host'];
         $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
+        
+        // PATAISYMAS: Paysera MAC reikalauja tikslaus path. Pvz.: /rest/v1/orders
         $path   = $parsed['path'] ?? '/';
         if (!empty($parsed['query'])) {
             $path .= '?' . $parsed['query'];
@@ -21,6 +23,7 @@ if (!function_exists('buildMacAuthHeader')) {
             $ext = 'body_hash=' . urlencode($bodyHash);
         }
 
+        // MAC parašo formatas privalo būti tikslus!
         $requestString = $ts    . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
@@ -66,7 +69,7 @@ if (isset($_POST['delete_id'])) {
     }
 }
 
-// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA - PATAISYTA VERSIJA (POST /orders)
+// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA
 if (isset($_POST['create_paysera_shipment'])) {
     if (function_exists('validateCsrf')) {
         validateCsrf();
@@ -100,7 +103,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password = str_replace(['"', "'"], '', trim($rawPassword));
             
-            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
+            // Šis bazinis URL turi būti nurodytas taip, kad POST eis į https://delivery-api.paysera.com/rest/v1/orders
+            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
             
             if (empty($password)) {
                 throw new Exception("Nepavyko nuskaityti PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
@@ -268,11 +272,19 @@ if (isset($_POST['create_paysera_shipment'])) {
             } else {
                 $err = json_decode($response, true);
                 $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
-                $debugInfo = ($curlError ? " (cURL: $curlError)" : "");
+                
+                // PRIDĖTA: Pataisyta klaidos žinutė rodanti koks tiksliai ID siunčiamas ir koks slaptažodžio ilgis
+                $passLen = strlen($password);
+                $debugInfo = "<br><br><strong>Mūsų siunčiama techninė info:</strong><br>
+                              Project_ID: <code>{$projectId}</code> (Tipas: " . gettype($projectId) . ")<br>
+                              Password ilgis: <code>{$passLen}</code> simbolių<br>
+                              Endpoint URL: <code>{$endpoint}</code><br>
+                              cURL Klaida (jei yra): <code>{$curlError}</code>";
                 
                 echo "<div class='alert alert-danger'>";
-                echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo;
-                echo "<br><small>Response: " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
+                echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)";
+                echo $debugInfo;
+                echo "<br><br><small>Response: " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
                 echo "</div>";
             }
         }
