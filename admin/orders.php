@@ -145,7 +145,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             // ✅ Naudojame POST /orders, o ne /shipments
             $endpoint = rtrim($apiUrl, '/') . '/orders';
             
-            $basicAuth = base64_encode($projectId . ':' . $password);
+            // Sugeneruojame MAC tokeną
+            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint);
             
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -154,7 +155,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
-                'Authorization: Basic ' . $basicAuth
+                'Authorization: ' . $macAuth
             ]);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
