@@ -262,7 +262,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 // ✅ Išplėstas debug info
                 echo "<div class='alert alert-danger'>";
                 echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo;
-                echo "<br><small>Response: " . htmlspecialchars(substr($response, 0, 200)) . "</small>";
+                echo "<br><small>Response: " . htmlspecialchars(substr($response, 0, 500)) . "</small>";
                 echo "</div>";
             }
         }
