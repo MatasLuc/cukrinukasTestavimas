@@ -1,5 +1,6 @@
 <?php
 // admin/orders.php
+// Pilnas administracinis užsakymų valdymo failas su Paysera Integration
 
 // --- MAC TOKEN AUTENTIFIKACIJA ---
 if (!function_exists('buildMacAuthHeader')) {
@@ -54,8 +55,7 @@ if (isset($_POST['delete_id'])) {
     }
 }
 
-<?php
-// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA - PATAISYTA VERSIJA
+// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA - PATAISYTA VERSIJA (POST /orders)
 if (isset($_POST['create_paysera_shipment'])) {
     if (function_exists('validateCsrf')) {
         validateCsrf();
@@ -86,10 +86,6 @@ if (isset($_POST['create_paysera_shipment'])) {
             $password = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD');
             $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
             
-            $senderName = $_ENV['PAYSERA_SENDER_NAME'] ?? 'Siuntėjas';
-            $senderPhone = $_ENV['PAYSERA_SENDER_PHONE'] ?? '+37060000000';
-            $senderEmail = $_ENV['PAYSERA_SENDER_EMAIL'] ?? 'info@parduotuve.lt';
-
             // Iššifruojame kliento pristatymo duomenis
             $delDetails = json_decode($order['delivery_details'], true);
 
@@ -142,8 +138,8 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 // Pašalintas parcel_machine_id, pridėtas pristatymo adresas
                 unset($payload['receiver']['parcel_machine_id']);
-                $payload['receiver']['phone'] = $order['customer_phone'] ?? '+37060000000';
-                $payload['receiver']['email'] = $order['customer_email'];
+                $payload['receiver']['contact']['phone'] = $order['customer_phone'] ?? '+37060000000';
+                $payload['receiver']['contact']['email'] = $order['customer_email'];
             }
 
             // ✅ Naudojame POST /orders, o ne /shipments
@@ -208,7 +204,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                             $body .= "<p>Siuntos sekimo numeris: <strong>{$tracking}</strong></p>";
                         }
                         $body .= "
-                                <p>Dėkojame, kad perkate pas mus!</p>
+                                <p>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>
                             </div>
                         ";
                         sendEmail($order['customer_email'], $subject, $body);
