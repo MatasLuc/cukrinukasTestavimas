@@ -113,10 +113,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
-                    'type' => 'company', // Pataisymas: Nurodomas siuntėjo tipas
+                    'type' => 'sender', // PAGAL DOKUMENTACIJĄ TURI BŪTI 'sender'
                     'project_id' => $projectId,
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
-                    'saved' => false, // Pataisymas: nurodomas saved parametras
+                    'saved' => false,
                     'contact' => [
                         'party' => [
                             'title' => 'Cukrinukas.lt', // Jūsų įmonės / parduotuvės pavadinimas
@@ -124,7 +124,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                         'email' => 'labas@cukrinukas.lt', // Jūsų el. paštas
                         'phone' => '+37064477724', // BŪTINAS jūsų (siuntėjo) telefono numeris
                         'address' => [
-                            'country' => 'LT', // Pataisymas: country vietoj country_code
+                            'country' => 'LT',
                             'city' => 'Vilnius',
                             'street' => 'Miglos g. 65', // Arba kitas bazinis adresas
                             'postal_code' => '01103'
@@ -133,9 +133,9 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ],
                 
                 'receiver' => [
-                    'type' => 'person', // Pataisymas: Nurodomas gavėjo tipas
+                    'type' => 'receiver', // PAGAL DOKUMENTACIJĄ TURI BŪTI 'receiver'
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
-                    'saved' => false, // Pataisymas: nurodomas saved parametras
+                    'saved' => false,
                     'contact' => [
                         'party' => [
                             'title' => $order['customer_name'],
@@ -144,7 +144,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                         'email' => $order['customer_email'],
                         'phone' => $order['customer_phone'] ?? '+37060000000',
                         'address' => [
-                            'country' => 'LT', // Pataisymas: country vietoj country_code
+                            'country' => 'LT',
                             'city' => 'Vilnius', 
                             'street' => $order['customer_address'] ?? 'Nenurodyta',
                             'postal_code' => '00000'
@@ -155,9 +155,9 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'shipments' => [
                     [
                         'weight' => 1000,  // Gramais
-                        'width' => 380,    // Pataisymas: matmenys milimetrais (38 cm)
-                        'length' => 640,   // Pataisymas: matmenys milimetrais (64 cm)
-                        'height' => 190,   // Pataisymas: matmenys milimetrais (19 cm)
+                        'width' => 380,    // Milimetrais (38 cm)
+                        'length' => 640,   // Milimetrais (64 cm)
+                        'height' => 190,   // Milimetrais (19 cm)
                         'package_size' => 'M'
                     ]
                 ]
