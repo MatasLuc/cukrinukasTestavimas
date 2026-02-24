@@ -237,7 +237,28 @@ foreach ($allOrders as &$order) {
     $orderItemsStmt->execute([$order['id']]);
     $order['items'] = $orderItemsStmt->fetchAll(PDO::FETCH_ASSOC);
 }
-unset($order); 
+unset($order);
+
+// ✅ NAUJAS: Paruošiame paštomatus JS (toks pat formatas kaip checkout.php)
+$lockersForJs = [];
+try {
+    foreach ($lockers as $l) {
+        $addressParts = explode(',', $l['address'] ?? '');
+        $derivedCity = trim($addressParts[0] ?? '');
+        
+        $lockersForJs[] = [
+            'title' => $l['title'],
+            'address' => $l['address'],
+            'city' => $derivedCity,
+            'type' => strtolower(trim($l['provider'] ?? 'other')), 
+            'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
+            'terminal_id' => $l['terminal_id'] ?? ''
+        ];
+    }
+    usort($lockersForJs, function($a, $b) {
+        return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
+    });
+} catch (Exception $e) {}
 ?>
 
 <style>
@@ -374,6 +395,26 @@ unset($order);
     .btn-label { background: #f3f4f6; color: #111; border: 1px solid #ccc; font-size: 11px; padding: 6px 12px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 600; }
     .btn-label:hover { background: #e5e7eb; }
 
+    /* ✅ CUSTOM SELECT (iš checkout.php) */
+    .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
+    .custom-select-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 14px; font-weight: 400; color: #0f172a; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .custom-select-wrapper.open .custom-select-trigger { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+    .custom-select-trigger span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    .custom-options-container { position: absolute; display: none; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 300px; overflow: hidden; flex-direction: column; }
+    .custom-select-wrapper.open .custom-options-container { display: flex; }
+    
+    .sticky-search { padding: 8px; background: #fff; border-bottom: 1px solid #e4e7ec; }
+    .sticky-search input { width: 100%; padding: 8px; border: 1px solid #e4e7ec; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+    .sticky-search input:focus { outline: none; border-color: #2563eb; }
+    
+    .options-list { overflow-y: auto; flex: 1; }
+    .custom-option { padding: 10px 12px; font-size: 13px; color: #0f172a; cursor: pointer; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
+    .custom-option:last-child { border-bottom: none; }
+    .custom-option:hover { background: #f1f5f9; }
+    .custom-option.selected { background: #eff6ff; color: #2563eb; font-weight: 500; }
+    .custom-option.no-results { text-align: center; color: #475467; cursor: default; }
+
     @media (max-width: 768px) {
         .modal-grid { grid-template-columns: 1fr; }
         .modal-footer { flex-direction: column; gap: 10px; }
@@ -437,7 +478,16 @@ unset($order);
                             data-order-id="<?php echo $order['id']; ?>"
                             data-receiver-locker="<?php 
                                 $dd = json_decode($order['delivery_details'], true);
-                                echo htmlspecialchars($dd['locker_name'] ?? 'Kurjeris/Nenurodyta'); 
+                                $city = '';
+                                $name = $dd['locker_name'] ?? 'Kurjeris/Nenurodyta';
+                                if ($dd && isset($dd['locker_name'])) {
+                                    // Ištraukiame miestą iš pavadinimo (formatas: "Vilnius - LP123 (Adresas)")
+                                    if (strpos($name, ' - ') !== false) {
+                                        $parts = explode(' - ', $name);
+                                        $city = $parts[0];
+                                    }
+                                }
+                                echo htmlspecialchars($name); 
                             ?>"
                             style="margin-bottom: 5px;">
                         Kurti Paysera siuntą
@@ -505,7 +555,7 @@ unset($order);
                             <div class="info-row"><label>Adresas:</label> <span id="m_address"></span></div>
                             
                             <div style="margin-top:10px; font-size:12px; background:#fff; padding:8px; border:1px dashed #ccc; display:none;" id="m_deliveryDetailsBox">
-                                <strong>Papildoma info (JSON):</strong><br>
+                                <strong style="display:block; margin-bottom:4px;">Papildoma info (JSON):</strong>
                                 <span id="m_deliveryDetailsText" style="word-break:break-all; color:#555;"></span>
                             </div>
 
@@ -581,8 +631,9 @@ unset($order);
     </div>
 </div>
 
+<!-- ✅ PATAISYTAS PAYSERA MODLAS - Custom Select kaip checkout.php -->
 <div id="payseraModal" class="modal-overlay">
-    <div class="modal-window" style="max-width: 500px;">
+    <div class="modal-window" style="max-width: 600px;">
         <div class="modal-header">
             <h3 class="modal-title">Kurti Paysera siuntą</h3>
             <button type="button" class="modal-close" onclick="closePayseraModal()">&times;</button>
@@ -601,22 +652,61 @@ unset($order);
                 </div>
 
                 <p style="font-size:14px; margin-bottom:10px; color:#555;">Pasirinkite <strong>savo (siuntėjo)</strong> paštomatą, iš kurio išsiųsite prekes klientui (Dydis M, 1kg):</p>
-                <select name="sender_locker_id" class="form-control" required>
-                    <option value="">-- Pasirinkite paštomatą --</option>
-                    <?php foreach ($lockers as $locker): ?>
-                        <option value="<?php echo htmlspecialchars($locker['terminal_id'] ?? $locker['id']); ?>">
-                            <?php echo htmlspecialchars(($locker['city'] ?? 'Nežinomas miestas') . ' - ' . ($locker['title'] ?? '') . ' (' . ($locker['address'] ?? '') . ')'); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                
+                <label class="form-label" style="margin-bottom:10px;">1. Pasirinkite tiekėją:</label>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                    <div class="provider-btn" onclick="filterLockers('lp', this)" style="border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; text-align: center; font-weight: 600; color: #475467; cursor: pointer; transition: all 0.2s; background: #fff;">
+                        LP EXPRESS
+                    </div>
+                    <div class="provider-btn" onclick="filterLockers('omniva', this)" style="border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; text-align: center; font-weight: 600; color: #475467; cursor: pointer; transition: all 0.2s; background: #fff;">
+                        OMNIVA
+                    </div>
+                </div>
+
+                <div id="locker-selection-area" style="display:none;">
+                    <label class="form-label">2. Pasirinkite paštomatą:</label>
+                    
+                    <input type="hidden" name="sender_locker_id" id="locker-select-input" required>
+                    
+                    <div class="custom-select-wrapper" id="custom-select-wrapper">
+                        <div class="custom-select-trigger" onclick="toggleDropdown()">
+                            <span id="selected-locker-text">-- Pasirinkite iš sąrašo --</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <div class="custom-options-container" id="custom-options-container">
+                            <div class="sticky-search">
+                                <input type="text" id="locker-search-input" placeholder="Rašykite miestą arba adresą..." onkeyup="filterCustomOptions()" autocomplete="off">
+                            </div>
+                            <div class="options-list" id="options-list">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
                 <button type="button" class="btn secondary" onclick="closePayseraModal()">Atšaukti</button>
-                <button type="submit" class="btn btn-primary" style="background:#2563eb; color:#fff;">Patvirtinti ir sukurti</button>
+                <button type="submit" class="btn" style="background:#2563eb; color:#fff;">Patvirtinti ir sukurti</button>
             </div>
         </form>
     </div>
 </div>
+
+<style>
+    .provider-btn {
+        border: 1px solid #e4e7ec;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        font-weight: 600;
+        color: #475467;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: #fff;
+    }
+    .provider-btn:hover { background: #f8fafc; }
+    .provider-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+</style>
 
 <script>
     // --- Bazinio Modalo Logika ---
@@ -740,8 +830,11 @@ unset($order);
         if (e.target === modal) closeModal();
     });
 
-    // --- Paysera Modalo Logika ---
+    // --- ✅ PATAISYTAS Paysera Modalo Logika ---
     const payseraModal = document.getElementById('payseraModal');
+    let currentProvider = '';
+    let currentFilteredLockers = [];
+    const allLockers = <?php echo json_encode($lockersForJs); ?>;
 
     document.querySelectorAll('.open-paysera-modal').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -750,6 +843,14 @@ unset($order);
             
             document.getElementById('p_orderId').value = orderId;
             document.getElementById('p_receiverLocker').textContent = recLocker;
+            
+            // Reset UI
+            currentProvider = '';
+            document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('locker-selection-area').style.display = 'none';
+            document.getElementById('selected-locker-text').textContent = '-- Pasirinkite iš sąrašo --';
+            document.getElementById('locker-select-input').value = '';
+            document.getElementById('locker-search-input').value = '';
             
             payseraModal.style.display = 'flex';
             setTimeout(() => { payseraModal.classList.add('open'); }, 10);
@@ -763,5 +864,101 @@ unset($order);
 
     payseraModal.addEventListener('click', function(e) {
         if (e.target === payseraModal) closePayseraModal();
+    });
+
+    function filterLockers(provider, btnElement) {
+        currentProvider = provider;
+        
+        // Update buttons visual state
+        document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
+        if(btnElement) btnElement.classList.add('active');
+
+        // Show selection area
+        document.getElementById('locker-selection-area').style.display = 'block';
+
+        // Reset selection
+        document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
+        document.getElementById('locker-select-input').value = '';
+        document.getElementById('locker-search-input').value = '';
+
+        // Generate list
+        generateCustomOptions(provider);
+    }
+
+    function generateCustomOptions(provider) {
+        const list = document.getElementById('options-list');
+        list.innerHTML = '';
+        
+        // Filter by provider only
+        currentFilteredLockers = allLockers.filter(l => l.type === provider);
+
+        if(currentFilteredLockers.length === 0) {
+            const div = document.createElement('div');
+            div.className = 'custom-option no-results';
+            div.textContent = 'Šio tiekėjo paštomatų nerasta.';
+            list.appendChild(div);
+            return;
+        }
+
+        currentFilteredLockers.forEach(locker => {
+            createOptionElement(locker);
+        });
+    }
+
+    function createOptionElement(locker) {
+        const list = document.getElementById('options-list');
+        const div = document.createElement('div');
+        div.className = 'custom-option';
+        div.textContent = locker.full;
+        div.dataset.value = locker.terminal_id; 
+        
+        div.onclick = function() {
+            selectOption(locker.terminal_id, locker.full);
+        };
+        
+        list.appendChild(div);
+    }
+
+    function toggleDropdown() {
+        const wrapper = document.getElementById('custom-select-wrapper');
+        wrapper.classList.toggle('open');
+        
+        // If opening, focus search
+        if (wrapper.classList.contains('open')) {
+            setTimeout(() => document.getElementById('locker-search-input').focus(), 100);
+        }
+    }
+
+    function selectOption(terminalId, fullName) {
+        document.getElementById('locker-select-input').value = terminalId;
+        document.getElementById('selected-locker-text').textContent = fullName;
+        document.getElementById('custom-select-wrapper').classList.remove('open');
+    }
+
+    function filterCustomOptions() {
+        const term = document.getElementById('locker-search-input').value.toLowerCase();
+        const list = document.getElementById('options-list');
+        list.innerHTML = '';
+
+        const filtered = currentFilteredLockers.filter(locker => 
+            locker.full.toLowerCase().includes(term)
+        );
+
+        if (filtered.length === 0) {
+            const div = document.createElement('div');
+            div.className = 'custom-option no-results';
+            div.textContent = 'Nerasta atitikmenų';
+            list.appendChild(div);
+        } else {
+            filtered.forEach(locker => createOptionElement(locker));
+        }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const wrapper = document.getElementById('custom-select-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            wrapper.classList.remove('open');
+        }
     });
 </script>
