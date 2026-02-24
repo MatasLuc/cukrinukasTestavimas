@@ -83,7 +83,7 @@ if (isset($_POST['create_paysera_shipment'])) {
 
             $projectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID');
             $password = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD');
-            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/merchant/rest/v1/';
+            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
             
             $senderName = $_ENV['PAYSERA_SENDER_NAME'] ?? 'Siuntėjas';
             $senderPhone = $_ENV['PAYSERA_SENDER_PHONE'] ?? '+37060000000';
@@ -144,9 +144,11 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'Accept: application/json',
                 'Authorization: ' . buildMacAuthHeader($projectId, $password, 'POST', $endpoint)
             ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30); // ✅ ADDED: timeout
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch); // ✅ ADDED: paimame curl error PRIEŠ close
             curl_close($ch);
 
             // Jei sukurta sėkmingai
@@ -190,7 +192,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 exit;
             } else {
                 $err = json_decode($response, true);
-                echo "<div class='alert alert-danger'>Paysera API Klaida: " . htmlspecialchars($err['message'] ?? 'Nežinoma klaida') . " (Kodas: $httpCode)</div>";
+                $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
+                $debugInfo = ($curlError ? " (cURL: $curlError)" : "");
+                echo "<div class='alert alert-danger'>Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo . "</div>";
+                
             }
         }
     } catch (Exception $e) {
