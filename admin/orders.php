@@ -106,44 +106,45 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
             $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
 
-            // ✅ PATAISYTA: Pilna ir reikalavimus atitinkanti ORDER struktūra
+            // ✅ PATAISYTA: Tinkama struktūra pagal Paysera dokumentaciją
             $payload = [
                 'project_id' => $projectId,
                 'shipment_gateway_code' => $gatewayCode,
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
-                    'type' => 'sender', // PAGAL DOKUMENTACIJĄ TURI BŪTI 'sender'
+                    'type' => 'sender',
                     'project_id' => $projectId,
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
-                    'default_contact' => [ // PAKEISTA IŠ 'contact' Į 'default_contact'
+                    'default_contact' => false, // Būtinas Boolean!
+                    'contact' => [
                         'party' => [
-                            'title' => 'Cukrinukas.lt', // Jūsų įmonės / parduotuvės pavadinimas
+                            'title' => 'Cukrinukas.lt',
+                            'email' => 'labas@cukrinukas.lt', // Email ir Phone turi būti PARTY viduje
+                            'phone' => '+37064477724',
                         ],
-                        'email' => 'labas@cukrinukas.lt', // Jūsų el. paštas
-                        'phone' => '+37064477724', // BŪTINAS jūsų (siuntėjo) telefono numeris
                         'address' => [
                             'country' => 'LT',
                             'city' => 'Vilnius',
-                            'street' => 'Miglos g. 65', // Arba kitas bazinis adresas
+                            'street' => 'Miglos g. 65',
                             'postal_code' => '01103'
                         ]
                     ]
                 ],
                 
                 'receiver' => [
-                    'type' => 'receiver', // PAGAL DOKUMENTACIJĄ TURI BŪTI 'receiver'
-                    'project_id' => $projectId, // PRIDĖTA TRŪKSTAMA EILUTĖ: project_id
+                    'type' => 'receiver',
+                    'project_id' => $projectId,
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
-                    'default_contact' => [ // PAKEISTA IŠ 'contact' Į 'default_contact'
+                    'default_contact' => false, // Būtinas Boolean!
+                    'contact' => [
                         'party' => [
                             'title' => $order['customer_name'],
+                            'email' => $order['customer_email'],
+                            'phone' => $order['customer_phone'] ?? '+37060000000',
                         ],
-                        // El. paštas ir telefonas yra PRIVALOMI visiems siuntimo būdams
-                        'email' => $order['customer_email'],
-                        'phone' => $order['customer_phone'] ?? '+37060000000',
                         'address' => [
                             'country' => 'LT',
                             'city' => 'Vilnius', 
@@ -169,24 +170,24 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $addr = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
-                    $payload['receiver']['default_contact']['address']['street'] = trim($parts[0]);
-                    $payload['receiver']['default_contact']['address']['city'] = trim($parts[1]);
-                    $payload['receiver']['default_contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
+                    $payload['receiver']['contact']['address']['street'] = trim($parts[0]);
+                    $payload['receiver']['contact']['address']['city'] = trim($parts[1]);
+                    $payload['receiver']['contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
                 } else {
-                    $payload['receiver']['default_contact']['address']['city'] = 'Lietuva';
-                    $payload['receiver']['default_contact']['address']['street'] = $addr;
+                    $payload['receiver']['contact']['address']['city'] = 'Lietuva';
+                    $payload['receiver']['contact']['address']['street'] = $addr;
                 }
                 
                 unset($payload['receiver']['parcel_machine_id']);
             }
 
-            // ✅ Naudojame POST /orders, o ne /shipments
+            // Naudojame POST /orders
             $endpoint = rtrim($apiUrl, '/') . '/orders';
             
-            // 1. Paverčiame payload į JSON eilutę prieš generuojant tokeną
+            // Paverčiame payload į JSON eilutę
             $payloadJson = json_encode($payload);
             
-            // 2. Sugeneruojame MAC tokeną PERDUODANT turinį (body), kad sugeneruotų body_hash
+            // Sugeneruojame MAC tokeną PERDUODANT turinį (body), kad sugeneruotų body_hash
             $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
@@ -205,14 +206,14 @@ if (isset($_POST['create_paysera_shipment'])) {
             $curlError = curl_error($ch);
             curl_close($ch);
 
-            // ✅ Debug: Loginti API atsakymą
+            // Debug log
             error_log("[PAYSERA] HTTP $httpCode | Response: " . substr($response, 0, 500));
 
             // Jei sukurta sėkmingai
             if ($httpCode >= 200 && $httpCode < 300 && $response) {
                 $resData = json_decode($response, true);
                 
-                // ✅ Iš ORDER atsakymo ištraukti shipment duomenis
+                // Iš ORDER atsakymo ištraukti shipment duomenis
                 $payseraId = $resData['id'] ?? '';
                 $shipments = $resData['shipments'] ?? [];
                 $tracking = '';
@@ -260,7 +261,6 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
                 $debugInfo = ($curlError ? " (cURL: $curlError)" : "");
                 
-                // ✅ Išplėstas debug info
                 echo "<div class='alert alert-danger'>";
                 echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo;
                 echo "<br><small>Response: " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
@@ -287,7 +287,7 @@ try {
     $allOrders = [];
 }
 
-// 1.1 Gauname paštomatus atskirame try-catch bloke
+// 1.1 Gauname paštomatus
 try {
     $lockers = $pdo->query("SELECT * FROM parcel_lockers ORDER BY title")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -301,14 +301,13 @@ $orderItemsStmt = $pdo->prepare('
     WHERE order_id = ?
 ');
 
-// Iš anksto paruošiame prekes kiekvienam užsakymui
 foreach ($allOrders as &$order) {
     $orderItemsStmt->execute([$order['id']]);
     $order['items'] = $orderItemsStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 unset($order);
 
-// ✅ NAUJAS: Paruošiame paštomatus JS (toks pat formatas kaip checkout.php)
+// Paruošiame paštomatus JS
 $lockersForJs = [];
 try {
     foreach ($lockers as $l) {
@@ -464,7 +463,7 @@ try {
     .btn-label { background: #f3f4f6; color: #111; border: 1px solid #ccc; font-size: 11px; padding: 6px 12px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 600; }
     .btn-label:hover { background: #e5e7eb; }
 
-    /* ✅ CUSTOM SELECT (iš checkout.php) */
+    /* CUSTOM SELECT */
     .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
     .custom-select-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 14px; font-weight: 400; color: #0f172a; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
     .custom-select-wrapper.open .custom-select-trigger { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
@@ -550,7 +549,6 @@ try {
                                 $city = '';
                                 $name = $dd['locker_name'] ?? 'Kurjeris/Nenurodyta';
                                 if ($dd && isset($dd['locker_name'])) {
-                                    // Ištraukiame miestą iš pavadinimo (formatas: "Vilnius - LP123 (Adresas)")
                                     if (strpos($name, ' - ') !== false) {
                                         $parts = explode(' - ', $name);
                                         $city = $parts[0];
