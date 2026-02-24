@@ -2,6 +2,12 @@
 // admin/orders.php
 // Pilnas administracinis užsakymų valdymo failas su Paysera Integration
 
+// --- DEBUG LOGGER ---
+function payseraLog(string $message): void {
+    $logFile = __DIR__ . '/../mailer_errors.log';
+    file_put_contents($logFile, date('[Y-m-d H:i:s]') . ' [PAYSERA] ' . $message . "\n", FILE_APPEND);
+}
+
 // --- MAC TOKEN AUTENTIFIKACIJA ---
 if (!function_exists('buildMacAuthHeader')) {
     function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
@@ -10,8 +16,7 @@ if (!function_exists('buildMacAuthHeader')) {
         $nonce  = bin2hex(random_bytes(8));
         $host   = $parsed['host'];
         $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
-        
-        // PATAISYMAS: Paysera MAC reikalauja tikslaus path. Pvz.: /rest/v1/orders
+
         $path   = $parsed['path'] ?? '/';
         if (!empty($parsed['query'])) {
             $path .= '?' . $parsed['query'];
@@ -20,10 +25,10 @@ if (!function_exists('buildMacAuthHeader')) {
         $ext = '';
         if ($body !== '') {
             $bodyHash = base64_encode(hash('sha256', $body, true));
-            $ext = 'body_hash=' . urlencode($bodyHash);
+            // BEZ urlencode — Paysera tikisi raw base64
+            $ext = 'body_hash=' . $bodyHash;
         }
 
-        // MAC parašo formatas privalo būti tikslus!
         $requestString = $ts    . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
@@ -34,34 +39,49 @@ if (!function_exists('buildMacAuthHeader')) {
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
+        // --- LOG ---
+        payseraLog("=== buildMacAuthHeader ===");
+        payseraLog("macId: " . $macId);
+        payseraLog("macSecret ilgis: " . strlen($macSecret) . " | pirmi 4: " . substr($macSecret, 0, 4) . " | paskutiniai 4: " . substr($macSecret, -4));
+        payseraLog("method: " . strtoupper($method));
+        payseraLog("url: " . $url);
+        payseraLog("host: " . $host . " | port: " . $port);
+        payseraLog("path: " . $path);
+        payseraLog("ts: " . $ts . " | nonce: " . $nonce);
+        payseraLog("ext: " . ($ext ?: '(tuščias)'));
+        payseraLog("body ilgis: " . strlen($body) . " | pirmi 200: " . substr($body, 0, 200));
+        payseraLog("requestString (\\n->|): " . str_replace("\n", "|", $requestString));
+        payseraLog("mac: " . $mac);
+
         if ($ext !== '') {
-            return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
+            $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
                 $macId, $ts, $nonce, $mac, $ext);
+        } else {
+            $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+                $macId, $ts, $nonce, $mac);
         }
 
-        return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
-            $macId, $ts, $nonce, $mac);
+        payseraLog("Authorization: " . $header);
+        payseraLog("=== END buildMacAuthHeader ===");
+
+        return $header;
     }
 }
 
 // 0. IŠTRYNIMO LOGIKA
 if (isset($_POST['delete_id'])) {
-    // Saugumo patikrinimas: ar tai validi užklausa
     if (function_exists('validateCsrf')) {
         validateCsrf();
     }
 
     $deleteId = (int)$_POST['delete_id'];
     try {
-        // Ištriname užsakymą
         $stmtDel = $pdo->prepare("DELETE FROM orders WHERE id = ?");
         $stmtDel->execute([$deleteId]);
         
-        // Ištriname susijusias prekes (jei nėra automatinio ON DELETE CASCADE DB lygmenyje)
         $stmtDelItems = $pdo->prepare("DELETE FROM order_items WHERE order_id = ?");
         $stmtDelItems->execute([$deleteId]);
 
-        // Perkrovimas, kad dingtų iš sąrašo
         echo "<script>window.location.href='index.php?page=orders';</script>";
         exit;
     } catch (PDOException $e) {
@@ -76,16 +96,18 @@ if (isset($_POST['create_paysera_shipment'])) {
     }
 
     $orderId = (int)$_POST['order_id'];
-    $senderLockerId = $_POST['sender_locker_id']; // Siuntėjo paštomato ID
+    $senderLockerId = $_POST['sender_locker_id'];
+
+    payseraLog("========================================");
+    payseraLog("NAUJAS BANDYMAS KURTI SIUNTĄ");
+    payseraLog("orderId: " . $orderId . " | senderLockerId: " . $senderLockerId);
 
     try {
-        // Gauname užsakymo duomenis
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($order) {
-            // Įkrauname aplinkos kintamuosius iš .env (slaptažodžiui)
             $envFile = __DIR__ . '/../.env';
             if (file_exists($envFile)) {
                 $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -96,113 +118,110 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            // Griežtai nustatome projekto ID kaip eilutę (string), kaip to reikalauja API
-            $projectId = "248259"; 
-            
-            // Paimame slaptažodį
+            $projectId   = "248259";
             $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
-            $password = str_replace(['"', "'"], '', trim($rawPassword));
-            
-            // Šis bazinis URL turi būti nurodytas taip, kad POST eis į https://delivery-api.paysera.com/rest/v1/orders
-            $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
-            
+            $password    = str_replace(['"', "'", "\r", "\n"], '', trim($rawPassword));
+            $apiUrl      = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
+
+            payseraLog("projectId: " . $projectId);
+            payseraLog("rawPassword ilgis: " . strlen($rawPassword) . " | po trim: " . strlen($password));
+            payseraLog("password pirmi 4: " . substr($password, 0, 4) . " | paskutiniai 4: " . substr($password, -4));
+            payseraLog("password hex (pirmi 10 baitai): " . bin2hex(substr($password, 0, 10)));
+            payseraLog("apiUrl: " . $apiUrl);
+
             if (empty($password)) {
                 throw new Exception("Nepavyko nuskaityti PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
             }
 
-            // Iššifruojame kliento pristatymo duomenis
-            $delDetails = json_decode($order['delivery_details'], true);
-
-            // Dinamiškai nustatome kurjerį pagal pasirinktą paštomato ID
+            $delDetails  = json_decode($order['delivery_details'], true);
             $gatewayCode = (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false) ? 'omniva' : 'lp_express';
-            
-            // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
-            $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
+            $methodCode  = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
 
-            // Pilna struktūra pagal Paysera dokumentaciją, project_id yra privalomas tekstas 3 vietose
+            payseraLog("delivery_method: " . $order['delivery_method']);
+            payseraLog("delivery_details: " . $order['delivery_details']);
+            payseraLog("locker_id iš delivery_details: " . ($delDetails['locker_id'] ?? 'N/A'));
+            payseraLog("gatewayCode: " . $gatewayCode . " | methodCode: " . $methodCode);
+
             $payload = [
-                'project_id' => $projectId, 
+                'project_id'            => $projectId,
                 'shipment_gateway_code' => $gatewayCode,
-                'shipment_method_code' => $methodCode,
+                'shipment_method_code'  => $methodCode,
                 
                 'sender' => [
-                    'type' => 'sender',
-                    'project_id' => $projectId, 
-                    'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
-                    'saved' => false,
-                    'default_contact' => false,
-                    'contact' => [
-                        'party' => [
+                    'type'              => 'sender',
+                    'project_id'        => $projectId,
+                    'parcel_machine_id' => $senderLockerId,
+                    'saved'             => false,
+                    'default_contact'   => false,
+                    'contact'           => [
+                        'party'   => [
                             'title' => 'Cukrinukas.lt',
                             'email' => 'labas@cukrinukas.lt',
                             'phone' => '+37064477724',
                         ],
                         'address' => [
-                            'country' => 'LT',
-                            'city' => 'Vilnius',
-                            'street' => 'Miglos g. 65',
-                            'postal_code' => '01103'
-                        ]
-                    ]
+                            'country'     => 'LT',
+                            'city'        => 'Vilnius',
+                            'street'      => 'Miglos g. 65',
+                            'postal_code' => '01103',
+                        ],
+                    ],
                 ],
                 
                 'receiver' => [
-                    'type' => 'receiver',
-                    'project_id' => $projectId, 
+                    'type'              => 'receiver',
+                    'project_id'        => $projectId,
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
-                    'saved' => false,
-                    'default_contact' => false,
-                    'contact' => [
-                        'party' => [
+                    'saved'             => false,
+                    'default_contact'   => false,
+                    'contact'           => [
+                        'party'   => [
                             'title' => $order['customer_name'],
                             'email' => $order['customer_email'],
                             'phone' => $order['customer_phone'] ?? '+37060000000',
                         ],
                         'address' => [
-                            'country' => 'LT',
-                            'city' => 'Vilnius', 
-                            'street' => $order['customer_address'] ?? 'Nenurodyta',
-                            'postal_code' => '00000'
-                        ]
-                    ]
+                            'country'     => 'LT',
+                            'city'        => 'Vilnius',
+                            'street'      => $order['customer_address'] ?? 'Nenurodyta',
+                            'postal_code' => '00000',
+                        ],
+                    ],
                 ],
                 
                 'shipments' => [
                     [
-                        'weight' => 1000,  // Gramais
-                        'width' => 380,    // Milimetrais (38 cm)
-                        'length' => 640,   // Milimetrais (64 cm)
-                        'height' => 190,   // Milimetrais (19 cm)
-                        'package_size' => 'M'
-                    ]
-                ]
+                        'weight'       => 1000,
+                        'width'        => 380,
+                        'length'       => 640,
+                        'height'       => 190,
+                        'package_size' => 'M',
+                    ],
+                ],
             ];
 
-            // Jei pristatymas kurjeriu, patiksliname gavėjo adresą ir nuimame paštomato ID
             if ($order['delivery_method'] === 'courier') {
-                $addr = $order['customer_address'];
+                $addr  = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
-                    $payload['receiver']['contact']['address']['street'] = trim($parts[0]);
-                    $payload['receiver']['contact']['address']['city'] = trim($parts[1]);
+                    $payload['receiver']['contact']['address']['street']      = trim($parts[0]);
+                    $payload['receiver']['contact']['address']['city']        = trim($parts[1]);
                     $payload['receiver']['contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
                 } else {
-                    $payload['receiver']['contact']['address']['city'] = 'Lietuva';
+                    $payload['receiver']['contact']['address']['city']   = 'Lietuva';
                     $payload['receiver']['contact']['address']['street'] = $addr;
                 }
-                
                 unset($payload['receiver']['parcel_machine_id']);
             }
 
-            // Naudojame POST /orders
-            $endpoint = rtrim($apiUrl, '/') . '/orders';
-            
-            // Paverčiame payload į JSON eilutę
+            $endpoint    = rtrim($apiUrl, '/') . '/orders';
             $payloadJson = json_encode($payload);
-            
-            // Sugeneruojame MAC tokeną 
+
+            payseraLog("endpoint: " . $endpoint);
+            payseraLog("payloadJson: " . $payloadJson);
+
             $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
-            
+
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -210,35 +229,33 @@ if (isset($_POST['create_paysera_shipment'])) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
-                'Authorization: ' . $macAuth
+                'Authorization: ' . $macAuth,
             ]);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $response  = curl_exec($ch);
+            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
             curl_close($ch);
 
-            // Debug log
-            error_log("[PAYSERA] HTTP $httpCode | Response: " . substr($response, 0, 500));
+            payseraLog("HTTP kodas: " . $httpCode);
+            payseraLog("cURL klaida: " . ($curlError ?: 'nėra'));
+            payseraLog("Atsakymas: " . $response);
+            payseraLog("========================================");
 
-            // Jei sukurta sėkmingai
             if ($httpCode >= 200 && $httpCode < 300 && $response) {
-                $resData = json_decode($response, true);
-                
-                // Iš ORDER atsakymo ištraukti shipment duomenis
+                $resData   = json_decode($response, true);
                 $payseraId = $resData['id'] ?? '';
                 $shipments = $resData['shipments'] ?? [];
-                $tracking = '';
-                $labelUrl = '';
-                
+                $tracking  = '';
+                $labelUrl  = '';
+
                 if (!empty($shipments) && is_array($shipments)) {
                     $firstShipment = $shipments[0];
-                    $tracking = $firstShipment['tracking_code'] ?? '';
-                    $labelUrl = $firstShipment['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$firstShipment['id']}/label");
+                    $tracking      = $firstShipment['tracking_code'] ?? '';
+                    $labelUrl      = $firstShipment['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$firstShipment['id']}/label");
                 }
 
-                // Atnaujiname užsakymą DB
                 $updateStmt = $pdo->prepare("
                     UPDATE orders 
                     SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'išsiųsta' 
@@ -246,13 +263,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ");
                 $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
 
-                // Automatinių el. laiškų siuntimas
                 $mailerPath = __DIR__ . '/../mailer.php';
                 if (file_exists($mailerPath)) {
                     require_once $mailerPath;
                     if (function_exists('sendEmail')) {
                         $subject = "Jūsų užsakymas paruoštas siuntimui!";
-                        $body = "
+                        $body    = "
                             <div style='font-family: sans-serif; color: #333;'>
                                 <h2>Sveiki, " . htmlspecialchars($order['customer_name']) . ",</h2>
                                 <p>Norime pranešti, kad Jūsų užsakymas <strong>#" . (int)$order['id'] . "</strong> yra sėkmingai sugeneruotas sistemoje ir netrukus pajudės pas Jus.</p>";
@@ -270,24 +286,27 @@ if (isset($_POST['create_paysera_shipment'])) {
                 echo "<script>window.location.href='index.php?page=orders';</script>";
                 exit;
             } else {
-                $err = json_decode($response, true);
-                $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
-                
-                $passLen = strlen($password);
-                $debugInfo = "<br><br><strong>Mūsų siunčiama techninė info:</strong><br>
+                $err      = json_decode($response, true);
+                $errorMsg = $err['message'] ?? ($err['error_description'] ?? ($err['error'] ?? 'Nežinoma klaida'));
+
+                $passLen   = strlen($password);
+                $passFirst = substr($password, 0, 4) . '...';
+                $debugInfo = "<br><br><strong>Techninė informacija:</strong><br>
                               Project_ID: <code>{$projectId}</code> (Tipas: " . gettype($projectId) . ")<br>
-                              Password ilgis: <code>{$passLen}</code> simbolių<br>
-                              Endpoint URL: <code>{$endpoint}</code><br>
-                              cURL Klaida (jei yra): <code>{$curlError}</code>";
-                
+                              Password ilgis: <code>{$passLen}</code> simbolių | Pradžia: <code>{$passFirst}</code><br>
+                              Endpoint: <code>{$endpoint}</code><br>
+                              MAC Auth: <code>" . htmlspecialchars($macAuth) . "</code><br>
+                              cURL klaida: <code>" . htmlspecialchars($curlError ?: 'nėra') . "</code>";
+
                 echo "<div class='alert alert-danger'>";
-                echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)";
+                echo "<strong>Paysera API Klaida:</strong> " . htmlspecialchars($errorMsg) . " (HTTP: $httpCode)";
                 echo $debugInfo;
-                echo "<br><br><small>Response: " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
+                echo "<br><br><small><strong>Pilnas atsakymas:</strong> " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
                 echo "</div>";
             }
         }
     } catch (Exception $e) {
+        payseraLog("EXCEPTION: " . $e->getMessage());
         echo "<div class='alert alert-danger'>Sistemos klaida: " . $e->getMessage() . "</div>";
     }
 }
@@ -332,18 +351,18 @@ $lockersForJs = [];
 try {
     foreach ($lockers as $l) {
         $addressParts = explode(',', $l['address'] ?? '');
-        $derivedCity = trim($addressParts[0] ?? '');
-        
+        $derivedCity  = trim($addressParts[0] ?? '');
+
         $lockersForJs[] = [
-            'title' => $l['title'],
-            'address' => $l['address'],
-            'city' => $derivedCity,
-            'type' => strtolower(trim($l['provider'] ?? 'other')), 
-            'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
-            'terminal_id' => $l['terminal_id'] ?? ''
+            'title'       => $l['title'],
+            'address'     => $l['address'],
+            'city'        => $derivedCity,
+            'type'        => strtolower(trim($l['provider'] ?? 'other')),
+            'full'        => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
+            'terminal_id' => $l['terminal_id'] ?? '',
         ];
     }
-    usort($lockersForJs, function($a, $b) {
+    usort($lockersForJs, function ($a, $b) {
         return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
     });
 } catch (Exception $e) {}
@@ -816,28 +835,20 @@ try {
                 data = JSON.parse(this.getAttribute('data-order'));
             } catch(e) { console.error("JSON Error", e); return; }
             
-            // Header
             document.getElementById('m_orderId').innerText = data.id;
             document.getElementById('m_createdAt').innerText = data.created_at;
             document.getElementById('m_formOrderId').value = data.id;
             
-            // Customer
             document.getElementById('m_customerName').innerText = data.customer_name;
             document.getElementById('m_customerEmail').innerText = data.customer_email;
             document.getElementById('m_customerPhone').innerText = data.customer_phone || '-';
             document.getElementById('m_userId').innerText = data.user_id ? ('#' + data.user_id) : 'Svečias';
             
-            // Delivery
-            let methodMap = {
-                'courier': 'Kurjeris',
-                'locker': 'Paštomatas',
-                'pickup': 'Atsiėmimas'
-            };
+            let methodMap = { 'courier': 'Kurjeris', 'locker': 'Paštomatas', 'pickup': 'Atsiėmimas' };
             document.getElementById('m_deliveryMethod').innerText = methodMap[data.delivery_method] || data.delivery_method;
             document.getElementById('m_address').innerText = data.customer_address || '-';
             document.getElementById('m_trackingInput').value = data.tracking_number || '';
             
-            // Delivery Details (JSON)
             const detailsBox = document.getElementById('m_deliveryDetailsBox');
             const detailsText = document.getElementById('m_deliveryDetailsText');
             if (data.delivery_details) {
@@ -852,14 +863,12 @@ try {
                 detailsBox.style.display = 'none';
             }
 
-            // Financials
             document.getElementById('m_discountCode').innerText = data.discount_code ? data.discount_code : '-';
             document.getElementById('m_discountAmount').innerText = parseFloat(data.discount_amount || 0).toFixed(2) + ' €';
             document.getElementById('m_shippingAmount').innerText = parseFloat(data.shipping_amount || 0).toFixed(2) + ' €';
             document.getElementById('m_total').innerText = parseFloat(data.total || 0).toFixed(2) + ' €';
             document.getElementById('m_stripeSession').innerText = data.stripe_session_id || '-';
 
-            // System Flags
             document.getElementById('m_updatedAt').innerText = formatDate(data.updated_at);
             document.getElementById('m_emailThankYou').innerHTML = boolBadge(data.email_thankyou);
             document.getElementById('m_emailShipped').innerHTML = boolBadge(data.email_shipped_sent);
@@ -867,24 +876,19 @@ try {
             document.getElementById('m_emailRem1h').innerHTML = boolBadge(data.email_rem_1h);
             document.getElementById('m_emailRem24h').innerHTML = boolBadge(data.email_rem_24h);
 
-            // Status select
             document.getElementById('m_statusSelect').value = data.status;
 
-            // Items List
             const itemsContainer = document.getElementById('m_itemsList');
             itemsContainer.innerHTML = '';
             
             if (data.items && data.items.length > 0) {
                 data.items.forEach(item => {
-                    const price = parseFloat(item.price).toFixed(2);
                     const total = (item.price * item.quantity).toFixed(2);
                     const imgUrl = item.image_url ? item.image_url : 'https://placehold.co/100?text=Foto';
-                    
                     let varInfo = item.variation_info 
                         ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>` 
                         : '';
-
-                    const html = `
+                    itemsContainer.insertAdjacentHTML('beforeend', `
                         <div class="item-row">
                             <img src="${imgUrl}" class="item-img" alt="">
                             <div class="item-details">
@@ -894,14 +898,12 @@ try {
                             </div>
                             <div class="item-price">${total} €</div>
                         </div>
-                    `;
-                    itemsContainer.insertAdjacentHTML('beforeend', html);
+                    `);
                 });
             } else {
                 itemsContainer.innerHTML = '<div style="padding:12px; text-align:center; color:#999;">Prekių sąrašas tuščias</div>';
             }
 
-            // Show
             modal.style.display = 'flex';
             setTimeout(() => { modal.classList.add('open'); }, 10);
         });
@@ -911,12 +913,9 @@ try {
         modal.classList.remove('open');
         setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
-    
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) closeModal();
-    });
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
 
-    // --- PATAISYTAS Paysera Modalo Logika ---
+    // --- Paysera Modalo Logika ---
     const payseraModal = document.getElementById('payseraModal');
     let currentProvider = '';
     let currentFilteredLockers = [];
@@ -924,13 +923,9 @@ try {
 
     document.querySelectorAll('.open-paysera-modal').forEach(btn => {
         btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            const recLocker = this.getAttribute('data-receiver-locker');
+            document.getElementById('p_orderId').value = this.getAttribute('data-order-id');
+            document.getElementById('p_receiverLocker').textContent = this.getAttribute('data-receiver-locker');
             
-            document.getElementById('p_orderId').value = orderId;
-            document.getElementById('p_receiverLocker').textContent = recLocker;
-            
-            // Reset UI
             currentProvider = '';
             document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('locker-selection-area').style.display = 'none';
@@ -947,37 +942,23 @@ try {
         payseraModal.classList.remove('open');
         setTimeout(() => { payseraModal.style.display = 'none'; }, 200);
     }
-
-    payseraModal.addEventListener('click', function(e) {
-        if (e.target === payseraModal) closePayseraModal();
-    });
+    payseraModal.addEventListener('click', function(e) { if (e.target === payseraModal) closePayseraModal(); });
 
     function filterLockers(provider, btnElement) {
         currentProvider = provider;
-        
-        // Update buttons visual state
         document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
         if(btnElement) btnElement.classList.add('active');
-
-        // Show selection area
         document.getElementById('locker-selection-area').style.display = 'block';
-
-        // Reset selection
         document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
         document.getElementById('locker-select-input').value = '';
         document.getElementById('locker-search-input').value = '';
-
-        // Generate list
         generateCustomOptions(provider);
     }
 
     function generateCustomOptions(provider) {
         const list = document.getElementById('options-list');
         list.innerHTML = '';
-        
-        // Filter by provider only
         currentFilteredLockers = allLockers.filter(l => l.type === provider);
-
         if(currentFilteredLockers.length === 0) {
             const div = document.createElement('div');
             div.className = 'custom-option no-results';
@@ -985,10 +966,7 @@ try {
             list.appendChild(div);
             return;
         }
-
-        currentFilteredLockers.forEach(locker => {
-            createOptionElement(locker);
-        });
+        currentFilteredLockers.forEach(locker => createOptionElement(locker));
     }
 
     function createOptionElement(locker) {
@@ -996,20 +974,14 @@ try {
         const div = document.createElement('div');
         div.className = 'custom-option';
         div.textContent = locker.full;
-        div.dataset.value = locker.terminal_id; 
-        
-        div.onclick = function() {
-            selectOption(locker.terminal_id, locker.full);
-        };
-        
+        div.dataset.value = locker.terminal_id;
+        div.onclick = function() { selectOption(locker.terminal_id, locker.full); };
         list.appendChild(div);
     }
 
     function toggleDropdown() {
         const wrapper = document.getElementById('custom-select-wrapper');
         wrapper.classList.toggle('open');
-        
-        // If opening, focus search
         if (wrapper.classList.contains('open')) {
             setTimeout(() => document.getElementById('locker-search-input').focus(), 100);
         }
@@ -1025,11 +997,7 @@ try {
         const term = document.getElementById('locker-search-input').value.toLowerCase();
         const list = document.getElementById('options-list');
         list.innerHTML = '';
-
-        const filtered = currentFilteredLockers.filter(locker => 
-            locker.full.toLowerCase().includes(term)
-        );
-
+        const filtered = currentFilteredLockers.filter(locker => locker.full.toLowerCase().includes(term));
         if (filtered.length === 0) {
             const div = document.createElement('div');
             div.className = 'custom-option no-results';
@@ -1040,11 +1008,8 @@ try {
         }
     }
 
-    // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
         const wrapper = document.getElementById('custom-select-wrapper');
-        if (wrapper && !wrapper.contains(e.target)) {
-            wrapper.classList.remove('open');
-        }
+        if (wrapper && !wrapper.contains(e.target)) wrapper.classList.remove('open');
     });
 </script>
