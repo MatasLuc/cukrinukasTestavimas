@@ -117,7 +117,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                     'project_id' => $projectId,
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
-                    'contact' => [
+                    'default_contact' => [ // PAKEISTA IŠ 'contact' Į 'default_contact'
                         'party' => [
                             'title' => 'Cukrinukas.lt', // Jūsų įmonės / parduotuvės pavadinimas
                         ],
@@ -134,9 +134,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'receiver' => [
                     'type' => 'receiver', // PAGAL DOKUMENTACIJĄ TURI BŪTI 'receiver'
+                    'project_id' => $projectId, // PRIDĖTA TRŪKSTAMA EILUTĖ: project_id
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
-                    'contact' => [
+                    'default_contact' => [ // PAKEISTA IŠ 'contact' Į 'default_contact'
                         'party' => [
                             'title' => $order['customer_name'],
                         ],
@@ -168,12 +169,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $addr = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
-                    $payload['receiver']['contact']['address']['street'] = trim($parts[0]);
-                    $payload['receiver']['contact']['address']['city'] = trim($parts[1]);
-                    $payload['receiver']['contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
+                    $payload['receiver']['default_contact']['address']['street'] = trim($parts[0]);
+                    $payload['receiver']['default_contact']['address']['city'] = trim($parts[1]);
+                    $payload['receiver']['default_contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
                 } else {
-                    $payload['receiver']['contact']['address']['city'] = 'Lietuva';
-                    $payload['receiver']['contact']['address']['street'] = $addr;
+                    $payload['receiver']['default_contact']['address']['city'] = 'Lietuva';
+                    $payload['receiver']['default_contact']['address']['street'] = $addr;
                 }
                 
                 unset($payload['receiver']['parcel_machine_id']);
