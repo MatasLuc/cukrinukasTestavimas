@@ -113,6 +113,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
+                    'type' => 'company', // Pataisymas: Nurodomas siuntėjo tipas
                     'project_id' => $projectId,
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'contact' => [
@@ -131,6 +132,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ],
                 
                 'receiver' => [
+                    'type' => 'person', // Pataisymas: Nurodomas gavėjo tipas
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'contact' => [
                         'party' => [
@@ -692,7 +694,6 @@ try {
     </div>
 </div>
 
-<!-- ✅ PATAISYTAS PAYSERA MODLAS - Custom Select kaip checkout.php -->
 <div id="payseraModal" class="modal-overlay">
     <div class="modal-window" style="max-width: 600px;">
         <div class="modal-header">
