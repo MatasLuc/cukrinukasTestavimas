@@ -4,7 +4,7 @@
 
 // --- MAC TOKEN AUTENTIFIKACIJA ---
 if (!function_exists('buildMacAuthHeader')) {
-    function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url): string {
+    function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
         $parsed = parse_url($url);
         $ts     = (string) time();
         $nonce  = bin2hex(random_bytes(8));
@@ -15,15 +15,26 @@ if (!function_exists('buildMacAuthHeader')) {
             $path .= '?' . $parsed['query'];
         }
 
+        $ext = '';
+        if ($body !== '') {
+            $bodyHash = base64_encode(hash('sha256', $body, true));
+            $ext = 'body_hash=' . urlencode($bodyHash);
+        }
+
         $requestString = $ts    . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
                        . $path  . "\n"
                        . $host  . "\n"
                        . (string)$port . "\n"
-                       . "\n";
+                       . $ext   . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
+
+        if ($ext !== '') {
+            return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
+                $macId, $ts, $nonce, $mac, $ext);
+        }
 
         return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
             $macId, $ts, $nonce, $mac);
@@ -145,13 +156,16 @@ if (isset($_POST['create_paysera_shipment'])) {
             // ✅ Naudojame POST /orders, o ne /shipments
             $endpoint = rtrim($apiUrl, '/') . '/orders';
             
-            // Sugeneruojame MAC tokeną
-            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint);
+            // 1. Paverčiame payload į JSON eilutę prieš generuojant tokeną
+            $payloadJson = json_encode($payload);
+            
+            // 2. Sugeneruojame MAC tokeną PERDUODANT turinį (body), kad sugeneruotų body_hash
+            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
