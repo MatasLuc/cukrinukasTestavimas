@@ -100,14 +100,34 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Iššifruojame kliento pristatymo duomenis
             $delDetails = json_decode($order['delivery_details'], true);
 
-            // ✅ PATAISYTA: Teisinga ORDER struktūra (ne SHIPMENT)
+            // Dinamiškai nustatome kurjerį pagal pasirinktą paštomato ID
+            $gatewayCode = (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false) ? 'omniva' : 'lp_express';
+            
+            // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
+            $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
+
+            // ✅ PATAISYTA: Pilna ir reikalavimus atitinkanti ORDER struktūra
             $payload = [
                 'project_id' => $projectId,
-                'shipment_gateway_code' => 'lp_express', // TODO: Suprasti iš senderLockerId
-                'shipment_method_code' => 'parcel-machine2parcel-machine', // TODO: Patikrinti pagal order
+                'shipment_gateway_code' => $gatewayCode,
+                'shipment_method_code' => $methodCode,
                 
                 'sender' => [
-                    'id' => $senderLockerId, // ✅ SIUNTĖJO vietos ID (paštomatas)
+                    'project_id' => $projectId,
+                    'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
+                    'contact' => [
+                        'party' => [
+                            'title' => 'Cukrinukas.lt', // Jūsų įmonės / parduotuvės pavadinimas
+                        ],
+                        'email' => 'labas@cukrinukas.lt', // Jūsų el. paštas
+                        'phone' => '+37064477724', // BŪTINAS jūsų (siuntėjo) telefono numeris
+                        'address' => [
+                            'country_code' => 'LT',
+                            'city' => 'Vilnius',
+                            'street' => 'Miglos g. 65', // Arba kitas bazinis adresas
+                            'postal_code' => '01103'
+                        ]
+                    ]
                 ],
                 
                 'receiver' => [
@@ -116,25 +136,28 @@ if (isset($_POST['create_paysera_shipment'])) {
                         'party' => [
                             'title' => $order['customer_name'],
                         ],
+                        // El. paštas ir telefonas yra PRIVALOMI visiems siuntimo būdams
+                        'email' => $order['customer_email'],
+                        'phone' => $order['customer_phone'] ?? '+37060000000',
                         'address' => [
                             'country_code' => 'LT',
-                            'city' => 'Vilnius', // TODO: Ištraukti iš $order['customer_address']
+                            'city' => 'Vilnius', 
                             'street' => $order['customer_address'] ?? 'Nenurodyta',
+                            'postal_code' => '00000'
                         ]
                     ]
                 ],
                 
                 'shipments' => [
                     [
-                        'weight' => 1000,  // ✅ GRAMAIS, ne kilogramais!
+                        'weight' => 1000,  // Gramais
                         'package_size' => 'M'
                     ]
                 ]
             ];
 
-            // Jei pristatymas kurjeriu
+            // Jei pristatymas kurjeriu, patiksliname gavėjo adresą ir nuimame paštomato ID
             if ($order['delivery_method'] === 'courier') {
-                // Išskiriame adreso eilutę
                 $addr = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
@@ -144,13 +167,9 @@ if (isset($_POST['create_paysera_shipment'])) {
                 } else {
                     $payload['receiver']['contact']['address']['city'] = 'Lietuva';
                     $payload['receiver']['contact']['address']['street'] = $addr;
-                    $payload['receiver']['contact']['address']['postal_code'] = '00000';
                 }
                 
-                // Pašalintas parcel_machine_id, pridėtas pristatymo adresas
                 unset($payload['receiver']['parcel_machine_id']);
-                $payload['receiver']['contact']['phone'] = $order['customer_phone'] ?? '+37060000000';
-                $payload['receiver']['contact']['email'] = $order['customer_email'];
             }
 
             // ✅ Naudojame POST /orders, o ne /shipments
