@@ -54,14 +54,15 @@ if (isset($_POST['delete_id'])) {
     }
 }
 
-// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA
+<?php
+// 0.1 PAYSERA SIUNTOS KŪRIMO LOGIKA - PATAISYTA VERSIJA
 if (isset($_POST['create_paysera_shipment'])) {
     if (function_exists('validateCsrf')) {
         validateCsrf();
     }
 
     $orderId = (int)$_POST['order_id'];
-    $senderLockerId = $_POST['sender_locker_id'];
+    $senderLockerId = $_POST['sender_locker_id']; // Siuntėjo paštomato ID
 
     try {
         // Gauname užsakymo duomenis
@@ -89,52 +90,67 @@ if (isset($_POST['create_paysera_shipment'])) {
             $senderPhone = $_ENV['PAYSERA_SENDER_PHONE'] ?? '+37060000000';
             $senderEmail = $_ENV['PAYSERA_SENDER_EMAIL'] ?? 'info@parduotuve.lt';
 
-            // Iššifruojame kliento pristatymo duomenis (iš checkout fiksavimo)
+            // Iššifruojame kliento pristatymo duomenis
             $delDetails = json_decode($order['delivery_details'], true);
 
-            // Formuojame užklausos kūną API (Pagal reikalavimus: dydis M, 1 kg)
+            // ✅ PATAISYTA: Teisinga ORDER struktūra (ne SHIPMENT)
             $payload = [
+                'project_id' => $projectId,
+                'shipment_gateway_code' => 'lp_express', // TODO: Suprasti iš senderLockerId
+                'shipment_method_code' => 'parcel-machine2parcel-machine', // TODO: Patikrinti pagal order
+                
                 'sender' => [
-                    'name' => $senderName,
-                    'phone' => $senderPhone,
-                    'email' => $senderEmail,
-                    'country_code' => 'LT',
-                    'parcel_machine_id' => $senderLockerId
+                    'id' => $senderLockerId, // ✅ SIUNTĖJO vietos ID (paštomatas)
                 ],
+                
                 'receiver' => [
-                    'name' => $order['customer_name'],
-                    'phone' => !empty($order['customer_phone']) ? $order['customer_phone'] : '+37060000000',
-                    'email' => $order['customer_email'],
-                    'country_code' => 'LT'
+                    'parcel_machine_id' => $delDetails['locker_id'] ?? '',
+                    'contact' => [
+                        'party' => [
+                            'title' => $order['customer_name'],
+                        ],
+                        'address' => [
+                            'country_code' => 'LT',
+                            'city' => 'Vilnius', // TODO: Ištraukti iš $order['customer_address']
+                            'street' => $order['customer_address'] ?? 'Nenurodyta',
+                        ]
+                    ]
                 ],
-                'parcels' => [
+                
+                'shipments' => [
                     [
-                        'weight' => 1.0,
+                        'weight' => 1000,  // ✅ GRAMAIS, ne kilogramais!
                         'package_size' => 'M'
                     ]
                 ]
             ];
 
-            // Priskiriame gavėjo duomenis pagal pristatymo tipą
-            if ($order['delivery_method'] === 'locker') {
-                $payload['receiver']['parcel_machine_id'] = $delDetails['locker_id'] ?? '';
-            } elseif ($order['delivery_method'] === 'courier') {
-                // Išskiriame adreso eilutę, jei įmanoma
+            // Jei pristatymas kurjeriu
+            if ($order['delivery_method'] === 'courier') {
+                // Išskiriame adreso eilutę
                 $addr = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
-                    $payload['receiver']['street'] = trim($parts[0]);
-                    $payload['receiver']['city'] = trim($parts[1]);
-                    $payload['receiver']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
+                    $payload['receiver']['contact']['address']['street'] = trim($parts[0]);
+                    $payload['receiver']['contact']['address']['city'] = trim($parts[1]);
+                    $payload['receiver']['contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
                 } else {
-                    $payload['receiver']['city'] = 'Lietuva';
-                    $payload['receiver']['street'] = $addr;
-                    $payload['receiver']['postal_code'] = '00000';
+                    $payload['receiver']['contact']['address']['city'] = 'Lietuva';
+                    $payload['receiver']['contact']['address']['street'] = $addr;
+                    $payload['receiver']['contact']['address']['postal_code'] = '00000';
                 }
+                
+                // Pašalintas parcel_machine_id, pridėtas pristatymo adresas
+                unset($payload['receiver']['parcel_machine_id']);
+                $payload['receiver']['phone'] = $order['customer_phone'] ?? '+37060000000';
+                $payload['receiver']['email'] = $order['customer_email'];
             }
 
-            // Kreipiamės į Paysera API
-            $endpoint = rtrim($apiUrl, '/') . '/shipments';
+            // ✅ Naudojame POST /orders, o ne /shipments
+            $endpoint = rtrim($apiUrl, '/') . '/orders';
+            
+            $basicAuth = base64_encode($projectId . ':' . $password);
+            
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -142,22 +158,33 @@ if (isset($_POST['create_paysera_shipment'])) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
-                'Authorization: ' . buildMacAuthHeader($projectId, $password, 'POST', $endpoint)
+                'Authorization: Basic ' . $basicAuth
             ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30); // ✅ ADDED: timeout
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch); // ✅ ADDED: paimame curl error PRIEŠ close
+            $curlError = curl_error($ch);
             curl_close($ch);
+
+            // ✅ Debug: Loginti API atsakymą
+            error_log("[PAYSERA] HTTP $httpCode | Response: " . substr($response, 0, 500));
 
             // Jei sukurta sėkmingai
             if ($httpCode >= 200 && $httpCode < 300 && $response) {
                 $resData = json_decode($response, true);
                 
+                // ✅ Iš ORDER atsakymo ištraukti shipment duomenis
                 $payseraId = $resData['id'] ?? '';
-                $tracking = $resData['tracking_number'] ?? '';
-                $labelUrl = $resData['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$payseraId}/label");
+                $shipments = $resData['shipments'] ?? [];
+                $tracking = '';
+                $labelUrl = '';
+                
+                if (!empty($shipments) && is_array($shipments)) {
+                    $firstShipment = $shipments[0];
+                    $tracking = $firstShipment['tracking_code'] ?? '';
+                    $labelUrl = $firstShipment['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$firstShipment['id']}/label");
+                }
 
                 // Atnaujiname užsakymą DB
                 $updateStmt = $pdo->prepare("
@@ -167,7 +194,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ");
                 $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
 
-                // Automatinių el. laiškų siuntimas per mailer.php
+                // Automatinių el. laiškų siuntimas
                 $mailerPath = __DIR__ . '/../mailer.php';
                 if (file_exists($mailerPath)) {
                     require_once $mailerPath;
@@ -194,8 +221,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $err = json_decode($response, true);
                 $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
                 $debugInfo = ($curlError ? " (cURL: $curlError)" : "");
-                echo "<div class='alert alert-danger'>Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo . "</div>";
                 
+                // ✅ Išplėstas debug info
+                echo "<div class='alert alert-danger'>";
+                echo "Paysera API Klaida: " . htmlspecialchars($errorMsg) . " (Kodas: $httpCode)" . $debugInfo;
+                echo "<br><small>Response: " . htmlspecialchars(substr($response, 0, 200)) . "</small>";
+                echo "</div>";
             }
         }
     } catch (Exception $e) {
