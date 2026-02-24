@@ -82,7 +82,7 @@ if (isset($_POST['create_paysera_shipment'])) {
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($order) {
-            // Įkrauname aplinkos kintamuosius iš .env
+            // Įkrauname aplinkos kintamuosius iš .env (slaptažodžiui)
             $envFile = __DIR__ . '/../.env';
             if (file_exists($envFile)) {
                 $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -93,18 +93,17 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            // PATAISYTA: Pašaliname galimas kabutes, bet PALIiekame STRING tipą, kaip reikalauja API
-            $rawProjectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID') ?? '';
-            $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
+            // Griežtai nustatome projekto ID kaip eilutę
+            $projectId = "248259"; 
             
-            // Paverčiame į String
-            $projectId = (string)str_replace(['"', "'"], '', trim($rawProjectId));
+            // Paimame slaptažodį
+            $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password = str_replace(['"', "'"], '', trim($rawPassword));
+            
             $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
             
-            // Jeigu projectId nerastas, rodome aiškią klaidą
-            if (empty($projectId) || empty($password)) {
-                throw new Exception("Nepavyko nuskaityti PAYSERA_PROJECTID arba PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
+            if (empty($password)) {
+                throw new Exception("Nepavyko nuskaityti PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
             }
 
             // Iššifruojame kliento pristatymo duomenis
@@ -116,18 +115,18 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
             $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
 
-            // Pilna struktūra pagal Paysera dokumentaciją
+            // Pilna struktūra pagal Paysera dokumentaciją, visi project_id laukai perduodami kaip eilutės (string)
             $payload = [
-                'project_id' => $projectId, // BŪTINAS String tipas
+                'project_id' => $projectId, 
                 'shipment_gateway_code' => $gatewayCode,
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
                     'type' => 'sender',
-                    'project_id' => $projectId, // BŪTINAS String tipas
+                    'project_id' => $projectId, 
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
-                    'default_contact' => false, // Būtinas Boolean
+                    'default_contact' => false,
                     'contact' => [
                         'party' => [
                             'title' => 'Cukrinukas.lt',
@@ -145,10 +144,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'receiver' => [
                     'type' => 'receiver',
-                    'project_id' => $projectId, // BŪTINAS String tipas
+                    'project_id' => $projectId, 
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
-                    'default_contact' => false, // Būtinas Boolean
+                    'default_contact' => false,
                     'contact' => [
                         'party' => [
                             'title' => $order['customer_name'],
@@ -197,7 +196,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Paverčiame payload į JSON eilutę
             $payloadJson = json_encode($payload);
             
-            // Sugeneruojame MAC tokeną (projectId jau yra String)
+            // Sugeneruojame MAC tokeną 
             $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
