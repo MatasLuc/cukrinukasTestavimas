@@ -17,12 +17,11 @@ if (!function_exists('buildMacAuthHeader')) {
         }
 
         // Apskaičiuojame body hash
-        $bodyHash = '';
-        $extForString = '';
+        // Paysera reikalauja "body_hash=<hash>" tiek request string viduje,
+        // tiek Authorization header ext lauke (pilnas tekstas, ne tik hash)
+        $ext = '';
         if ($body !== '') {
-            $bodyHash     = base64_encode(hash('sha256', $body, true));
-            // Request string viduje naudojame "body_hash=<hash>"
-            $extForString = 'body_hash=' . $bodyHash;
+            $ext = 'body_hash=' . base64_encode(hash('sha256', $body, true));
         }
 
         // MAC parašo formatas — tiksliai pagal OAuth MAC spec
@@ -32,15 +31,13 @@ if (!function_exists('buildMacAuthHeader')) {
                        . $path  . "\n"
                        . $host  . "\n"
                        . (string)$port . "\n"
-                       . $extForString . "\n";
+                       . $ext   . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
-        // PATAISYMAS: Authorization header ext lauke siunčiame TIK hash reikšmę,
-        // ne "body_hash=..." prefiksą — Paysera pati žino, kad tai body_hash
-        if ($bodyHash !== '') {
+        if ($ext !== '') {
             return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
-                $macId, $ts, $nonce, $mac, $bodyHash);
+                $macId, $ts, $nonce, $mac, $ext);
         }
 
         return sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
