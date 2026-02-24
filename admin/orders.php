@@ -93,10 +93,19 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            $projectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID');
-            $password = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD');
+            // ✅ PATAISYTA: Pašaliname galimas kabutes ir konvertuojame ID į Integer tipą
+            $rawProjectId = $_ENV['PAYSERA_PROJECTID'] ?? getenv('PAYSERA_PROJECTID') ?? '';
+            $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
+            
+            $projectId = (int)str_replace(['"', "'"], '', trim($rawProjectId));
+            $password = str_replace(['"', "'"], '', trim($rawPassword));
             $apiUrl = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1/';
             
+            // Jeigu projectId nerastas, rodome aiškią klaidą
+            if (empty($projectId) || empty($password)) {
+                throw new Exception("Nepavyko nuskaityti PAYSERA_PROJECTID arba PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
+            }
+
             // Iššifruojame kliento pristatymo duomenis
             $delDetails = json_decode($order['delivery_details'], true);
 
@@ -106,22 +115,22 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
             $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
 
-            // ✅ PATAISYTA: Tinkama struktūra pagal Paysera dokumentaciją
+            // Pilna struktūra pagal Paysera dokumentaciją
             $payload = [
-                'project_id' => $projectId,
+                'project_id' => $projectId, // Dabar užtikrintai siunčiamas kaip Integer (Sveikasis skaičius)
                 'shipment_gateway_code' => $gatewayCode,
                 'shipment_method_code' => $methodCode,
                 
                 'sender' => [
                     'type' => 'sender',
-                    'project_id' => $projectId,
+                    'project_id' => $projectId, // Integer
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
-                    'default_contact' => false, // Būtinas Boolean!
+                    'default_contact' => false,
                     'contact' => [
                         'party' => [
                             'title' => 'Cukrinukas.lt',
-                            'email' => 'labas@cukrinukas.lt', // Email ir Phone turi būti PARTY viduje
+                            'email' => 'labas@cukrinukas.lt',
                             'phone' => '+37064477724',
                         ],
                         'address' => [
@@ -135,10 +144,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'receiver' => [
                     'type' => 'receiver',
-                    'project_id' => $projectId,
+                    'project_id' => $projectId, // Integer
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
-                    'default_contact' => false, // Būtinas Boolean!
+                    'default_contact' => false,
                     'contact' => [
                         'party' => [
                             'title' => $order['customer_name'],
@@ -187,8 +196,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Paverčiame payload į JSON eilutę
             $payloadJson = json_encode($payload);
             
-            // Sugeneruojame MAC tokeną PERDUODANT turinį (body), kad sugeneruotų body_hash
-            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
+            // Sugeneruojame MAC tokeną (pastaba: funkcijai reikalingas string tipo ID)
+            $macAuth = buildMacAuthHeader((string)$projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
