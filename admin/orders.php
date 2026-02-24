@@ -96,8 +96,8 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            // Griežtai nustatome projekto ID kaip eilutę
-            $projectId = "248259"; 
+            // Griežtai nustatome projekto ID kaip skaičių (int)
+            $projectId = 248259; 
             
             // Paimame slaptažodį
             $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
@@ -119,7 +119,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Nustatome siuntimo būdą (paštomatas -> paštomatas arba paštomatas -> kurjeris)
             $methodCode = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
 
-            // Pilna struktūra pagal Paysera dokumentaciją, visi project_id laukai perduodami kaip eilutės (string)
+            // Pilna struktūra pagal Paysera dokumentaciją (Project ID kaip int, be perteklinių project_id sender/receiver lygyje)
             $payload = [
                 'project_id' => $projectId, 
                 'shipment_gateway_code' => $gatewayCode,
@@ -127,7 +127,6 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'sender' => [
                     'type' => 'sender',
-                    'project_id' => $projectId, 
                     'parcel_machine_id' => $senderLockerId, // Nurodome paštomatą kaip starto tašką
                     'saved' => false,
                     'default_contact' => false,
@@ -148,7 +147,6 @@ if (isset($_POST['create_paysera_shipment'])) {
                 
                 'receiver' => [
                     'type' => 'receiver',
-                    'project_id' => $projectId, 
                     'parcel_machine_id' => $delDetails['locker_id'] ?? '',
                     'saved' => false,
                     'default_contact' => false,
@@ -200,8 +198,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             // Paverčiame payload į JSON eilutę
             $payloadJson = json_encode($payload);
             
-            // Sugeneruojame MAC tokeną 
-            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
+            // Sugeneruojame MAC tokeną (MAC funkcija reikalauja id kaip string)
+            $macAuth = buildMacAuthHeader((string)$projectId, $password, 'POST', $endpoint, $payloadJson);
             
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -273,7 +271,6 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $err = json_decode($response, true);
                 $errorMsg = $err['message'] ?? ($err['error'] ?? 'Nežinoma klaida');
                 
-                // PRIDĖTA: Pataisyta klaidos žinutė rodanti koks tiksliai ID siunčiamas ir koks slaptažodžio ilgis
                 $passLen = strlen($password);
                 $debugInfo = "<br><br><strong>Mūsų siunčiama techninė info:</strong><br>
                               Project_ID: <code>{$projectId}</code> (Tipas: " . gettype($projectId) . ")<br>
@@ -917,7 +914,7 @@ try {
         if (e.target === modal) closeModal();
     });
 
-    // --- ✅ PATAISYTAS Paysera Modalo Logika ---
+    // --- PATAISYTAS Paysera Modalo Logika ---
     const payseraModal = document.getElementById('payseraModal');
     let currentProvider = '';
     let currentFilteredLockers = [];
