@@ -123,6 +123,12 @@ if (isset($_POST['create_paysera_shipment'])) {
             $password    = str_replace(['"', "'", "\r", "\n"], '', trim($rawPassword));
             $apiUrl      = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
 
+            // Jei slaptažodis yra hex string — decode į binary
+            $passwordForMac = (ctype_xdigit($password) && strlen($password) % 2 === 0)
+                ? hex2bin($password)
+                : $password;
+            payseraLog("passwordForMac ilgis: " . strlen($passwordForMac) . " | hex pirmi 10: " . bin2hex(substr($passwordForMac, 0, 10)));
+
             payseraLog("projectId: " . $projectId);
             payseraLog("rawPassword ilgis: " . strlen($rawPassword) . " | po trim: " . strlen($password));
             payseraLog("password pirmi 4: " . substr($password, 0, 4) . " | paskutiniai 4: " . substr($password, -4));
@@ -220,7 +226,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             payseraLog("endpoint: " . $endpoint);
             payseraLog("payloadJson: " . $payloadJson);
 
-            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
+            $macAuth = buildMacAuthHeader($projectId, $passwordForMac, 'POST', $endpoint, $payloadJson);
 
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
