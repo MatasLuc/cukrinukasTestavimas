@@ -73,7 +73,8 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            $projectId      = 248259;
+            // SVARBU: Paysera API reikalauja, kad Project ID būtų STRING (tekstas), ne skaičius
+            $projectId      = '248259';
             $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password       = trim($password, " \t\r\n\"'");
             
@@ -188,7 +189,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             $clientFactory = new \Paysera\DeliveryApi\MerchantClient\ClientFactory([
                 'base_url' => $apiUrl,
                 'mac' => [
-                    'mac_id' => (string)$projectId,
+                    'mac_id' => $projectId,
                     'mac_secret' => $password,
                 ],
             ]);
