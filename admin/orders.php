@@ -39,7 +39,8 @@ if (!function_exists('buildMacAuthHeader')) {
                        . $path  . "\n"
                        . $host  . "\n"
                        . (string)$port . "\n"
-                       . $ext   . "\n";
+                       . $ext   . "\n"
+                       . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
