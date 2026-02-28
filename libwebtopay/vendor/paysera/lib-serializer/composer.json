@@ -1,0 +1,30 @@
+{
+    "name": "paysera/lib-serializer",
+    "description": "Library can (de)serialize various data types",
+    "autoload": {
+        "psr-4": {
+            "Paysera\\Component\\Serializer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Paysera\\Component\\Serializer\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^7.0 || ^8.0 || ^9.0"
+    },
+    "require": {
+        "php": "^7.1 || ^8.0",
+        "symfony/property-access": "^3.0 || ^4.0 || ^5.0 || ^6.0",
+        "symfony/validator": "^3.0 || ^4.0 || ^5.0 || ^6.0",
+        "willdurand/jsonp-callback-validator": "^1.0"
+    },
+    "config": {
+        "bin-dir": "bin"
+    },
+    "scripts": {
+        "phpunit": "phpunit",
+        "test": ["@phpunit"]
+    }
+}

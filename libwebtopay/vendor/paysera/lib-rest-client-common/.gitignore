@@ -1,0 +1,10 @@
+composer.lock
+vendor/
+bin/
+.arcconfig
+.phpunit.result.cache
+dump.rdb
+
+coverage/
+
+.env
