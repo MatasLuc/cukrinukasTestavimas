@@ -102,7 +102,8 @@ try {
     // Ignoruojame, jei skelbimų sistemos nėra arba stulpeliai nesutampa
 }
 
-renderHeader($profileUser['username'] . " profilis");
+// Pataisyta eilutė - pridedamas $pdo ir naudojamas ['name']
+renderHeader($pdo, $profileUser['name'] . " profilis");
 ?>
 
 <div class="container mt-5">
