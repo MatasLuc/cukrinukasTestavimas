@@ -198,6 +198,17 @@ if (isset($_POST['create_paysera_shipment'])) {
             $merchantClient = $clientFactory->getMerchantClient();
 
             payseraLog("Vykdoma createOrder() funkcija...");
+            payseraLog("ProjectId (orderCreate): " . $orderCreate->getProjectId());
+            payseraLog("ProjectId (sender): " . $sender->getProjectId());
+            payseraLog("ProjectId (receiver): " . $receiver->getProjectId());
+            payseraLog("MAC ID: " . '248259');
+            payseraLog("MAC Secret (pirmi 6 simboliai): " . substr('494d9860df7264ea330f9a9b0a9e6478', 0, 6) . '...');
+            payseraLog("Gateway: " . $orderCreate->getShipmentGatewayCode());
+            payseraLog("Method: " . $orderCreate->getShipmentMethodCode());
+            payseraLog("Sender locker ID: " . $senderLockerId);
+            payseraLog("Receiver locker ID: " . ($delDetails['locker_id'] ?? 'nėra'));
+            payseraLog("API URL: " . $apiUrl);
+
             $createdOrder = $merchantClient->createOrder($orderCreate);
             
             $payseraId = method_exists($createdOrder, 'getId') ? $createdOrder->getId() : '';
