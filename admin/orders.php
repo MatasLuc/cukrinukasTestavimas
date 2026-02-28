@@ -189,8 +189,8 @@ if (isset($_POST['create_paysera_shipment'])) {
             $clientFactory = new \Paysera\DeliveryApi\MerchantClient\ClientFactory([
                 'base_url' => $apiUrl,
                 'mac' => [
-                    'mac_id' => $projectId,
-                    'mac_secret' => $password,
+                    'mac_id' => '248259',
+                    'mac_secret' => '494d9860df7264ea330f9a9b0a9e6478',
                 ],
             ]);
             
