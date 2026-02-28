@@ -1,6 +1,45 @@
 <?php
 // admin/users.php
 
+// Apdorojame formų pateikimus
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    
+    // Vartotojo atnaujinimas
+    if ($_POST['action'] === 'update_user') {
+        $user_id = (int)$_POST['user_id'];
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $is_admin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+        $birthdate = !empty($_POST['birthdate']) ? $_POST['birthdate'] : null;
+        $gender = !empty($_POST['gender']) ? trim($_POST['gender']) : null;
+        $city = !empty($_POST['city']) ? trim($_POST['city']) : null;
+        $country = !empty($_POST['country']) ? trim($_POST['country']) : null;
+
+        $stmt = $pdo->prepare("
+            UPDATE users 
+            SET name = ?, email = ?, is_admin = ?, birthdate = ?, gender = ?, city = ?, country = ? 
+            WHERE id = ?
+        ");
+        $stmt->execute([$name, $email, $is_admin, $birthdate, $gender, $city, $country, $user_id]);
+        
+        $_SESSION['flash_success'] = "Vartotojo informacija atnaujinta.";
+        header("Location: ?view=users");
+        exit;
+    }
+
+    // Vartotojo ištrynimas
+    if ($_POST['action'] === 'delete_user') {
+        $user_id = (int)$_POST['user_id'];
+        // Pastaba: priklausomai nuo ryšių (ON DELETE CASCADE), gali tekti ištrinti susijusius duomenis atskirai.
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        
+        $_SESSION['flash_success'] = "Vartotojas ištrintas.";
+        header("Location: ?view=users");
+        exit;
+    }
+}
+
 // Paieška
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $params = [];
@@ -15,14 +54,38 @@ if ($search) {
 $sql .= " ORDER BY created_at DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$users = $stmt->fetchAll();
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Užsakymų istorijos gavimui paruošiame statement
+// Užsakymų istorijos gavimui paruošiame statement (parduotuvės užsakymai)
 $ordersStmt = $pdo->prepare("SELECT id, created_at, total, status FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
 
 foreach ($users as &$u) {
-    $ordersStmt->execute([$u['id']]);
-    $u['recent_orders'] = $ordersStmt->fetchAll(PDO::FETCH_ASSOC);
+    // Parduotuvės užsakymai
+    try {
+        $ordersStmt->execute([$u['id']]);
+        $u['recent_orders'] = $ordersStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $u['recent_orders'] = [];
+    }
+
+    // Bendruomenės užblokavimai
+    $blockStmt = $pdo->prepare("SELECT * FROM community_blocks WHERE user_id = ? AND (banned_until IS NULL OR banned_until > NOW()) ORDER BY created_at DESC LIMIT 1");
+    $blockStmt->execute([$u['id']]);
+    $u['active_block'] = $blockStmt->fetch(PDO::FETCH_ASSOC);
+
+    // Bendruomenės statistika
+    $u['listings_count'] = $pdo->query("SELECT COUNT(*) FROM community_listings WHERE user_id = " . (int)$u['id'])->fetchColumn();
+    $u['community_orders_bought'] = $pdo->query("SELECT COUNT(*) FROM community_orders WHERE buyer_id = " . (int)$u['id'])->fetchColumn();
+    $u['community_orders_sold'] = $pdo->query("SELECT COUNT(*) FROM community_orders WHERE seller_id = " . (int)$u['id'])->fetchColumn();
+    $u['reports_count'] = $pdo->query("SELECT COUNT(*) FROM community_reports WHERE reporter_id = " . (int)$u['id'])->fetchColumn();
+    $u['threads_count'] = $pdo->query("SELECT COUNT(*) FROM community_threads WHERE user_id = " . (int)$u['id'])->fetchColumn();
+    $u['tickets_count'] = $pdo->query("SELECT COUNT(*) FROM community_tickets WHERE user_id = " . (int)$u['id'])->fetchColumn();
+    
+    try {
+        $u['comments_count'] = $pdo->query("SELECT COUNT(*) FROM community_comments WHERE user_id = " . (int)$u['id'])->fetchColumn();
+    } catch (Exception $e) {
+        $u['comments_count'] = 0;
+    }
 }
 unset($u);
 ?>
@@ -53,7 +116,7 @@ unset($u);
     .modal-overlay.open { display: flex; opacity: 1; }
     
     .modal-window {
-        background: #fff; width: 100%; max-width: 600px;
+        background: #fff; width: 100%; max-width: 650px;
         border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.2);
         overflow-y: auto; max-height: 90vh; display: flex; flex-direction: column;
     }
@@ -68,7 +131,13 @@ unset($u);
     .modal-body { padding: 24px; }
     .info-row { margin-bottom: 16px; border-bottom: 1px dashed #eee; padding-bottom: 8px; }
     .info-label { font-size: 12px; text-transform: uppercase; color: #888; font-weight: 600; display: block; margin-bottom: 4px; }
-    .info-value { font-size: 15px; font-weight: 500; color: #111; }
+
+    /* Forma modale */
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    .row-split { display: flex; gap: 15px; }
+    .row-split > div { flex: 1; }
 
     /* Užsakymų sąrašas modale */
     .mini-orders-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
@@ -78,6 +147,11 @@ unset($u);
     .status-dot.completed { background-color: #10b981; }
     .status-dot.pending { background-color: #f59e0b; }
     .status-dot.cancelled { background-color: #ef4444; }
+
+    .community-stats { padding:0; margin:0; list-style:none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .community-stats li { background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 6px; }
+    .community-stats strong { display: block; font-size: 16px; color: #111; }
+    .community-stats span { font-size: 12px; color: #666; text-transform: uppercase; }
 </style>
 
 <div class="card">
@@ -128,7 +202,7 @@ unset($u);
                         <button class="btn secondary open-user-modal" 
                                 type="button" 
                                 data-user='<?php echo htmlspecialchars(json_encode($u), ENT_QUOTES, 'UTF-8'); ?>'>
-                            Peržiūrėti
+                            Redaguoti / Peržiūrėti
                         </button>
                     </td>
                 </tr>
@@ -147,52 +221,83 @@ unset($u);
             <button type="button" class="modal-close" onclick="closeUserModal()">&times;</button>
         </div>
         <div class="modal-body">
-            <div class="info-row">
-                <span class="info-label">Vardas</span>
-                <div class="info-value" id="u_name"></div>
-            </div>
-            <div class="info-row">
-                <span class="info-label">El. paštas</span>
-                <div class="info-value" id="u_email"></div>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Telefonas</span>
-                <div class="info-value" id="u_phone"></div>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Adresas</span>
-                <div class="info-value" id="u_address" style="white-space:pre-line;"></div>
-            </div>
-            
-            <div class="info-row" style="border:none;">
-                <span class="info-label">Paskutiniai užsakymai</span>
-                <div id="u_orders_container"></div>
-            </div>
-            
-            <div style="margin-top:24px; padding-top:16px; border-top:1px solid #eee;">
-                <h4 style="margin:0 0 12px 0;">Administravimo veiksmai</h4>
-                <form method="post" style="display:flex; gap:10px; align-items:flex-end;">
-                    <?php echo csrfField(); ?>
-                    <input type="hidden" name="action" value="update_user_role">
-                    <input type="hidden" name="user_id" id="u_formId">
-                    
-                    <div style="flex:1;">
-                        <label style="font-size:12px; font-weight:600;">Pakeisti rolę:</label>
-                        <select name="is_admin" id="u_roleSelect" style="margin:0;">
-                            <option value="0">Paprastas vartotojas</option>
-                            <option value="1">Administratorius</option>
+
+            <h4 style="margin-top:0; margin-bottom:15px;">Redaguoti informaciją</h4>
+            <form method="post">
+                <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
+                <input type="hidden" name="action" value="update_user">
+                <input type="hidden" name="user_id" id="u_formId">
+                
+                <div class="row-split">
+                    <div class="form-group">
+                        <label>Vardas</label>
+                        <input type="text" name="name" id="u_formName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>El. paštas</label>
+                        <input type="email" name="email" id="u_formEmail" required>
+                    </div>
+                </div>
+
+                <div class="row-split">
+                    <div class="form-group">
+                        <label>Gimimo data</label>
+                        <input type="date" name="birthdate" id="u_formBirthdate">
+                    </div>
+                    <div class="form-group">
+                        <label>Lytis</label>
+                        <select name="gender" id="u_formGender">
+                            <option value="">-</option>
+                            <option value="male">Vyras</option>
+                            <option value="female">Moteris</option>
+                            <option value="other">Kita</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn">Išsaugoti</button>
-                </form>
-                
-                <form method="post" style="margin-top:16px;" onsubmit="return confirm('Ar tikrai norite ištrinti šį vartotoją? Visi jo užsakymai taip pat bus ištrinti.');">
-                     <?php echo csrfField(); ?>
-                     <input type="hidden" name="action" value="delete_user">
-                     <input type="hidden" name="user_id" id="u_deleteId">
-                     <button type="submit" class="btn" style="background:#fee2e2; color:#b91c1c; border-color:#fecaca; width:100%;">Ištrinti vartotoją</button>
-                </form>
+                </div>
+
+                <div class="row-split">
+                    <div class="form-group">
+                        <label>Miestas</label>
+                        <input type="text" name="city" id="u_formCity">
+                    </div>
+                    <div class="form-group">
+                        <label>Šalis</label>
+                        <input type="text" name="country" id="u_formCountry">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Sistemos rolė</label>
+                    <select name="is_admin" id="u_formIsAdmin">
+                        <option value="0">Paprastas vartotojas</option>
+                        <option value="1">Administratorius</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn">Išsaugoti pakeitimus</button>
+            </form>
+
+            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+
+            <h4 style="margin-bottom: 15px;">Bendruomenės veikla</h4>
+            <div id="u_community_info" style="background: #f9fafb; padding: 15px; border-radius: 8px;"></div>
+            
+            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+
+            <div class="info-row" style="border:none;">
+                <h4 style="margin-top:0; margin-bottom:10px;">Paskutiniai Parduotuvės Užsakymai</h4>
+                <div id="u_orders_container"></div>
             </div>
+
+            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+            
+            <form method="post" onsubmit="return confirm('Ar tikrai norite ištrinti šį vartotoją? Šis veiksmas negrįžtamas.');">
+                <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
+                <input type="hidden" name="action" value="delete_user">
+                <input type="hidden" name="user_id" id="u_deleteId">
+                <button type="submit" class="btn" style="background:#fee2e2; color:#b91c1c; border-color:#fecaca; width:100%;">Ištrinti vartotoją iš sistemos</button>
+            </form>
+
         </div>
     </div>
 </div>
@@ -207,38 +312,66 @@ unset($u);
                 data = JSON.parse(this.getAttribute('data-user'));
             } catch(e) { console.error(e); return; }
             
+            // Užpildome formos laukus
             document.getElementById('u_id').innerText = data.id;
             document.getElementById('u_formId').value = data.id;
             document.getElementById('u_deleteId').value = data.id;
             
-            document.getElementById('u_name').innerText = data.name;
-            document.getElementById('u_email').innerText = data.email;
-            document.getElementById('u_phone').innerText = data.phone || '-';
-            document.getElementById('u_address').innerText = data.address || '-';
+            document.getElementById('u_formName').value = data.name || '';
+            document.getElementById('u_formEmail').value = data.email || '';
+            document.getElementById('u_formBirthdate').value = data.birthdate || '';
+            document.getElementById('u_formGender').value = data.gender || '';
+            document.getElementById('u_formCity').value = data.city || '';
+            document.getElementById('u_formCountry').value = data.country || '';
+            document.getElementById('u_formIsAdmin').value = data.is_admin == 1 ? '1' : '0';
             
-            document.getElementById('u_roleSelect').value = data.is_admin == 1 ? '1' : '0';
-            
+            // Bendruomenės statisitika
+            const commBox = document.getElementById('u_community_info');
+            let commHtml = '';
+
+            if (data.active_block) {
+                let until = data.active_block.banned_until ? data.active_block.banned_until : 'Visam laikui';
+                commHtml += `<div style="background:#fee2e2; color:#b91c1c; padding:10px; border-radius:6px; margin-bottom:15px;">
+                    <strong>UŽBLOKUOTAS</strong><br>Priežastis: ${data.active_block.reason}<br>Iki: ${until}
+                </div>`;
+            } else {
+                commHtml += `<div style="color:#10b981; font-weight:600; margin-bottom:15px;">Vartotojas nėra užblokuotas bendruomenėje</div>`;
+            }
+
+            commHtml += `
+                <ul class="community-stats">
+                    <li><span>Skelbimai</span><strong>${data.listings_count}</strong></li>
+                    <li><span>Nupirkti daiktai</span><strong>${data.community_orders_bought}</strong></li>
+                    <li><span>Parduoti daiktai</span><strong>${data.community_orders_sold}</strong></li>
+                    <li><span>Pranešimai (Reports)</span><strong>${data.reports_count}</strong></li>
+                    <li><span>Sukurtos temos</span><strong>${data.threads_count}</strong></li>
+                    <li><span>Pagalbos bilietai</span><strong>${data.tickets_count}</strong></li>
+                    <li><span>Komentarai</span><strong>${data.comments_count}</strong></li>
+                </ul>
+            `;
+            commBox.innerHTML = commHtml;
+
             // Užsakymų renderinimas
             const ordersBox = document.getElementById('u_orders_container');
             if (data.recent_orders && data.recent_orders.length > 0) {
                 let html = '<table class="mini-orders-table"><thead><tr><th>ID</th><th>Data</th><th>Suma</th><th>Statusas</th></tr></thead><tbody>';
                 data.recent_orders.forEach(o => {
                     let dotClass = 'pending';
-                    const st = o.status.toLowerCase();
+                    const st = o.status ? o.status.toLowerCase() : '';
                     if (st.includes('įvykdyt') || st.includes('apmokėt') || st.includes('išsiųst')) dotClass = 'completed';
                     if (st.includes('atšauk') || st.includes('atmest')) dotClass = 'cancelled';
                     
                     html += `<tr>
                         <td>#${o.id}</td>
-                        <td>${o.created_at.substring(0, 10)}</td>
-                        <td>${parseFloat(o.total).toFixed(2)} €</td>
-                        <td><span class="status-dot ${dotClass}"></span>${o.status}</td>
+                        <td>${o.created_at ? o.created_at.substring(0, 10) : '-'}</td>
+                        <td>${o.total ? parseFloat(o.total).toFixed(2) : '0.00'} €</td>
+                        <td><span class="status-dot ${dotClass}"></span>${o.status || '-'}</td>
                     </tr>`;
                 });
                 html += '</tbody></table>';
                 ordersBox.innerHTML = html;
             } else {
-                ordersBox.innerHTML = '<div style="color:#999; font-size:13px; padding-top:5px;">Užsakymų nėra.</div>';
+                ordersBox.innerHTML = '<div style="color:#999; font-size:13px; padding-top:5px;">Parduotuvės užsakymų nėra.</div>';
             }
             
             userModal.style.display = 'flex';
