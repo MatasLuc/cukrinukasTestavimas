@@ -191,7 +191,9 @@ if (isset($_POST['create_paysera_shipment'])) {
                         'address' => [
                             'country'     => 'LT',
                             'city'        => 'Vilnius',
-                            'street'      => $order['customer_address'] ?? 'Nenurodyta',
+                            // Adreso laukas nereikalingas (yra parcel_machine_id), bet API reikalauja
+                            // Lietuviški simboliai vengiami kad nesukeltu encoding problemų
+                            'street'      => 'Pastomatas',
                             'postal_code' => '00000',
                         ],
                     ],
@@ -249,6 +251,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'Content-Length: ' . $payloadBytes,
                 'Accept: application/json',
                 'Authorization: ' . $macAuth,
+                'Expect: ',
             ]);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
