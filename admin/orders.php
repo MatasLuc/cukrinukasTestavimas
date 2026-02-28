@@ -115,16 +115,22 @@ if (isset($_POST['create_paysera_shipment'])) {
             $sender = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentPointCreate())
                 ->setType('sender')
                 ->setProjectId($projectId)
-                ->setParcelMachineId($senderLockerId)
                 ->setSaved(false)
                 ->setDefaultContact(false)
                 ->setContact($senderContact);
+
+            if (!empty($senderLockerId)) {
+                $sender->setParcelMachineId($senderLockerId);
+            }
+
+            // Apsauga nuo tuščio telefono numerio stringo
+            $customerPhone = !empty($order['customer_phone']) ? trim($order['customer_phone']) : '+37060000000';
 
             // 2. Sukuriamas Gavėjo (Receiver) objektas
             $receiverParty = (new \Paysera\DeliveryApi\MerchantClient\Entity\Party())
                 ->setTitle($order['customer_name'])
                 ->setEmail($order['customer_email'])
-                ->setPhone($order['customer_phone'] ?? '+37060000000');
+                ->setPhone($customerPhone);
 
             $receiverAddress = (new \Paysera\DeliveryApi\MerchantClient\Entity\Address())
                 ->setCountry('LT');
@@ -158,8 +164,8 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ->setDefaultContact(false)
                 ->setContact($receiverContact);
 
-            if ($order['delivery_method'] !== 'courier') {
-                $receiver->setParcelMachineId($delDetails['locker_id'] ?? '');
+            if ($order['delivery_method'] !== 'courier' && !empty($delDetails['locker_id'])) {
+                $receiver->setParcelMachineId($delDetails['locker_id']);
             }
 
             // 3. Sukuriama Siunta (Shipment)
@@ -242,10 +248,45 @@ if (isset($_POST['create_paysera_shipment'])) {
             exit;
 
         }
-    } catch (\Exception $e) {
-        payseraLog("EXCEPTION in Paysera Library: " . $e->getMessage());
+    } catch (\Throwable $e) {
+        // DETALUS KLAIDŲ APDOROJIMAS
+        $errorMsg = $e->getMessage();
+
+        // 1. API Atsakymo turinys (Guzzle HTTP formatas)
+        if (method_exists($e, 'getResponse') && $e->getResponse() !== null) {
+            $body = (string) $e->getResponse()->getBody();
+            if (!empty($body)) {
+                $errorMsg .= " | API Atsakymas: " . $body;
+            }
+        }
+
+        // 2. Paysera Violations apdorojimas (Jei neteisingi duomenys)
+        if (method_exists($e, 'getViolations') && is_array($e->getViolations())) {
+            $viols = [];
+            foreach ($e->getViolations() as $v) {
+                $field = method_exists($v, 'getField') ? $v->getField() : 'Laukas';
+                $msg   = method_exists($v, 'getMessage') ? $v->getMessage() : 'Klaida';
+                $viols[] = "[{$field}] {$msg}";
+            }
+            if (!empty($viols)) {
+                $errorMsg .= " | Pažeidimai: " . implode(', ', $viols);
+            }
+        }
+
+        // 3. Papildomas Paysera aprašymas
+        if (method_exists($e, 'getErrorDescription') && $e->getErrorDescription()) {
+            $errorMsg .= " | Aprašymas: " . $e->getErrorDescription();
+        }
+
+        // Jei klaida VIS DAR tuščia (Pvz., PHP lygio klaida)
+        if (empty(trim($errorMsg))) {
+            $errorMsg = get_class($e) . " (Klaida neturi pranešimo teksto). Eilutė: " . $e->getLine() . " Faile: " . basename($e->getFile());
+        }
+
+        payseraLog("EXCEPTION in Paysera Library: " . $errorMsg);
+        
         echo "<div class='alert alert-danger'>";
-        echo "<strong>Klaida kuriant siuntą:</strong> " . htmlspecialchars($e->getMessage());
+        echo "<strong>Klaida kuriant siuntą:</strong> " . htmlspecialchars($errorMsg);
         echo "</div>";
     }
 }
