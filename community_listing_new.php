@@ -27,6 +27,18 @@ if ($blocked) {
     exit;
 }
 
+// Paimame naujausią vartotojo informaciją apie Stripe
+$stmt = $pdo->prepare('SELECT stripe_account_id, stripe_onboarding_completed FROM users WHERE id = ?');
+$stmt->execute([$user['id']]);
+$stripeData = $stmt->fetch();
+
+// Tikriname, ar vartotojas yra registruotas pardavėjas
+if (empty($stripeData['stripe_account_id']) || empty($stripeData['stripe_onboarding_completed'])) {
+    $_SESSION['flash_error'] = 'Skelbimus gali kurti tik registruoti pardavėjai. Prašome užbaigti pardavėjo registraciją paskyros nustatymuose.';
+    header('Location: /account.php');
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     $title = trim($_POST['title'] ?? '');
