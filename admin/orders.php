@@ -120,7 +120,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            $projectId      = 248259;
+            $projectId      = 248259; // integer — Paysera reikalauja skaičiaus, ne string'o
             $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password       = trim($password, " \t\r\n\"'");
             $apiUrl         = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/');
@@ -236,12 +236,17 @@ if (isset($_POST['create_paysera_shipment'])) {
             // MAC autentifikacija — payloadJson paduodamas toks pat kaip curl'ui
             $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
 
+            // Content-Length priverstinai — kad curl nekeistų body encoding
+            $payloadBytes = strlen($payloadJson);
+            payseraLog("payloadBytes (strlen): " . $payloadBytes);
+
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson); // Tas pats kintamasis!
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
+                'Content-Length: ' . $payloadBytes,
                 'Accept: application/json',
                 'Authorization: ' . $macAuth,
             ]);
