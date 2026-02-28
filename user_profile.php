@@ -102,7 +102,7 @@ try {
     // Ignoruojame, jei skelbimų sistemos nėra arba stulpeliai nesutampa
 }
 
-renderHeader($profileUser['name'] . " profilis");
+renderHeader($profileUser['username'] . " profilis");
 ?>
 
 <div class="container mt-5">
