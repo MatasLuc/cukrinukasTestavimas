@@ -1,33 +1,11 @@
 <?php
 // admin/orders.php
 // Pilnas administracinis užsakymų valdymo failas su Paysera Integration
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+
 // --- DEBUG LOGGER ---
 function payseraLog(string $message): void {
     $logFile = __DIR__ . '/../mailer_errors.log';
     file_put_contents($logFile, date('[Y-m-d H:i:s]') . ' [PAYSERA] ' . $message . "\n", FILE_APPEND);
-}
-
-// --- PAYSERA AUTOLOADER ---
-// Jei nenaudojate Composer arba vendor aplanko nėra, šis autoloaderis užkraus klases iš libwebtopay.
-$autoloadPath = __DIR__ . '/../libwebtopay/vendor/autoload.php';
-if (file_exists($autoloadPath)) {
-    require_once $autoloadPath;
-} else {
-    spl_autoload_register(function ($class) {
-        $prefix = 'Paysera\\DeliveryApi\\';
-        if (strpos($class, $prefix) === 0) {
-            $relative_class = substr($class, strlen($prefix));
-            $parts = explode('\\', $relative_class);
-            $className = end($parts);
-            $file = __DIR__ . '/../libwebtopay/' . $className . '.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-    });
 }
 
 // 0. IŠTRYNIMO LOGIKA
@@ -70,6 +48,14 @@ if (isset($_POST['create_paysera_shipment'])) {
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($order) {
+            
+            // Užkrauname Composer bibliotekas
+            $autoloadPath = __DIR__ . '/../libwebtopay/vendor/autoload.php';
+            if (!file_exists($autoloadPath)) {
+                throw new Exception("Nerastas vendor/autoload.php failas. Biblioteka neįdiegta.");
+            }
+            require_once $autoloadPath;
+
             // Nuskaitome .env failą
             $envFile = __DIR__ . '/../.env';
             if (file_exists($envFile)) {
@@ -104,22 +90,22 @@ if (isset($_POST['create_paysera_shipment'])) {
                 : 'parcel-machine2parcel-machine';
 
             // 1. Sukuriamas Siuntėjo (Sender) objektas
-            $senderParty = (new \Paysera\DeliveryApi\Entity\Party())
+            $senderParty = (new \Paysera\DeliveryApi\MerchantClient\Entity\Party())
                 ->setTitle('Cukrinukas.lt')
                 ->setEmail('labas@cukrinukas.lt')
                 ->setPhone('+37064477724');
 
-            $senderAddress = (new \Paysera\DeliveryApi\Entity\Address())
+            $senderAddress = (new \Paysera\DeliveryApi\MerchantClient\Entity\Address())
                 ->setCountry('LT')
                 ->setCity('Vilnius')
                 ->setStreet('Miglos g. 65')
                 ->setPostalCode('01103');
 
-            $senderContact = (new \Paysera\DeliveryApi\Entity\Contact())
+            $senderContact = (new \Paysera\DeliveryApi\MerchantClient\Entity\Contact())
                 ->setParty($senderParty)
                 ->setAddress($senderAddress);
 
-            $sender = (new \Paysera\DeliveryApi\Entity\ShipmentPointCreate())
+            $sender = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentPointCreate())
                 ->setType('sender')
                 ->setProjectId($projectId)
                 ->setParcelMachineId($senderLockerId)
@@ -128,12 +114,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ->setContact($senderContact);
 
             // 2. Sukuriamas Gavėjo (Receiver) objektas
-            $receiverParty = (new \Paysera\DeliveryApi\Entity\Party())
+            $receiverParty = (new \Paysera\DeliveryApi\MerchantClient\Entity\Party())
                 ->setTitle($order['customer_name'])
                 ->setEmail($order['customer_email'])
                 ->setPhone($order['customer_phone'] ?? '+37060000000');
 
-            $receiverAddress = (new \Paysera\DeliveryApi\Entity\Address())
+            $receiverAddress = (new \Paysera\DeliveryApi\MerchantClient\Entity\Address())
                 ->setCountry('LT');
 
             if ($order['delivery_method'] === 'courier') {
@@ -154,11 +140,11 @@ if (isset($_POST['create_paysera_shipment'])) {
                                 ->setPostalCode('00000');
             }
 
-            $receiverContact = (new \Paysera\DeliveryApi\Entity\Contact())
+            $receiverContact = (new \Paysera\DeliveryApi\MerchantClient\Entity\Contact())
                 ->setParty($receiverParty)
                 ->setAddress($receiverAddress);
 
-            $receiver = (new \Paysera\DeliveryApi\Entity\ShipmentPointCreate())
+            $receiver = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentPointCreate())
                 ->setType('receiver')
                 ->setProjectId($projectId)
                 ->setSaved(false)
@@ -170,7 +156,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             }
 
             // 3. Sukuriama Siunta (Shipment)
-            $shipmentCreate = (new \Paysera\DeliveryApi\Entity\ShipmentCreate())
+            $shipmentCreate = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentCreate())
                 ->setWeight(1000)
                 ->setWidth(380)
                 ->setLength(640)
@@ -178,7 +164,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ->setPackageSize('M');
 
             // 4. Apjungiamas Užsakymas (OrderCreate)
-            $orderCreate = (new \Paysera\DeliveryApi\Entity\OrderCreate())
+            $orderCreate = (new \Paysera\DeliveryApi\MerchantClient\Entity\OrderCreate())
                 ->setProjectId($projectId)
                 ->setShipmentGatewayCode($gatewayCode)
                 ->setShipmentMethodCode($methodCode)
@@ -187,7 +173,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ->setShipments([$shipmentCreate]);
 
             // 5. Kliento inicijavimas ir API kreipimasis
-            $client = \Paysera\DeliveryApi\ClientFactory::create([
+            $client = \Paysera\DeliveryApi\MerchantClient\ClientFactory::create([
                 'base_url' => $apiUrl,
                 'mac' => [
                     'mac_id' => (string)$projectId,
@@ -250,7 +236,7 @@ if (isset($_POST['create_paysera_shipment'])) {
     } catch (\Exception $e) {
         payseraLog("EXCEPTION in Paysera Library: " . $e->getMessage());
         echo "<div class='alert alert-danger'>";
-        echo "<strong>Paysera API Klaida:</strong> " . htmlspecialchars($e->getMessage());
+        echo "<strong>Klaida kuriant siuntą:</strong> " . htmlspecialchars($e->getMessage());
         echo "</div>";
     }
 }
