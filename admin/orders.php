@@ -7,13 +7,10 @@ function payseraLog(string $message): void {
     $logFile = __DIR__ . '/../mailer_errors.log';
     file_put_contents($logFile, date('[Y-m-d H:i:s]') . ' [PAYSERA] ' . $message . "\n", FILE_APPEND);
 }
-
-// --- MAC TOKEN AUTENTIFIKACIJA ---
-// SVARBU: ext laukas request string'e ir header'e turi būti IDENTIŠKAS.
-// Paysera tikisi: ext = "body_hash=<base64>" — tiek request string'e, tiek Authorization header'e.
-// JOKIO rawurlencode — tai sugriauna MAC.
+//MAC FAILAS
 if (!function_exists('buildMacAuthHeader')) {
     function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
+
         $parsed = parse_url($url);
         $ts     = (string) time();
         $nonce  = bin2hex(random_bytes(8));
@@ -25,45 +22,60 @@ if (!function_exists('buildMacAuthHeader')) {
             $path .= '?' . $parsed['query'];
         }
 
-        // ext: jei yra body — skaičiuojame SHA-256 ir koduojame base64
-        // Tas pats string'as naudojamas ir request string'e (MAC skaičiavimui) ir header'e
         $ext = '';
+        $bodyHash = '';
+
         if ($body !== '') {
-            $ext = 'body_hash=' . base64_encode(hash('sha256', $body, true));
+
+            // BINARY hash
+            $rawHash   = hash('sha256', $body, true);
+            $bodyHash  = base64_encode($rawHash);
+            $ext       = 'body_hash=' . $bodyHash;
+
+            payseraLog("RAW BODY LENGTH: " . strlen($body));
+            payseraLog("RAW BODY HASH HEX: " . hash('sha256', $body));
+            payseraLog("RAW BODY HASH BASE64: " . $bodyHash);
+
+            // Išsaugome tikslų siunčiamą body
+            file_put_contents(__DIR__ . '/../last_paysera_body.txt', $body);
         }
 
-        // Request string — lygiai kaip cron_worker.php, tik papildomai su ext
-        $requestString = $ts    . "\n"
+        $requestString = $ts . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
-                       . $path  . "\n"
-                       . $host  . "\n"
-                       . (string)$port . "\n"
-                       . $ext   . "\n"
+                       . $path . "\n"
+                       . $host . "\n"
+                       . $port . "\n"
+                       . $ext . "\n"
                        . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
-        payseraLog("=== buildMacAuthHeader ===");
-        payseraLog("macId: " . $macId);
+        payseraLog("=== buildMacAuthHeader DEBUG ===");
+        payseraLog("ts: $ts");
+        payseraLog("nonce: $nonce");
         payseraLog("method: " . strtoupper($method));
-        payseraLog("path: " . $path);
-        payseraLog("host: " . $host . " | port: " . $port);
-        payseraLog("ts: " . $ts . " | nonce: " . $nonce);
-        payseraLog("ext: " . ($ext ?: '(tuščias)'));
+        payseraLog("path: $path");
+        payseraLog("host: $host");
+        payseraLog("port: $port");
+        payseraLog("ext: $ext");
         payseraLog("requestString (\\n->|): " . str_replace("\n", "|", $requestString));
-        payseraLog("mac: " . $mac);
+        payseraLog("MAC: $mac");
 
         if ($ext !== '') {
-            $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
-                $macId, $ts, $nonce, $mac, $ext);
+            $header = sprintf(
+                'MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
+                $macId, $ts, $nonce, $mac, $ext
+            );
         } else {
-            $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
-                $macId, $ts, $nonce, $mac);
+            $header = sprintf(
+                'MAC id="%s", ts="%s", nonce="%s", mac="%s"',
+                $macId, $ts, $nonce, $mac
+            );
         }
 
-        payseraLog("Authorization: " . $header);
-        payseraLog("=== END buildMacAuthHeader ===");
+        payseraLog("Authorization Header: $header");
+        payseraLog("=== END MAC DEBUG ===");
 
         return $header;
     }
@@ -229,41 +241,58 @@ if (isset($_POST['create_paysera_shipment'])) {
             $endpoint    = $apiUrl . '/orders';
 
             // SVARBU: json_encode su JSON_UNESCAPED_UNICODE kad lietuviški simboliai nesutrikdytų hash'o
-            $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-            payseraLog("endpoint: " . $endpoint);
-            payseraLog("payloadJson ilgis: " . strlen($payloadJson));
-            payseraLog("payloadJson SHA256: " . hash('sha256', $payloadJson));
-            payseraLog("payloadJson: " . $payloadJson);
+            $payloadJson = json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+            
+            $payloadJson = trim($payloadJson);
+            
+            payseraLog("FINAL JSON LENGTH: " . strlen($payloadJson));
+            payseraLog("FINAL JSON SHA256 HEX: " . hash('sha256', $payloadJson));
+            payseraLog("FINAL JSON: " . $payloadJson);
 
             // MAC autentifikacija — payloadJson paduodamas toks pat kaip curl'ui
             $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
 
             // Content-Length priverstinai — kad curl nekeistų body encoding
             $payloadBytes = strlen($payloadJson);
-            payseraLog("payloadBytes (strlen): " . $payloadBytes);
-
-            $ch = curl_init($endpoint);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
+            
+            $headers = [
+                'Content-Type: application/json; charset=utf-8',
                 'Accept: application/json',
                 'Authorization: ' . $macAuth,
-                'Expect: ',
+                'Content-Length: ' . $payloadBytes,
+                'Expect:'
+            ];
+            
+            payseraLog("REQUEST HEADERS:");
+            foreach ($headers as $h) {
+                payseraLog("  " . $h);
+            }
+            
+            $ch = curl_init($endpoint);
+            
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => $payloadJson,
+                CURLOPT_HTTPHEADER     => $headers,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_VERBOSE        => true,
             ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
+            
             $response  = curl_exec($ch);
             $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
+            $info      = curl_getinfo($ch);
+            
             curl_close($ch);
-
-            payseraLog("HTTP kodas: " . $httpCode);
-            payseraLog("cURL klaida: " . ($curlError ?: 'nėra'));
-            payseraLog("Atsakymas: " . $response);
-            payseraLog("========================================");
+            
+            payseraLog("HTTP CODE: " . $httpCode);
+            payseraLog("CURL ERROR: " . ($curlError ?: 'none'));
+            payseraLog("CURL INFO: " . print_r($info, true));
+            payseraLog("RESPONSE: " . $response);
 
             if ($httpCode >= 200 && $httpCode < 300 && $response) {
                 $resData   = json_decode($response, true);
