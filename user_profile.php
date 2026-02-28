@@ -6,6 +6,8 @@ session_start();
 require __DIR__ . '/db.php';
 require __DIR__ . '/layout.php';
 
+$pdo = getPdo();
+
 $userId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if (!$userId) {
