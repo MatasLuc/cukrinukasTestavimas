@@ -363,9 +363,13 @@ echo headerStyles();
                         }
                         ?>
                     </div>
+
+
                     
                     <div class="item-meta">
-                        <span>👤 <?php echo htmlspecialchars($item['username'] ?: 'Narys'); ?></span>
+                        <a href="user_profile.php?id=<?= $item['user_id'] ?>">
+                            <span>👤 <?php echo htmlspecialchars($item['username'] ?: 'Narys'); ?></span>
+                        </a>
                         <span><?php echo date('m-d', strtotime($item['created_at'])); ?></span>
                     </div>
                     
