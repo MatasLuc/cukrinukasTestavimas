@@ -27,14 +27,15 @@ if (!function_exists('buildMacAuthHeader')) {
 
         if ($body !== '') {
 
-            // BINARY hash
-            $rawHash   = hash('sha256', $body, true);
+            // Paysera reikalauja MD5 formato body_hash apskaičiavimui, o Base64 turi būti url-encoded
+            $rawHash   = hash('md5', $body, true);
             $bodyHash  = base64_encode($rawHash);
-            $ext       = 'body_hash=' . $bodyHash;
+            $ext       = 'body_hash=' . urlencode($bodyHash);
 
             payseraLog("RAW BODY LENGTH: " . strlen($body));
-            payseraLog("RAW BODY HASH HEX: " . hash('sha256', $body));
+            payseraLog("RAW BODY HASH HEX: " . hash('md5', $body));
             payseraLog("RAW BODY HASH BASE64: " . $bodyHash);
+            payseraLog("EXT HEADER PART: " . $ext);
 
             // Išsaugome tikslų siunčiamą body
             file_put_contents(__DIR__ . '/../last_paysera_body.txt', $body);
@@ -46,8 +47,7 @@ if (!function_exists('buildMacAuthHeader')) {
                        . $path . "\n"
                        . $host . "\n"
                        . $port . "\n"
-                       . $ext . "\n"
-                       . "\n";
+                       . $ext . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
@@ -661,7 +661,6 @@ try {
   </div>
 </div>
 
-<!-- UŽSAKYMO PERŽIŪROS MODALAS -->
 <div id="orderModal" class="modal-overlay">
     <div class="modal-window">
         <div class="modal-header">
@@ -772,7 +771,6 @@ try {
     </div>
 </div>
 
-<!-- PAYSERA SIUNTOS KŪRIMO MODALAS -->
 <div id="payseraModal" class="modal-overlay">
     <div class="modal-window" style="max-width: 600px;">
         <div class="modal-header">
