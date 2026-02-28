@@ -9,6 +9,9 @@ function payseraLog(string $message): void {
 }
 
 // --- MAC TOKEN AUTENTIFIKACIJA ---
+// SVARBU: ext laukas request string'e ir header'e turi būti IDENTIŠKAS.
+// Paysera tikisi: ext = "body_hash=<base64>" — tiek request string'e, tiek Authorization header'e.
+// JOKIO rawurlencode — tai sugriauna MAC.
 if (!function_exists('buildMacAuthHeader')) {
     function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
         $parsed = parse_url($url);
@@ -22,40 +25,45 @@ if (!function_exists('buildMacAuthHeader')) {
             $path .= '?' . $parsed['query'];
         }
 
-        // Body hash: SHA-256 binary → base64
-        $bodyHashRaw = '';
-        $extForHeader = '';
+        // ext: jei yra body — skaičiuojame SHA-256 ir koduojame base64
+        // Tas pats string'as naudojamas ir request string'e (MAC skaičiavimui) ir header'e
+        $ext = '';
         if ($body !== '') {
-            $bodyHashRaw  = base64_encode(hash('sha256', $body, true));
-            $extForHeader = 'body_hash=' . $bodyHashRaw;
+            $ext = 'body_hash=' . base64_encode(hash('sha256', $body, true));
         }
 
-        // Request string: ext reikšmė čia be jokio encoding
+        // Request string — lygiai kaip cron_worker.php, tik papildomai su ext
         $requestString = $ts    . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
                        . $path  . "\n"
                        . $host  . "\n"
                        . (string)$port . "\n"
-                       . $extForHeader . "\n";
+                       . $ext   . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
+        payseraLog("=== buildMacAuthHeader ===");
+        payseraLog("macId: " . $macId);
+        payseraLog("method: " . strtoupper($method));
+        payseraLog("path: " . $path);
+        payseraLog("host: " . $host . " | port: " . $port);
+        payseraLog("ts: " . $ts . " | nonce: " . $nonce);
+        payseraLog("ext: " . ($ext ?: '(tuščias)'));
         payseraLog("requestString (\\n->|): " . str_replace("\n", "|", $requestString));
         payseraLog("mac: " . $mac);
-        payseraLog("bodyHashRaw: " . $bodyHashRaw);
 
-        if ($extForHeader !== '') {
-            // Header'yje base64 simbolius +/= reikia URL-encode
-            $extEncoded = 'body_hash=' . rawurlencode($bodyHashRaw);
+        if ($ext !== '') {
             $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
-                $macId, $ts, $nonce, $mac, $extEncoded);
+                $macId, $ts, $nonce, $mac, $ext);
         } else {
             $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
                 $macId, $ts, $nonce, $mac);
         }
 
         payseraLog("Authorization: " . $header);
+        payseraLog("=== END buildMacAuthHeader ===");
+
         return $header;
     }
 }
@@ -87,7 +95,7 @@ if (isset($_POST['create_paysera_shipment'])) {
         validateCsrf();
     }
 
-    $orderId = (int)$_POST['order_id'];
+    $orderId        = (int)$_POST['order_id'];
     $senderLockerId = $_POST['sender_locker_id'];
 
     payseraLog("========================================");
@@ -100,30 +108,25 @@ if (isset($_POST['create_paysera_shipment'])) {
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($order) {
+            // Nuskaitome .env failą
             $envFile = __DIR__ . '/../.env';
             if (file_exists($envFile)) {
                 $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                 foreach ($lines as $line) {
                     if (strpos(trim($line), '#') === 0) continue;
+                    if (strpos($line, '=') === false) continue;
                     list($name, $value) = explode('=', $line, 2);
-                    $_ENV[trim($name)] = trim($value);
+                    $_ENV[trim($name)] = trim($value, " \t\r\n\"'");
                 }
             }
 
-            $projectId   = "248259";
-            $rawPassword = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
-            $password    = str_replace(['"', "'", "\r", "\n"], '', trim($rawPassword));
-            $apiUrl      = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
-
-
-            // Slaptažodis naudojamas tiesiogiai (kaip cron_worker.php)
-            $passwordForMac = $password;
-            payseraLog("passwordForMac ilgis: " . strlen($passwordForMac) . " | pirmi 4: " . substr($passwordForMac, 0, 4));
+            $projectId      = "248259";
+            $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
+            $password       = trim($password, " \t\r\n\"'");
+            $apiUrl         = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/');
 
             payseraLog("projectId: " . $projectId);
-            payseraLog("rawPassword ilgis: " . strlen($rawPassword) . " | po trim: " . strlen($password));
-            payseraLog("password pirmi 4: " . substr($password, 0, 4) . " | paskutiniai 4: " . substr($password, -4));
-            payseraLog("password hex (pirmi 10 baitai): " . bin2hex(substr($password, 0, 10)));
+            payseraLog("password ilgis: " . strlen($password) . " | pirmi 4: " . substr($password, 0, 4) . " | paskutiniai 4: " . substr($password, -4));
             payseraLog("apiUrl: " . $apiUrl);
 
             if (empty($password)) {
@@ -131,11 +134,19 @@ if (isset($_POST['create_paysera_shipment'])) {
             }
 
             $delDetails  = json_decode($order['delivery_details'], true);
-            $gatewayCode = (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false) ? 'omniva' : 'lp_express';
-            $methodCode  = ($order['delivery_method'] === 'courier') ? 'parcel-machine2courier' : 'parcel-machine2parcel-machine';
+
+            // Nustatome gateway ir method pagal siuntėjo paštomato ID
+            if (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false) {
+                $gatewayCode = 'omniva';
+            } else {
+                $gatewayCode = 'lp_express';
+            }
+
+            $methodCode = ($order['delivery_method'] === 'courier')
+                ? 'parcel-machine2courier'
+                : 'parcel-machine2parcel-machine';
 
             payseraLog("delivery_method: " . $order['delivery_method']);
-            payseraLog("delivery_details: " . $order['delivery_details']);
             payseraLog("locker_id iš delivery_details: " . ($delDetails['locker_id'] ?? 'N/A'));
             payseraLog("gatewayCode: " . $gatewayCode . " | methodCode: " . $methodCode);
 
@@ -143,7 +154,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'project_id'            => $projectId,
                 'shipment_gateway_code' => $gatewayCode,
                 'shipment_method_code'  => $methodCode,
-                
+
                 'sender' => [
                     'type'              => 'sender',
                     'project_id'        => $projectId,
@@ -164,7 +175,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                         ],
                     ],
                 ],
-                
+
                 'receiver' => [
                     'type'              => 'receiver',
                     'project_id'        => $projectId,
@@ -185,7 +196,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                         ],
                     ],
                 ],
-                
+
                 'shipments' => [
                     [
                         'weight'       => 1000,
@@ -197,6 +208,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ],
             ];
 
+            // Kurjerio pristatymas — adresą išskaidome
             if ($order['delivery_method'] === 'courier') {
                 $addr  = $order['customer_address'];
                 $parts = explode(',', $addr);
@@ -211,18 +223,23 @@ if (isset($_POST['create_paysera_shipment'])) {
                 unset($payload['receiver']['parcel_machine_id']);
             }
 
-            $endpoint    = rtrim($apiUrl, '/') . '/orders';
-            $payloadJson = json_encode($payload);
+            $endpoint    = $apiUrl . '/orders';
+
+            // SVARBU: json_encode su JSON_UNESCAPED_UNICODE kad lietuviški simboliai nesutrikdytų hash'o
+            $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             payseraLog("endpoint: " . $endpoint);
+            payseraLog("payloadJson ilgis: " . strlen($payloadJson));
+            payseraLog("payloadJson SHA256: " . hash('sha256', $payloadJson));
             payseraLog("payloadJson: " . $payloadJson);
 
-            $macAuth = buildMacAuthHeader($projectId, $passwordForMac, 'POST', $endpoint, $payloadJson);
+            // MAC autentifikacija — payloadJson paduodamas toks pat kaip curl'ui
+            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
 
             $ch = curl_init($endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson); // Tas pats kintamasis!
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Accept: application/json',
@@ -250,7 +267,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 if (!empty($shipments) && is_array($shipments)) {
                     $firstShipment = $shipments[0];
                     $tracking      = $firstShipment['tracking_code'] ?? '';
-                    $labelUrl      = $firstShipment['label_url'] ?? (rtrim($apiUrl, '/') . "/shipments/{$firstShipment['id']}/label");
+                    $labelUrl      = $firstShipment['label_url'] ?? ($apiUrl . "/shipments/{$firstShipment['id']}/label");
                 }
 
                 $updateStmt = $pdo->prepare("
@@ -282,29 +299,26 @@ if (isset($_POST['create_paysera_shipment'])) {
 
                 echo "<script>window.location.href='index.php?page=orders';</script>";
                 exit;
+
             } else {
                 $err      = json_decode($response, true);
                 $errorMsg = $err['message'] ?? ($err['error_description'] ?? ($err['error'] ?? 'Nežinoma klaida'));
 
-                $passLen   = strlen($password);
-                $passFirst = substr($password, 0, 4) . '...';
-                $debugInfo = "<br><br><strong>Techninė informacija:</strong><br>
-                              Project_ID: <code>{$projectId}</code> (Tipas: " . gettype($projectId) . ")<br>
-                              Password ilgis: <code>{$passLen}</code> simbolių | Pradžia: <code>{$passFirst}</code><br>
-                              Endpoint: <code>{$endpoint}</code><br>
-                              MAC Auth: <code>" . htmlspecialchars($macAuth) . "</code><br>
-                              cURL klaida: <code>" . htmlspecialchars($curlError ?: 'nėra') . "</code>";
-
                 echo "<div class='alert alert-danger'>";
                 echo "<strong>Paysera API Klaida:</strong> " . htmlspecialchars($errorMsg) . " (HTTP: $httpCode)";
-                echo $debugInfo;
-                echo "<br><br><small><strong>Pilnas atsakymas:</strong> " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
+                echo "<br><br><strong>Techninė informacija:</strong><br>";
+                echo "Project_ID: <code>{$projectId}</code><br>";
+                echo "Password ilgis: <code>" . strlen($password) . "</code> | Pradžia: <code>" . substr($password, 0, 4) . "...</code><br>";
+                echo "Endpoint: <code>{$endpoint}</code><br>";
+                echo "MAC Auth: <code>" . htmlspecialchars($macAuth) . "</code><br>";
+                echo "cURL klaida: <code>" . htmlspecialchars($curlError ?: 'nėra') . "</code><br>";
+                echo "<br><small><strong>Pilnas atsakymas:</strong> " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
                 echo "</div>";
             }
         }
     } catch (Exception $e) {
         payseraLog("EXCEPTION: " . $e->getMessage());
-        echo "<div class='alert alert-danger'>Sistemos klaida: " . $e->getMessage() . "</div>";
+        echo "<div class='alert alert-danger'>Sistemos klaida: " . htmlspecialchars($e->getMessage()) . "</div>";
     }
 }
 
@@ -376,8 +390,7 @@ try {
         letter-spacing: 0.05em;
         display: inline-block;
     }
-    
-    /* Spalvos pagal būseną */
+
     .status-laukiama.apmokėjimo { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
     .status-apmokėta { background: #ecfdf5; color: #047857; border: 1px solid #d1fae5; }
     .status-apdorojama { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
@@ -386,13 +399,12 @@ try {
     .status-atšaukta { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
     .status-atmesta { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
 
-    /* Modal (Iššokantis langas) */
     .modal-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0,0,0,0.5);
         backdrop-filter: blur(4px);
         z-index: 1000;
-        display: none; 
+        display: none;
         align-items: center;
         justify-content: center;
         padding: 20px;
@@ -400,7 +412,7 @@ try {
         transition: opacity 0.2s ease;
     }
     .modal-overlay.open { display: flex; opacity: 1; }
-    
+
     .modal-window {
         background: #fff;
         width: 100%;
@@ -413,7 +425,7 @@ try {
         display: flex;
         flex-direction: column;
     }
-    
+
     .modal-header {
         padding: 15px 24px;
         border-bottom: 1px solid #eee;
@@ -425,12 +437,9 @@ try {
         z-index: 10;
     }
     .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
-    .modal-close {
-        background: none; border: none; font-size: 24px; cursor: pointer; color: #888;
-        line-height: 1; padding: 0;
-    }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; line-height: 1; padding: 0; }
     .modal-body { padding: 24px; }
-    
+
     .modal-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -438,23 +447,14 @@ try {
         margin-bottom: 24px;
     }
 
-    .info-section {
-        background: #f9f9f9;
-        border-radius: 8px;
-        padding: 15px;
-        border: 1px solid #eee;
-    }
-    
+    .info-section { background: #f9f9f9; border-radius: 8px; padding: 15px; border: 1px solid #eee; }
     .info-group h4 { margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; color: #888; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
     .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
     .info-row label { font-weight: 600; color: #555; }
     .info-row span { text-align: right; color: #111; max-width: 60%; word-break: break-word; }
-    
+
     .item-list { border: 1px solid #eee; border-radius: 12px; overflow: hidden; margin-top: 20px; }
-    .item-row {
-        display: flex; align-items: center; gap: 12px;
-        padding: 10px 12px; border-bottom: 1px solid #eee;
-    }
+    .item-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #eee; }
     .item-row:last-child { border-bottom: none; }
     .item-img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #eee; }
     .item-details { flex: 1; }
@@ -471,53 +471,64 @@ try {
         align-items: center;
     }
 
-    .form-control {
-        padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%;
-    }
+    .form-control { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%; }
 
     .btn-delete {
-        background: #fee2e2; 
-        color: #b91c1c; 
-        border: 1px solid #fca5a5; 
-        padding: 6px 10px; 
-        font-weight: bold;
-        margin-left: 5px;
-        cursor: pointer;
-        border-radius: 4px;
+        background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+        padding: 6px 10px; font-weight: bold; margin-left: 5px; cursor: pointer; border-radius: 4px;
     }
     .btn-delete:hover { background: #fecaca; }
-    
+
     .badge-bool { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     .badge-yes { background: #dcfce7; color: #166534; }
     .badge-no { background: #f3f4f6; color: #6b7280; }
 
-    /* Nauji siuntų mygtukai */
     .btn-shipment {
-        background: #2563eb; color: #fff; font-size: 11px; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; display: inline-block; font-weight: 600; text-decoration: none;
+        background: #2563eb; color: #fff; font-size: 11px; padding: 6px 12px;
+        border: none; border-radius: 4px; cursor: pointer; display: inline-block; font-weight: 600; text-decoration: none;
     }
     .btn-shipment:hover { background: #1d4ed8; }
-    .btn-label { background: #f3f4f6; color: #111; border: 1px solid #ccc; font-size: 11px; padding: 6px 12px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 600; }
+    .btn-label {
+        background: #f3f4f6; color: #111; border: 1px solid #ccc; font-size: 11px;
+        padding: 6px 12px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 600;
+    }
     .btn-label:hover { background: #e5e7eb; }
 
     /* CUSTOM SELECT */
     .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
-    .custom-select-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: 14px; font-weight: 400; color: #0f172a; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
-    .custom-select-wrapper.open .custom-select-trigger { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+    .custom-select-trigger {
+        position: relative; display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 12px; font-size: 14px; font-weight: 400; color: #0f172a;
+        background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; cursor: pointer; transition: all 0.2s;
+    }
+    .custom-select-wrapper.open .custom-select-trigger { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
     .custom-select-trigger span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    
-    .custom-options-container { position: absolute; display: none; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 300px; overflow: hidden; flex-direction: column; }
+
+    .custom-options-container {
+        position: absolute; display: none; top: 100%; left: 0; right: 0;
+        background: #fff; border: 1px solid #e4e7ec; border-radius: 8px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px;
+        max-height: 300px; overflow: hidden; flex-direction: column;
+    }
     .custom-select-wrapper.open .custom-options-container { display: flex; }
-    
+
     .sticky-search { padding: 8px; background: #fff; border-bottom: 1px solid #e4e7ec; }
     .sticky-search input { width: 100%; padding: 8px; border: 1px solid #e4e7ec; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
     .sticky-search input:focus { outline: none; border-color: #2563eb; }
-    
+
     .options-list { overflow-y: auto; flex: 1; }
     .custom-option { padding: 10px 12px; font-size: 13px; color: #0f172a; cursor: pointer; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
     .custom-option:last-child { border-bottom: none; }
     .custom-option:hover { background: #f1f5f9; }
     .custom-option.selected { background: #eff6ff; color: #2563eb; font-weight: 500; }
     .custom-option.no-results { text-align: center; color: #475467; cursor: default; }
+
+    .provider-btn {
+        border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px;
+        text-align: center; font-weight: 600; color: #475467; cursor: pointer; transition: all 0.2s; background: #fff;
+    }
+    .provider-btn:hover { background: #f8fafc; }
+    .provider-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
 
     @media (max-width: 768px) {
         .modal-grid { grid-template-columns: 1fr; }
@@ -532,7 +543,7 @@ try {
       <h3>Visi užsakymai</h3>
       <span class="muted" style="font-size:13px;">Viso: <?php echo count($allOrders); ?></span>
   </div>
-  
+
   <div style="overflow-x:auto;">
       <table style="width:100%; min-width: 800px;">
         <thead>
@@ -546,17 +557,17 @@ try {
             </tr>
         </thead>
         <tbody>
-          <?php foreach ($allOrders as $order): 
+          <?php foreach ($allOrders as $order):
                 $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($order['status']));
-                $isPhysical = in_array($order['delivery_method'], ['locker', 'courier']);
-                $hasPaysera = !empty($order['paysera_shipment_id']);
+                $isPhysical  = in_array($order['delivery_method'], ['locker', 'courier']);
+                $hasPaysera  = !empty($order['paysera_shipment_id']);
           ?>
             <tr>
               <td><strong>#<?php echo (int)$order['id']; ?></strong></td>
               <td>
                 <div style="font-weight:600;"><?php echo htmlspecialchars($order['customer_name']); ?></div>
                 <div class="muted" style="font-size:12px;"><?php echo htmlspecialchars($order['customer_email']); ?></div>
-                <?php if(!empty($order['customer_phone'])): ?>
+                <?php if (!empty($order['customer_phone'])): ?>
                     <div class="muted" style="font-size:11px; color:#666;">Tel: <?php echo htmlspecialchars($order['customer_phone']); ?></div>
                 <?php endif; ?>
               </td>
@@ -566,31 +577,23 @@ try {
                 <span class="status-badge <?php echo $statusClass; ?>">
                     <?php echo ucfirst($order['status']); ?>
                 </span>
-                
                 <?php if ($hasPaysera): ?>
                     <div style="font-size:11px; color:#15803d; font-weight:bold; margin-top:4px;">
                         📦 <?php echo htmlspecialchars($order['tracking_number']); ?>
                     </div>
-                <?php elseif(!empty($order['tracking_number'])): ?>
+                <?php elseif (!empty($order['tracking_number'])): ?>
                     <div style="font-size:10px; color:#666; margin-top:2px;">📦 <?php echo htmlspecialchars($order['tracking_number']); ?></div>
                 <?php endif; ?>
               </td>
               <td style="text-align:right;">
-                
+
                 <?php if ($isPhysical && !$hasPaysera): ?>
-                    <button class="btn-shipment open-paysera-modal" type="button" 
+                    <button class="btn-shipment open-paysera-modal" type="button"
                             data-order-id="<?php echo $order['id']; ?>"
-                            data-receiver-locker="<?php 
-                                $dd = json_decode($order['delivery_details'], true);
-                                $city = '';
+                            data-receiver-locker="<?php
+                                $dd   = json_decode($order['delivery_details'], true);
                                 $name = $dd['locker_name'] ?? 'Kurjeris/Nenurodyta';
-                                if ($dd && isset($dd['locker_name'])) {
-                                    if (strpos($name, ' - ') !== false) {
-                                        $parts = explode(' - ', $name);
-                                        $city = $parts[0];
-                                    }
-                                }
-                                echo htmlspecialchars($name); 
+                                echo htmlspecialchars($name);
                             ?>"
                             style="margin-bottom: 5px;">
                         Kurti Paysera siuntą
@@ -601,18 +604,18 @@ try {
                     </a><br>
                 <?php endif; ?>
 
-                <button class="btn secondary open-order-modal" 
+                <button class="btn secondary open-order-modal"
                         type="button"
                         data-order='<?php echo htmlspecialchars(json_encode($order, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>'>
                   Peržiūrėti
                 </button>
-                
+
                 <form method="POST" onsubmit="return confirm('Ar tikrai norite negrįžtamai ištrinti šį užsakymą?');" style="display:inline;">
-                    <?php if(function_exists('csrfField')) echo csrfField(); ?>
+                    <?php if (function_exists('csrfField')) echo csrfField(); ?>
                     <input type="hidden" name="delete_id" value="<?php echo $order['id']; ?>">
                     <button type="submit" class="btn-delete" title="Ištrinti užsakymą">X</button>
                 </form>
-                
+
               </td>
             </tr>
           <?php endforeach; ?>
@@ -624,6 +627,7 @@ try {
   </div>
 </div>
 
+<!-- UŽSAKYMO PERŽIŪROS MODALAS -->
 <div id="orderModal" class="modal-overlay">
     <div class="modal-window">
         <div class="modal-header">
@@ -633,14 +637,14 @@ try {
             </div>
             <button type="button" class="modal-close" onclick="closeModal()" style="margin-left:auto;">&times;</button>
         </div>
-        
+
         <form method="post" style="display:contents;">
         <div class="modal-body">
-            
+
             <div class="modal-grid">
-                
+
                 <div style="display:flex; flex-direction:column; gap:20px;">
-                    
+
                     <div class="info-section">
                         <div class="info-group">
                             <h4>Pirkėjo informacija</h4>
@@ -656,7 +660,7 @@ try {
                             <h4>Pristatymo duomenys</h4>
                             <div class="info-row"><label>Būdas:</label> <span id="m_deliveryMethod"></span></div>
                             <div class="info-row"><label>Adresas:</label> <span id="m_address"></span></div>
-                            
+
                             <div style="margin-top:10px; font-size:12px; background:#fff; padding:8px; border:1px dashed #ccc; display:none;" id="m_deliveryDetailsBox">
                                 <strong style="display:block; margin-bottom:4px;">Papildoma info (JSON):</strong>
                                 <span id="m_deliveryDetailsText" style="word-break:break-all; color:#555;"></span>
@@ -673,7 +677,7 @@ try {
                 </div>
 
                 <div style="display:flex; flex-direction:column; gap:20px;">
-                    
+
                     <div class="info-section">
                         <div class="info-group">
                             <h4>Finansinė informacija</h4>
@@ -684,7 +688,7 @@ try {
                                 <label>VISO:</label> <strong id="m_total" style="color:#000;"></strong>
                             </div>
                             <div style="margin-top:10px; font-size:11px; color:#666;">
-                                Stripe Session ID: <br>
+                                Stripe Session ID:<br>
                                 <span id="m_stripeSession" style="font-family:monospace; word-break:break-all;"></span>
                             </div>
                         </div>
@@ -707,33 +711,34 @@ try {
 
             <h4 style="margin-bottom:10px; color:#666; font-size:13px; text-transform:uppercase;">Užsakytos prekės</h4>
             <div id="m_itemsList" class="item-list"></div>
-            
+
         </div>
 
         <div class="modal-footer">
-                <?php if(function_exists('csrfField')) echo csrfField(); ?>
-                <input type="hidden" name="action" value="order_status">
-                <input type="hidden" name="order_id" id="m_formOrderId">
-                
-                <div style="display:flex; gap:8px; align-items:center; flex:1;">
-                    <label style="font-weight:600; font-size:14px;">Būsena:</label>
-                    <select name="status" id="m_statusSelect" style="margin:0; width:auto; flex:1; max-width:200px;">
-                        <option value="laukiama apmokėjimo">Laukiama apmokėjimo</option>
-                        <option value="apmokėta">Apmokėta</option>
-                        <option value="apdorojama">Apdorojama</option>
-                        <option value="išsiųsta">Išsiųsta</option>
-                        <option value="įvykdyta">Įvykdyta</option>
-                        <option value="atšaukta">Atšaukta</option>
-                        <option value="atmesta">Atmesta</option>
-                    </select>
-                    <button class="btn" type="submit">Atnaujinti</button>
-                </div>
+            <?php if (function_exists('csrfField')) echo csrfField(); ?>
+            <input type="hidden" name="action" value="order_status">
+            <input type="hidden" name="order_id" id="m_formOrderId">
+
+            <div style="display:flex; gap:8px; align-items:center; flex:1;">
+                <label style="font-weight:600; font-size:14px;">Būsena:</label>
+                <select name="status" id="m_statusSelect" style="margin:0; width:auto; flex:1; max-width:200px;">
+                    <option value="laukiama apmokėjimo">Laukiama apmokėjimo</option>
+                    <option value="apmokėta">Apmokėta</option>
+                    <option value="apdorojama">Apdorojama</option>
+                    <option value="išsiųsta">Išsiųsta</option>
+                    <option value="įvykdyta">Įvykdyta</option>
+                    <option value="atšaukta">Atšaukta</option>
+                    <option value="atmesta">Atmesta</option>
+                </select>
+                <button class="btn" type="submit">Atnaujinti</button>
+            </div>
             <button type="button" class="btn secondary" onclick="closeModal()">Uždaryti</button>
         </div>
         </form>
     </div>
 </div>
 
+<!-- PAYSERA SIUNTOS KŪRIMO MODALAS -->
 <div id="payseraModal" class="modal-overlay">
     <div class="modal-window" style="max-width: 600px;">
         <div class="modal-header">
@@ -741,36 +746,32 @@ try {
             <button type="button" class="modal-close" onclick="closePayseraModal()">&times;</button>
         </div>
         <form method="POST">
-            <?php if(function_exists('csrfField')) echo csrfField(); ?>
+            <?php if (function_exists('csrfField')) echo csrfField(); ?>
             <input type="hidden" name="create_paysera_shipment" value="1">
             <input type="hidden" name="order_id" id="p_orderId">
-            
+
             <div class="modal-body">
-                
+
                 <div style="background:#eff6ff; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#1e40af; border:1px solid #bfdbfe;">
-                    <strong style="display:block; margin-bottom:4px;">Gavėjo paštomatas (Pirkėjo pasirinkimas):</strong> 
+                    <strong style="display:block; margin-bottom:4px;">Gavėjo paštomatas (Pirkėjo pasirinkimas):</strong>
                     <span id="p_receiverLocker" style="font-weight:600;"></span>
                     <div style="font-size:11px; margin-top:2px;">(Jau automatiškai priskirtas ir bus išsiųstas kurjeriui)</div>
                 </div>
 
                 <p style="font-size:14px; margin-bottom:10px; color:#555;">Pasirinkite <strong>savo (siuntėjo)</strong> paštomatą, iš kurio išsiųsite prekes klientui (Dydis M, 1kg):</p>
-                
+
                 <label class="form-label" style="margin-bottom:10px;">1. Pasirinkite tiekėją:</label>
-                
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-                    <div class="provider-btn" onclick="filterLockers('lp', this)" style="border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; text-align: center; font-weight: 600; color: #475467; cursor: pointer; transition: all 0.2s; background: #fff;">
-                        LP EXPRESS
-                    </div>
-                    <div class="provider-btn" onclick="filterLockers('omniva', this)" style="border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; text-align: center; font-weight: 600; color: #475467; cursor: pointer; transition: all 0.2s; background: #fff;">
-                        OMNIVA
-                    </div>
+                    <div class="provider-btn" onclick="filterLockers('lp', this)">LP EXPRESS</div>
+                    <div class="provider-btn" onclick="filterLockers('omniva', this)">OMNIVA</div>
                 </div>
 
                 <div id="locker-selection-area" style="display:none;">
                     <label class="form-label">2. Pasirinkite paštomatą:</label>
-                    
+
                     <input type="hidden" name="sender_locker_id" id="locker-select-input" required>
-                    
+
                     <div class="custom-select-wrapper" id="custom-select-wrapper">
                         <div class="custom-select-trigger" onclick="toggleDropdown()">
                             <span id="selected-locker-text">-- Pasirinkite iš sąrašo --</span>
@@ -780,12 +781,12 @@ try {
                             <div class="sticky-search">
                                 <input type="text" id="locker-search-input" placeholder="Rašykite miestą arba adresą..." onkeyup="filterCustomOptions()" autocomplete="off">
                             </div>
-                            <div class="options-list" id="options-list">
-                            </div>
+                            <div class="options-list" id="options-list"></div>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
                 <button type="button" class="btn secondary" onclick="closePayseraModal()">Atšaukti</button>
                 <button type="submit" class="btn" style="background:#2563eb; color:#fff;">Patvirtinti ir sukurti</button>
@@ -794,96 +795,73 @@ try {
     </div>
 </div>
 
-<style>
-    .provider-btn {
-        border: 1px solid #e4e7ec;
-        border-radius: 8px;
-        padding: 12px;
-        text-align: center;
-        font-weight: 600;
-        color: #475467;
-        cursor: pointer;
-        transition: all 0.2s;
-        background: #fff;
-    }
-    .provider-btn:hover { background: #f8fafc; }
-    .provider-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
-</style>
-
 <script>
-    // --- Bazinio Modalo Logika ---
+    // --- Užsakymo peržiūros modalas ---
     const modal = document.getElementById('orderModal');
-    
+
     function boolBadge(val) {
-        return val == 1 
-            ? '<span class="badge-bool badge-yes">TAIP</span>' 
+        return val == 1
+            ? '<span class="badge-bool badge-yes">TAIP</span>'
             : '<span class="badge-bool badge-no">NE</span>';
     }
 
-    function formatDate(dateStr) {
-        if(!dateStr) return '-';
-        return dateStr;
-    }
-
     document.querySelectorAll('.open-order-modal').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
             let data = {};
-            try {
-                data = JSON.parse(this.getAttribute('data-order'));
-            } catch(e) { console.error("JSON Error", e); return; }
-            
-            document.getElementById('m_orderId').innerText = data.id;
-            document.getElementById('m_createdAt').innerText = data.created_at;
-            document.getElementById('m_formOrderId').value = data.id;
-            
-            document.getElementById('m_customerName').innerText = data.customer_name;
+            try { data = JSON.parse(this.getAttribute('data-order')); }
+            catch (e) { console.error("JSON Error", e); return; }
+
+            document.getElementById('m_orderId').innerText    = data.id;
+            document.getElementById('m_createdAt').innerText  = data.created_at;
+            document.getElementById('m_formOrderId').value    = data.id;
+
+            document.getElementById('m_customerName').innerText  = data.customer_name;
             document.getElementById('m_customerEmail').innerText = data.customer_email;
             document.getElementById('m_customerPhone').innerText = data.customer_phone || '-';
-            document.getElementById('m_userId').innerText = data.user_id ? ('#' + data.user_id) : 'Svečias';
-            
-            let methodMap = { 'courier': 'Kurjeris', 'locker': 'Paštomatas', 'pickup': 'Atsiėmimas' };
+            document.getElementById('m_userId').innerText        = data.user_id ? ('#' + data.user_id) : 'Svečias';
+
+            const methodMap = { 'courier': 'Kurjeris', 'locker': 'Paštomatas', 'pickup': 'Atsiėmimas' };
             document.getElementById('m_deliveryMethod').innerText = methodMap[data.delivery_method] || data.delivery_method;
-            document.getElementById('m_address').innerText = data.customer_address || '-';
-            document.getElementById('m_trackingInput').value = data.tracking_number || '';
-            
-            const detailsBox = document.getElementById('m_deliveryDetailsBox');
+            document.getElementById('m_address').innerText       = data.customer_address || '-';
+            document.getElementById('m_trackingInput').value     = data.tracking_number || '';
+
+            const detailsBox  = document.getElementById('m_deliveryDetailsBox');
             const detailsText = document.getElementById('m_deliveryDetailsText');
             if (data.delivery_details) {
                 detailsBox.style.display = 'block';
                 try {
-                    let obj = JSON.parse(data.delivery_details);
-                    detailsText.innerText = JSON.stringify(obj, null, 2); 
-                } catch(e) {
+                    detailsText.innerText = JSON.stringify(JSON.parse(data.delivery_details), null, 2);
+                } catch (e) {
                     detailsText.innerText = data.delivery_details;
                 }
             } else {
                 detailsBox.style.display = 'none';
             }
 
-            document.getElementById('m_discountCode').innerText = data.discount_code ? data.discount_code : '-';
+            document.getElementById('m_discountCode').innerText   = data.discount_code || '-';
             document.getElementById('m_discountAmount').innerText = parseFloat(data.discount_amount || 0).toFixed(2) + ' €';
             document.getElementById('m_shippingAmount').innerText = parseFloat(data.shipping_amount || 0).toFixed(2) + ' €';
-            document.getElementById('m_total').innerText = parseFloat(data.total || 0).toFixed(2) + ' €';
-            document.getElementById('m_stripeSession').innerText = data.stripe_session_id || '-';
+            document.getElementById('m_total').innerText          = parseFloat(data.total || 0).toFixed(2) + ' €';
+            document.getElementById('m_stripeSession').innerText  = data.stripe_session_id || '-';
+            document.getElementById('m_updatedAt').innerText      = data.updated_at || '-';
 
-            document.getElementById('m_updatedAt').innerText = formatDate(data.updated_at);
             document.getElementById('m_emailThankYou').innerHTML = boolBadge(data.email_thankyou);
-            document.getElementById('m_emailShipped').innerHTML = boolBadge(data.email_shipped_sent);
-            document.getElementById('m_emailReview').innerHTML = boolBadge(data.email_review_sent);
-            document.getElementById('m_emailRem1h').innerHTML = boolBadge(data.email_rem_1h);
-            document.getElementById('m_emailRem24h').innerHTML = boolBadge(data.email_rem_24h);
+            document.getElementById('m_emailShipped').innerHTML  = boolBadge(data.email_shipped_sent);
+            document.getElementById('m_emailReview').innerHTML   = boolBadge(data.email_review_sent);
+            document.getElementById('m_emailRem1h').innerHTML    = boolBadge(data.email_rem_1h);
+            document.getElementById('m_emailRem24h').innerHTML   = boolBadge(data.email_rem_24h);
 
             document.getElementById('m_statusSelect').value = data.status;
 
             const itemsContainer = document.getElementById('m_itemsList');
             itemsContainer.innerHTML = '';
-            
+
             if (data.items && data.items.length > 0) {
                 data.items.forEach(item => {
-                    const total = (item.price * item.quantity).toFixed(2);
-                    const imgUrl = item.image_url ? item.image_url : 'https://placehold.co/100?text=Foto';
-                    let varInfo = item.variation_info 
-                        ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>` 
+                    const total  = (item.price * item.quantity).toFixed(2);
+                    const imgUrl = item.image_url || 'https://placehold.co/100?text=Foto';
+                    const varInfo = item.variation_info
+                        ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>`
                         : '';
                     itemsContainer.insertAdjacentHTML('beforeend', `
                         <div class="item-row">
@@ -902,7 +880,7 @@ try {
             }
 
             modal.style.display = 'flex';
-            setTimeout(() => { modal.classList.add('open'); }, 10);
+            setTimeout(() => modal.classList.add('open'), 10);
         });
     });
 
@@ -910,28 +888,28 @@ try {
         modal.classList.remove('open');
         setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
-    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-    // --- Paysera Modalo Logika ---
+    // --- Paysera modalas ---
     const payseraModal = document.getElementById('payseraModal');
-    let currentProvider = '';
+    let currentProvider       = '';
     let currentFilteredLockers = [];
     const allLockers = <?php echo json_encode($lockersForJs); ?>;
 
     document.querySelectorAll('.open-paysera-modal').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('p_orderId').value = this.getAttribute('data-order-id');
+        btn.addEventListener('click', function () {
+            document.getElementById('p_orderId').value              = this.getAttribute('data-order-id');
             document.getElementById('p_receiverLocker').textContent = this.getAttribute('data-receiver-locker');
-            
+
             currentProvider = '';
             document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('locker-selection-area').style.display = 'none';
-            document.getElementById('selected-locker-text').textContent = '-- Pasirinkite iš sąrašo --';
-            document.getElementById('locker-select-input').value = '';
-            document.getElementById('locker-search-input').value = '';
-            
+            document.getElementById('selected-locker-text').textContent    = '-- Pasirinkite iš sąrašo --';
+            document.getElementById('locker-select-input').value           = '';
+            document.getElementById('locker-search-input').value           = '';
+
             payseraModal.style.display = 'flex';
-            setTimeout(() => { payseraModal.classList.add('open'); }, 10);
+            setTimeout(() => payseraModal.classList.add('open'), 10);
         });
     });
 
@@ -939,16 +917,16 @@ try {
         payseraModal.classList.remove('open');
         setTimeout(() => { payseraModal.style.display = 'none'; }, 200);
     }
-    payseraModal.addEventListener('click', function(e) { if (e.target === payseraModal) closePayseraModal(); });
+    payseraModal.addEventListener('click', e => { if (e.target === payseraModal) closePayseraModal(); });
 
     function filterLockers(provider, btnElement) {
         currentProvider = provider;
-        document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
-        if(btnElement) btnElement.classList.add('active');
-        document.getElementById('locker-selection-area').style.display = 'block';
-        document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
-        document.getElementById('locker-select-input').value = '';
-        document.getElementById('locker-search-input').value = '';
+        document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+        if (btnElement) btnElement.classList.add('active');
+        document.getElementById('locker-selection-area').style.display    = 'block';
+        document.getElementById('selected-locker-text').textContent       = '-- Pasirinkite paštomatą --';
+        document.getElementById('locker-select-input').value              = '';
+        document.getElementById('locker-search-input').value              = '';
         generateCustomOptions(provider);
     }
 
@@ -956,9 +934,9 @@ try {
         const list = document.getElementById('options-list');
         list.innerHTML = '';
         currentFilteredLockers = allLockers.filter(l => l.type === provider);
-        if(currentFilteredLockers.length === 0) {
+        if (currentFilteredLockers.length === 0) {
             const div = document.createElement('div');
-            div.className = 'custom-option no-results';
+            div.className   = 'custom-option no-results';
             div.textContent = 'Šio tiekėjo paštomatų nerasta.';
             list.appendChild(div);
             return;
@@ -968,11 +946,11 @@ try {
 
     function createOptionElement(locker) {
         const list = document.getElementById('options-list');
-        const div = document.createElement('div');
-        div.className = 'custom-option';
+        const div  = document.createElement('div');
+        div.className   = 'custom-option';
         div.textContent = locker.full;
         div.dataset.value = locker.terminal_id;
-        div.onclick = function() { selectOption(locker.terminal_id, locker.full); };
+        div.onclick = () => selectOption(locker.terminal_id, locker.full);
         list.appendChild(div);
     }
 
@@ -985,7 +963,7 @@ try {
     }
 
     function selectOption(terminalId, fullName) {
-        document.getElementById('locker-select-input').value = terminalId;
+        document.getElementById('locker-select-input').value      = terminalId;
         document.getElementById('selected-locker-text').textContent = fullName;
         document.getElementById('custom-select-wrapper').classList.remove('open');
     }
@@ -994,10 +972,10 @@ try {
         const term = document.getElementById('locker-search-input').value.toLowerCase();
         const list = document.getElementById('options-list');
         list.innerHTML = '';
-        const filtered = currentFilteredLockers.filter(locker => locker.full.toLowerCase().includes(term));
+        const filtered = currentFilteredLockers.filter(l => l.full.toLowerCase().includes(term));
         if (filtered.length === 0) {
             const div = document.createElement('div');
-            div.className = 'custom-option no-results';
+            div.className   = 'custom-option no-results';
             div.textContent = 'Nerasta atitikmenų';
             list.appendChild(div);
         } else {
@@ -1005,7 +983,7 @@ try {
         }
     }
 
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', e => {
         const wrapper = document.getElementById('custom-select-wrapper');
         if (wrapper && !wrapper.contains(e.target)) wrapper.classList.remove('open');
     });
