@@ -7,78 +7,25 @@ function payseraLog(string $message): void {
     $logFile = __DIR__ . '/../mailer_errors.log';
     file_put_contents($logFile, date('[Y-m-d H:i:s]') . ' [PAYSERA] ' . $message . "\n", FILE_APPEND);
 }
-//MAC FAILAS
-if (!function_exists('buildMacAuthHeader')) {
-    function buildMacAuthHeader(string $macId, string $macSecret, string $method, string $url, string $body = ''): string {
 
-        $parsed = parse_url($url);
-        $ts     = (string) time();
-        $nonce  = bin2hex(random_bytes(8));
-        $host   = $parsed['host'];
-        $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
-
-        $path = $parsed['path'] ?? '/';
-        if (!empty($parsed['query'])) {
-            $path .= '?' . $parsed['query'];
+// --- PAYSERA AUTOLOADER ---
+// Jei nenaudojate Composer arba vendor aplanko nėra, šis autoloaderis užkraus klases iš libwebtopay.
+$autoloadPath = __DIR__ . '/../libwebtopay/vendor/autoload.php';
+if (file_exists($autoloadPath)) {
+    require_once $autoloadPath;
+} else {
+    spl_autoload_register(function ($class) {
+        $prefix = 'Paysera\\DeliveryApi\\';
+        if (strpos($class, $prefix) === 0) {
+            $relative_class = substr($class, strlen($prefix));
+            $parts = explode('\\', $relative_class);
+            $className = end($parts);
+            $file = __DIR__ . '/../libwebtopay/' . $className . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
         }
-
-        $ext = '';
-        $bodyHash = '';
-
-        if ($body !== '') {
-
-            // Paysera reikalauja MD5 formato body_hash apskaičiavimui, o Base64 turi būti url-encoded
-            $rawHash   = hash('md5', $body, true);
-            $bodyHash  = base64_encode($rawHash);
-            $ext       = 'body_hash=' . urlencode($bodyHash);
-
-            payseraLog("RAW BODY LENGTH: " . strlen($body));
-            payseraLog("RAW BODY HASH HEX: " . hash('md5', $body));
-            payseraLog("RAW BODY HASH BASE64: " . $bodyHash);
-            payseraLog("EXT HEADER PART: " . $ext);
-
-            // Išsaugome tikslų siunčiamą body
-            file_put_contents(__DIR__ . '/../last_paysera_body.txt', $body);
-        }
-
-        $requestString = $ts . "\n"
-                       . $nonce . "\n"
-                       . strtoupper($method) . "\n"
-                       . $path . "\n"
-                       . $host . "\n"
-                       . $port . "\n"
-                       . $ext . "\n";
-
-        $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
-
-        payseraLog("=== buildMacAuthHeader DEBUG ===");
-        payseraLog("ts: $ts");
-        payseraLog("nonce: $nonce");
-        payseraLog("method: " . strtoupper($method));
-        payseraLog("path: $path");
-        payseraLog("host: $host");
-        payseraLog("port: $port");
-        payseraLog("ext: $ext");
-        payseraLog("requestString (\\n->|): " . str_replace("\n", "|", $requestString));
-        payseraLog("MAC: $mac");
-
-        if ($ext !== '') {
-            $header = sprintf(
-                'MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
-                $macId, $ts, $nonce, $mac, $ext
-            );
-        } else {
-            $header = sprintf(
-                'MAC id="%s", ts="%s", nonce="%s", mac="%s"',
-                $macId, $ts, $nonce, $mac
-            );
-        }
-
-        payseraLog("Authorization Header: $header");
-        payseraLog("=== END MAC DEBUG ===");
-
-        return $header;
-    }
+    });
 }
 
 // 0. IŠTRYNIMO LOGIKA
@@ -112,7 +59,7 @@ if (isset($_POST['create_paysera_shipment'])) {
     $senderLockerId = $_POST['sender_locker_id'];
 
     payseraLog("========================================");
-    payseraLog("NAUJAS BANDYMAS KURTI SIUNTĄ");
+    payseraLog("NAUJAS BANDYMAS KURTI SIUNTĄ PER OFICIALIĄ BIBLIOTEKĄ");
     payseraLog("orderId: " . $orderId . " | senderLockerId: " . $senderLockerId);
 
     try {
@@ -133,14 +80,10 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            $projectId      = 248259; // integer — Paysera reikalauja skaičiaus, ne string'o
+            $projectId      = 248259;
             $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password       = trim($password, " \t\r\n\"'");
             $apiUrl         = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/');
-
-            payseraLog("projectId: " . $projectId);
-            payseraLog("password ilgis: " . strlen($password) . " | pirmi 4: " . substr($password, 0, 4) . " | paskutiniai 4: " . substr($password, -4));
-            payseraLog("apiUrl: " . $apiUrl);
 
             if (empty($password)) {
                 throw new Exception("Nepavyko nuskaityti PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
@@ -148,7 +91,6 @@ if (isset($_POST['create_paysera_shipment'])) {
 
             $delDetails  = json_decode($order['delivery_details'], true);
 
-            // Nustatome gateway ir method pagal siuntėjo paštomato ID
             if (stripos($senderLockerId, 'OMN') !== false || stripos($senderLockerId, 'omniva') !== false) {
                 $gatewayCode = 'omniva';
             } else {
@@ -159,200 +101,155 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ? 'parcel-machine2courier'
                 : 'parcel-machine2parcel-machine';
 
-            payseraLog("delivery_method: " . $order['delivery_method']);
-            payseraLog("locker_id iš delivery_details: " . ($delDetails['locker_id'] ?? 'N/A'));
-            payseraLog("gatewayCode: " . $gatewayCode . " | methodCode: " . $methodCode);
+            // 1. Sukuriamas Siuntėjo (Sender) objektas
+            $senderParty = (new \Paysera\DeliveryApi\Entity\Party())
+                ->setTitle('Cukrinukas.lt')
+                ->setEmail('labas@cukrinukas.lt')
+                ->setPhone('+37064477724');
 
-            $payload = [
-                'project_id'            => $projectId,
-                'shipment_gateway_code' => $gatewayCode,
-                'shipment_method_code'  => $methodCode,
+            $senderAddress = (new \Paysera\DeliveryApi\Entity\Address())
+                ->setCountry('LT')
+                ->setCity('Vilnius')
+                ->setStreet('Miglos g. 65')
+                ->setPostalCode('01103');
 
-                'sender' => [
-                    'type'              => 'sender',
-                    'project_id'        => $projectId,
-                    'parcel_machine_id' => $senderLockerId,
-                    'saved'             => false,
-                    'default_contact'   => false,
-                    'contact'           => [
-                        'party'   => [
-                            'title' => 'Cukrinukas.lt',
-                            'email' => 'labas@cukrinukas.lt',
-                            'phone' => '+37064477724',
-                        ],
-                        'address' => [
-                            'country'     => 'LT',
-                            'city'        => 'Vilnius',
-                            'street'      => 'Miglos g. 65',
-                            'postal_code' => '01103',
-                        ],
-                    ],
-                ],
+            $senderContact = (new \Paysera\DeliveryApi\Entity\Contact())
+                ->setParty($senderParty)
+                ->setAddress($senderAddress);
 
-                'receiver' => [
-                    'type'              => 'receiver',
-                    'project_id'        => $projectId,
-                    'parcel_machine_id' => $delDetails['locker_id'] ?? '',
-                    'saved'             => false,
-                    'default_contact'   => false,
-                    'contact'           => [
-                        'party'   => [
-                            'title' => $order['customer_name'],
-                            'email' => $order['customer_email'],
-                            'phone' => $order['customer_phone'] ?? '+37060000000',
-                        ],
-                        'address' => [
-                            'country'     => 'LT',
-                            'city'        => 'Vilnius',
-                            // Adreso laukas nereikalingas (yra parcel_machine_id), bet API reikalauja
-                            // Lietuviški simboliai vengiami kad nesukeltu encoding problemų
-                            'street'      => 'Pastomatas',
-                            'postal_code' => '00000',
-                        ],
-                    ],
-                ],
+            $sender = (new \Paysera\DeliveryApi\Entity\ShipmentPointCreate())
+                ->setType('sender')
+                ->setProjectId($projectId)
+                ->setParcelMachineId($senderLockerId)
+                ->setSaved(false)
+                ->setDefaultContact(false)
+                ->setContact($senderContact);
 
-                'shipments' => [
-                    [
-                        'weight'       => 1000,
-                        'width'        => 380,
-                        'length'       => 640,
-                        'height'       => 190,
-                        'package_size' => 'M',
-                    ],
-                ],
-            ];
+            // 2. Sukuriamas Gavėjo (Receiver) objektas
+            $receiverParty = (new \Paysera\DeliveryApi\Entity\Party())
+                ->setTitle($order['customer_name'])
+                ->setEmail($order['customer_email'])
+                ->setPhone($order['customer_phone'] ?? '+37060000000');
 
-            // Kurjerio pristatymas — adresą išskaidome
+            $receiverAddress = (new \Paysera\DeliveryApi\Entity\Address())
+                ->setCountry('LT');
+
             if ($order['delivery_method'] === 'courier') {
                 $addr  = $order['customer_address'];
                 $parts = explode(',', $addr);
                 if (count($parts) >= 3) {
-                    $payload['receiver']['contact']['address']['street']      = trim($parts[0]);
-                    $payload['receiver']['contact']['address']['city']        = trim($parts[1]);
-                    $payload['receiver']['contact']['address']['postal_code'] = str_replace(['LT-', ' '], '', trim($parts[2]));
+                    $receiverAddress->setStreet(trim($parts[0]));
+                    $receiverAddress->setCity(trim($parts[1]));
+                    $receiverAddress->setPostalCode(str_replace(['LT-', ' '], '', trim($parts[2])));
                 } else {
-                    $payload['receiver']['contact']['address']['city']   = 'Lietuva';
-                    $payload['receiver']['contact']['address']['street'] = $addr;
+                    $receiverAddress->setStreet($addr);
+                    $receiverAddress->setCity('Lietuva');
+                    $receiverAddress->setPostalCode('00000');
                 }
-                unset($payload['receiver']['parcel_machine_id']);
-            }
-
-            $endpoint    = $apiUrl . '/orders';
-
-            // SVARBU: json_encode su JSON_UNESCAPED_UNICODE kad lietuviški simboliai nesutrikdytų hash'o
-            $payloadJson = json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-            );
-                        
-            payseraLog("FINAL JSON LENGTH: " . strlen($payloadJson));
-            payseraLog("FINAL JSON SHA256 HEX: " . hash('sha256', $payloadJson));
-            payseraLog("FINAL JSON: " . $payloadJson);
-
-            // MAC autentifikacija — payloadJson paduodamas toks pat kaip curl'ui
-            $macAuth = buildMacAuthHeader($projectId, $password, 'POST', $endpoint, $payloadJson);
-
-            // Content-Length priverstinai — kad curl nekeistų body encoding
-            $payloadBytes = strlen($payloadJson);
-            
-            $headers = [
-                'Content-Type: application/json; charset=utf-8',
-                'Accept: application/json',
-                'Authorization: ' . $macAuth,
-                'Expect:'
-            ];
-            
-            payseraLog("REQUEST HEADERS:");
-            foreach ($headers as $h) {
-                payseraLog("  " . $h);
-            }
-            
-            $ch = curl_init($endpoint);
-            
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CUSTOMREQUEST  => 'POST',
-                CURLOPT_POSTFIELDS     => $payloadJson,
-                CURLOPT_HTTPHEADER     => $headers,
-                CURLOPT_TIMEOUT        => 30,
-                CURLOPT_VERBOSE        => true,
-            ]);
-            
-            $response  = curl_exec($ch);
-            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            $info      = curl_getinfo($ch);
-            
-            curl_close($ch);
-            
-            payseraLog("HTTP CODE: " . $httpCode);
-            payseraLog("CURL ERROR: " . ($curlError ?: 'none'));
-            payseraLog("CURL INFO: " . print_r($info, true));
-            payseraLog("RESPONSE: " . $response);
-
-            if ($httpCode >= 200 && $httpCode < 300 && $response) {
-                $resData   = json_decode($response, true);
-                $payseraId = $resData['id'] ?? '';
-                $shipments = $resData['shipments'] ?? [];
-                $tracking  = '';
-                $labelUrl  = '';
-
-                if (!empty($shipments) && is_array($shipments)) {
-                    $firstShipment = $shipments[0];
-                    $tracking      = $firstShipment['tracking_code'] ?? '';
-                    $labelUrl      = $firstShipment['label_url'] ?? ($apiUrl . "/shipments/{$firstShipment['id']}/label");
-                }
-
-                $updateStmt = $pdo->prepare("
-                    UPDATE orders 
-                    SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'išsiųsta' 
-                    WHERE id = ?
-                ");
-                $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
-
-                $mailerPath = __DIR__ . '/../mailer.php';
-                if (file_exists($mailerPath)) {
-                    require_once $mailerPath;
-                    if (function_exists('sendEmail')) {
-                        $subject = "Jūsų užsakymas paruoštas siuntimui!";
-                        $body    = "
-                            <div style='font-family: sans-serif; color: #333;'>
-                                <h2>Sveiki, " . htmlspecialchars($order['customer_name']) . ",</h2>
-                                <p>Norime pranešti, kad Jūsų užsakymas <strong>#" . (int)$order['id'] . "</strong> yra sėkmingai sugeneruotas sistemoje ir netrukus pajudės pas Jus.</p>";
-                        if (!empty($tracking)) {
-                            $body .= "<p>Siuntos sekimo numeris: <strong>{$tracking}</strong></p>";
-                        }
-                        $body .= "
-                                <p>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>
-                            </div>
-                        ";
-                        sendEmail($order['customer_email'], $subject, $body);
-                    }
-                }
-
-                echo "<script>window.location.href='index.php?page=orders';</script>";
-                exit;
-
             } else {
-                $err      = json_decode($response, true);
-                $errorMsg = $err['message'] ?? ($err['error_description'] ?? ($err['error'] ?? 'Nežinoma klaida'));
-
-                echo "<div class='alert alert-danger'>";
-                echo "<strong>Paysera API Klaida:</strong> " . htmlspecialchars($errorMsg) . " (HTTP: $httpCode)";
-                echo "<br><br><strong>Techninė informacija:</strong><br>";
-                echo "Project_ID: <code>{$projectId}</code><br>";
-                echo "Password ilgis: <code>" . strlen($password) . "</code> | Pradžia: <code>" . substr($password, 0, 4) . "...</code><br>";
-                echo "Endpoint: <code>{$endpoint}</code><br>";
-                echo "MAC Auth: <code>" . htmlspecialchars($macAuth) . "</code><br>";
-                echo "cURL klaida: <code>" . htmlspecialchars($curlError ?: 'nėra') . "</code><br>";
-                echo "<br><small><strong>Pilnas atsakymas:</strong> " . htmlspecialchars(substr($response, 0, 1500)) . "</small>";
-                echo "</div>";
+                $receiverAddress->setCity('Vilnius')
+                                ->setStreet('Pastomatas')
+                                ->setPostalCode('00000');
             }
+
+            $receiverContact = (new \Paysera\DeliveryApi\Entity\Contact())
+                ->setParty($receiverParty)
+                ->setAddress($receiverAddress);
+
+            $receiver = (new \Paysera\DeliveryApi\Entity\ShipmentPointCreate())
+                ->setType('receiver')
+                ->setProjectId($projectId)
+                ->setSaved(false)
+                ->setDefaultContact(false)
+                ->setContact($receiverContact);
+
+            if ($order['delivery_method'] !== 'courier') {
+                $receiver->setParcelMachineId($delDetails['locker_id'] ?? '');
+            }
+
+            // 3. Sukuriama Siunta (Shipment)
+            $shipmentCreate = (new \Paysera\DeliveryApi\Entity\ShipmentCreate())
+                ->setWeight(1000)
+                ->setWidth(380)
+                ->setLength(640)
+                ->setHeight(190)
+                ->setPackageSize('M');
+
+            // 4. Apjungiamas Užsakymas (OrderCreate)
+            $orderCreate = (new \Paysera\DeliveryApi\Entity\OrderCreate())
+                ->setProjectId($projectId)
+                ->setShipmentGatewayCode($gatewayCode)
+                ->setShipmentMethodCode($methodCode)
+                ->setSender($sender)
+                ->setReceiver($receiver)
+                ->setShipments([$shipmentCreate]);
+
+            // 5. Kliento inicijavimas ir API kreipimasis
+            $client = \Paysera\DeliveryApi\ClientFactory::create([
+                'base_url' => $apiUrl,
+                'mac' => [
+                    'mac_id' => (string)$projectId,
+                    'mac_secret' => $password,
+                ],
+            ]);
+
+            payseraLog("Vykdoma createOrder() funkcija...");
+            $createdOrder = $client->createOrder($orderCreate);
+            
+            $payseraId = method_exists($createdOrder, 'getId') ? $createdOrder->getId() : '';
+            payseraLog("Siunta sukurta sėkmingai! ID: " . $payseraId);
+
+            $shipments = method_exists($createdOrder, 'getShipments') ? $createdOrder->getShipments() : [];
+            $tracking = '';
+            $labelUrl = '';
+
+            if (!empty($shipments) && is_array($shipments)) {
+                $firstShipment = $shipments[0];
+                $tracking = method_exists($firstShipment, 'getTrackingCode') ? $firstShipment->getTrackingCode() : '';
+                
+                if (method_exists($firstShipment, 'getLabelUrl') && $firstShipment->getLabelUrl()) {
+                    $labelUrl = $firstShipment->getLabelUrl();
+                } elseif (method_exists($firstShipment, 'getId')) {
+                    $labelUrl = $apiUrl . "/shipments/" . $firstShipment->getId() . "/label";
+                }
+            }
+
+            $updateStmt = $pdo->prepare("
+                UPDATE orders 
+                SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'išsiųsta' 
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
+
+            $mailerPath = __DIR__ . '/../mailer.php';
+            if (file_exists($mailerPath)) {
+                require_once $mailerPath;
+                if (function_exists('sendEmail')) {
+                    $subject = "Jūsų užsakymas paruoštas siuntimui!";
+                    $body    = "
+                        <div style='font-family: sans-serif; color: #333;'>
+                            <h2>Sveiki, " . htmlspecialchars($order['customer_name']) . ",</h2>
+                            <p>Norime pranešti, kad Jūsų užsakymas <strong>#" . (int)$order['id'] . "</strong> yra sėkmingai sugeneruotas sistemoje ir netrukus pajudės pas Jus.</p>";
+                    if (!empty($tracking)) {
+                        $body .= "<p>Siuntos sekimo numeris: <strong>{$tracking}</strong></p>";
+                    }
+                    $body .= "
+                            <p>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>
+                        </div>
+                    ";
+                    sendEmail($order['customer_email'], $subject, $body);
+                }
+            }
+
+            echo "<script>window.location.href='index.php?page=orders';</script>";
+            exit;
+
         }
-    } catch (Exception $e) {
-        payseraLog("EXCEPTION: " . $e->getMessage());
-        echo "<div class='alert alert-danger'>Sistemos klaida: " . htmlspecialchars($e->getMessage()) . "</div>";
+    } catch (\Exception $e) {
+        payseraLog("EXCEPTION in Paysera Library: " . $e->getMessage());
+        echo "<div class='alert alert-danger'>";
+        echo "<strong>Paysera API Klaida:</strong> " . htmlspecialchars($e->getMessage());
+        echo "</div>";
     }
 }
 
