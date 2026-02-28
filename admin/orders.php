@@ -1,10 +1,11 @@
 <?php
 // admin/orders.php
 // Pilnas administracinis užsakymų valdymo failas su Paysera Integration
-// Įjungiame klaidų rodymą
+
+// Įjungiame klaidų rodymą, bet paslepiame "Deprecated" žinutes iš senų bibliotekų
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+error_reporting(E_ALL & ~E_DEPRECATED);
 
 // --- DEBUG LOGGER ---
 function payseraLog(string $message): void {
@@ -75,7 +76,9 @@ if (isset($_POST['create_paysera_shipment'])) {
             $projectId      = 248259;
             $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password       = trim($password, " \t\r\n\"'");
-            $apiUrl         = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/');
+            
+            // Paysera API reikalauja, kad URL baigtųsi slash simboliu /
+            $apiUrl = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/') . '/';
 
             if (empty($password)) {
                 throw new Exception("Nepavyko nuskaityti PAYSERA_PASSWORD. Patikrinkite savo .env failą.");
@@ -159,7 +162,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $receiver->setParcelMachineId($delDetails['locker_id'] ?? '');
             }
 
-            // 3. Sukuriama Siunta (Shipment) - išmatavimai atstoja dydį
+            // 3. Sukuriama Siunta (Shipment)
             $shipmentCreate = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentCreate())
                 ->setWeight(1000)
                 ->setWidth(380)
@@ -175,17 +178,20 @@ if (isset($_POST['create_paysera_shipment'])) {
                 ->setReceiver($receiver)
                 ->setShipments([$shipmentCreate]);
 
-            // 5. Kliento inicijavimas ir API kreipimasis
-            $client = \Paysera\DeliveryApi\MerchantClient\ClientFactory::create([
+            // 5. Kliento inicijavimas ir API kreipimasis naudojant Factory
+            $clientFactory = new \Paysera\DeliveryApi\MerchantClient\ClientFactory([
                 'base_url' => $apiUrl,
                 'mac' => [
                     'mac_id' => (string)$projectId,
                     'mac_secret' => $password,
                 ],
             ]);
+            
+            // Iš gamyklos ištraukiame pagrindinį klientą
+            $merchantClient = $clientFactory->getMerchantClient();
 
             payseraLog("Vykdoma createOrder() funkcija...");
-            $createdOrder = $client->createOrder($orderCreate);
+            $createdOrder = $merchantClient->createOrder($orderCreate);
             
             $payseraId = method_exists($createdOrder, 'getId') ? $createdOrder->getId() : '';
             payseraLog("Siunta sukurta sėkmingai! ID: " . $payseraId);
@@ -201,7 +207,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 if (method_exists($firstShipment, 'getLabelUrl') && $firstShipment->getLabelUrl()) {
                     $labelUrl = $firstShipment->getLabelUrl();
                 } elseif (method_exists($firstShipment, 'getId')) {
-                    $labelUrl = $apiUrl . "/shipments/" . $firstShipment->getId() . "/label";
+                    $labelUrl = $apiUrl . "shipments/" . $firstShipment->getId() . "/label";
                 }
             }
 
