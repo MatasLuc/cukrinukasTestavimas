@@ -17,53 +17,45 @@ if (!function_exists('buildMacAuthHeader')) {
         $host   = $parsed['host'];
         $port   = $parsed['port'] ?? (($parsed['scheme'] === 'https') ? 443 : 80);
 
-        $path   = $parsed['path'] ?? '/';
+        $path = $parsed['path'] ?? '/';
         if (!empty($parsed['query'])) {
             $path .= '?' . $parsed['query'];
         }
 
-        $ext = '';
+        // Body hash: SHA-256 binary → base64
+        $bodyHashRaw = '';
+        $extForHeader = '';
         if ($body !== '') {
-            $bodyHash = base64_encode(hash('sha256', $body, true));
-            // BEZ urlencode — Paysera tikisi raw base64
-            $ext = 'body_hash=' . $bodyHash;
+            $bodyHashRaw  = base64_encode(hash('sha256', $body, true));
+            $extForHeader = 'body_hash=' . $bodyHashRaw;
         }
 
+        // Request string: ext reikšmė čia be jokio encoding
         $requestString = $ts    . "\n"
                        . $nonce . "\n"
                        . strtoupper($method) . "\n"
                        . $path  . "\n"
                        . $host  . "\n"
                        . (string)$port . "\n"
-                       . $ext   . "\n";
+                       . $extForHeader . "\n";
 
         $mac = base64_encode(hash_hmac('sha256', $requestString, $macSecret, true));
 
-        // --- LOG ---
-        payseraLog("=== buildMacAuthHeader ===");
-        payseraLog("macId: " . $macId);
-        payseraLog("macSecret ilgis: " . strlen($macSecret) . " | pirmi 4: " . substr($macSecret, 0, 4) . " | paskutiniai 4: " . substr($macSecret, -4));
-        payseraLog("method: " . strtoupper($method));
-        payseraLog("url: " . $url);
-        payseraLog("host: " . $host . " | port: " . $port);
-        payseraLog("path: " . $path);
-        payseraLog("ts: " . $ts . " | nonce: " . $nonce);
-        payseraLog("ext: " . ($ext ?: '(tuščias)'));
-        payseraLog("body ilgis: " . strlen($body) . " | pirmi 200: " . substr($body, 0, 200));
         payseraLog("requestString (\\n->|): " . str_replace("\n", "|", $requestString));
         payseraLog("mac: " . $mac);
+        payseraLog("bodyHashRaw: " . $bodyHashRaw);
 
-        if ($ext !== '') {
+        if ($extForHeader !== '') {
+            // Header'yje base64 simbolius +/= reikia URL-encode
+            $extEncoded = 'body_hash=' . rawurlencode($bodyHashRaw);
             $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s", ext="%s"',
-                $macId, $ts, $nonce, $mac, $ext);
+                $macId, $ts, $nonce, $mac, $extEncoded);
         } else {
             $header = sprintf('MAC id="%s", ts="%s", nonce="%s", mac="%s"',
                 $macId, $ts, $nonce, $mac);
         }
 
         payseraLog("Authorization: " . $header);
-        payseraLog("=== END buildMacAuthHeader ===");
-
         return $header;
     }
 }
