@@ -83,7 +83,7 @@ $totalReviews = $stats['total_reviews'];
 
 // Ištraukiame visus nario gautus atsiliepimus
 $reviewsStmt = $pdo->prepare("
-    SELECT r.*, u.username as reviewer_name 
+    SELECT r.*, u.name as reviewer_name 
     FROM user_reviews r 
     JOIN users u ON r.reviewer_id = u.id 
     WHERE r.reviewee_id = ? 
@@ -102,7 +102,7 @@ try {
     // Ignoruojame, jei skelbimų sistemos nėra arba stulpeliai nesutampa
 }
 
-renderHeader($profileUser['username'] . " profilis");
+renderHeader($profileUser['name'] . " profilis");
 ?>
 
 <div class="container mt-5">
@@ -119,10 +119,10 @@ renderHeader($profileUser['username'] . " profilis");
                 <div class="card-body">
                     <div class="mb-3">
                         <div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px; font-size: 2.5rem;">
-                            <?= mb_strtoupper(mb_substr($profileUser['username'], 0, 1)) ?>
+                            <?= mb_strtoupper(mb_substr($profileUser['name'], 0, 1)) ?>
                         </div>
                     </div>
-                    <h3 class="card-title"><?= htmlspecialchars($profileUser['username']) ?></h3>
+                    <h3 class="card-title"><?= htmlspecialchars($profileUser['name']) ?></h3>
                     <p class="text-muted mb-1">Bendruomenės narys nuo <?= date('Y-m-d', strtotime($profileUser['created_at'])) ?></p>
                     <div class="mt-3">
                         <span class="fs-4 text-warning">
