@@ -17,7 +17,7 @@ if (!$userId) {
 }
 
 // Gauname profilio vartotojo duomenis
-$stmt = $pdo->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT id, name, email, created_at FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $profileUser = $stmt->fetch();
 
