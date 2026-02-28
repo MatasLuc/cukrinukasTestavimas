@@ -56,36 +56,54 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Užsakymų istorijos gavimui paruošiame statement (parduotuvės užsakymai)
-$ordersStmt = $pdo->prepare("SELECT id, created_at, total, status FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+// Iš anksto paruošiame statement'us, kad ciklas suktųsi greitai
+$ordersStmt = $pdo->prepare("SELECT id, created_at, total, status FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 20");
+$blockStmt = $pdo->prepare("SELECT * FROM community_blocks WHERE user_id = ? AND (banned_until IS NULL OR banned_until > NOW()) ORDER BY created_at DESC LIMIT 1");
+$listingsStmt = $pdo->prepare("SELECT id, title, price, status, created_at FROM community_listings WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+$ordersBoughtStmt = $pdo->prepare("SELECT id, item_id, total_amount, status, created_at FROM community_orders WHERE buyer_id = ? ORDER BY created_at DESC LIMIT 50");
+$ordersSoldStmt = $pdo->prepare("SELECT id, item_id, total_amount, status, created_at FROM community_orders WHERE seller_id = ? ORDER BY created_at DESC LIMIT 50");
+$reportsStmt = $pdo->prepare("SELECT id, listing_id, reason, status, created_at FROM community_reports WHERE reporter_id = ? ORDER BY created_at DESC LIMIT 50");
+$threadsStmt = $pdo->prepare("SELECT id, title, created_at FROM community_threads WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+$ticketsStmt = $pdo->prepare("SELECT id, type, status, created_at FROM community_tickets WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
 
 foreach ($users as &$u) {
+    $uid = $u['id'];
+
     // Parduotuvės užsakymai
     try {
-        $ordersStmt->execute([$u['id']]);
+        $ordersStmt->execute([$uid]);
         $u['recent_orders'] = $ordersStmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $u['recent_orders'] = [];
     }
 
     // Bendruomenės užblokavimai
-    $blockStmt = $pdo->prepare("SELECT * FROM community_blocks WHERE user_id = ? AND (banned_until IS NULL OR banned_until > NOW()) ORDER BY created_at DESC LIMIT 1");
-    $blockStmt->execute([$u['id']]);
+    $blockStmt->execute([$uid]);
     $u['active_block'] = $blockStmt->fetch(PDO::FETCH_ASSOC);
 
-    // Bendruomenės statistika
-    $u['listings_count'] = $pdo->query("SELECT COUNT(*) FROM community_listings WHERE user_id = " . (int)$u['id'])->fetchColumn();
-    $u['community_orders_bought'] = $pdo->query("SELECT COUNT(*) FROM community_orders WHERE buyer_id = " . (int)$u['id'])->fetchColumn();
-    $u['community_orders_sold'] = $pdo->query("SELECT COUNT(*) FROM community_orders WHERE seller_id = " . (int)$u['id'])->fetchColumn();
-    $u['reports_count'] = $pdo->query("SELECT COUNT(*) FROM community_reports WHERE reporter_id = " . (int)$u['id'])->fetchColumn();
-    $u['threads_count'] = $pdo->query("SELECT COUNT(*) FROM community_threads WHERE user_id = " . (int)$u['id'])->fetchColumn();
-    $u['tickets_count'] = $pdo->query("SELECT COUNT(*) FROM community_tickets WHERE user_id = " . (int)$u['id'])->fetchColumn();
-    
-    try {
-        $u['comments_count'] = $pdo->query("SELECT COUNT(*) FROM community_comments WHERE user_id = " . (int)$u['id'])->fetchColumn();
-    } catch (Exception $e) {
-        $u['comments_count'] = 0;
-    }
+    // Skelbimai
+    $listingsStmt->execute([$uid]);
+    $u['listings'] = $listingsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Bendruomenės užsakymai (Nupirkti)
+    $ordersBoughtStmt->execute([$uid]);
+    $u['orders_bought'] = $ordersBoughtStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Bendruomenės užsakymai (Parduoti)
+    $ordersSoldStmt->execute([$uid]);
+    $u['orders_sold'] = $ordersSoldStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Pranešimai (Reports)
+    $reportsStmt->execute([$uid]);
+    $u['reports'] = $reportsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Temos (Threads)
+    $threadsStmt->execute([$uid]);
+    $u['threads'] = $threadsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Pagalbos bilietai (Tickets)
+    $ticketsStmt->execute([$uid]);
+    $u['tickets'] = $ticketsStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 unset($u);
 ?>
@@ -116,7 +134,7 @@ unset($u);
     .modal-overlay.open { display: flex; opacity: 1; }
     
     .modal-window {
-        background: #fff; width: 100%; max-width: 650px;
+        background: #fff; width: 100%; max-width: 800px;
         border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.2);
         overflow-y: auto; max-height: 90vh; display: flex; flex-direction: column;
     }
@@ -129,8 +147,32 @@ unset($u);
     .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
     
     .modal-body { padding: 24px; }
-    .info-row { margin-bottom: 16px; border-bottom: 1px dashed #eee; padding-bottom: 8px; }
-    .info-label { font-size: 12px; text-transform: uppercase; color: #888; font-weight: 600; display: block; margin-bottom: 4px; }
+
+    /* Tabs */
+    .tabs-nav {
+        display: flex; gap: 10px; border-bottom: 1px solid #ddd; margin-bottom: 20px; overflow-x: auto;
+    }
+    .tab-btn {
+        background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 14px;
+        font-weight: 600; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;
+    }
+    .tab-btn:hover { color: #111; }
+    .tab-btn.active { color: #111; border-bottom-color: #3730a3; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Lentelės viduje modalų */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 15px; }
+    .data-table th, .data-table td { padding: 10px 8px; border-bottom: 1px solid #eee; text-align: left; }
+    .data-table th { font-weight: 600; color: #555; background: #f9fafb; }
+    .data-table tr:hover { background: #fcfcfc; }
+
+    .status-dot { height: 8px; width: 8px; background-color: #ccc; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    .status-dot.completed { background-color: #10b981; }
+    .status-dot.pending { background-color: #f59e0b; }
+    .status-dot.cancelled { background-color: #ef4444; }
 
     /* Forma modale */
     .form-group { margin-bottom: 15px; }
@@ -139,19 +181,7 @@ unset($u);
     .row-split { display: flex; gap: 15px; }
     .row-split > div { flex: 1; }
 
-    /* Užsakymų sąrašas modale */
-    .mini-orders-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-    .mini-orders-table th { text-align: left; color: #666; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid #eee; }
-    .mini-orders-table td { padding: 8px 0; border-bottom: 1px solid #f9f9f9; }
-    .status-dot { height: 8px; width: 8px; background-color: #ccc; border-radius: 50%; display: inline-block; margin-right: 5px; }
-    .status-dot.completed { background-color: #10b981; }
-    .status-dot.pending { background-color: #f59e0b; }
-    .status-dot.cancelled { background-color: #ef4444; }
-
-    .community-stats { padding:0; margin:0; list-style:none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .community-stats li { background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 6px; }
-    .community-stats strong { display: block; font-size: 16px; color: #111; }
-    .community-stats span { font-size: 12px; color: #666; text-transform: uppercase; }
+    .muted-text { color: #999; font-size: 13px; font-style: italic; }
 </style>
 
 <div class="card">
@@ -202,7 +232,7 @@ unset($u);
                         <button class="btn secondary open-user-modal" 
                                 type="button" 
                                 data-user='<?php echo htmlspecialchars(json_encode($u), ENT_QUOTES, 'UTF-8'); ?>'>
-                            Redaguoti / Peržiūrėti
+                            Detali informacija
                         </button>
                     </td>
                 </tr>
@@ -220,83 +250,113 @@ unset($u);
             <h3 class="modal-title">Vartotojas #<span id="u_id"></span></h3>
             <button type="button" class="modal-close" onclick="closeUserModal()">&times;</button>
         </div>
-        <div class="modal-body">
+        
+        <div class="modal-body" style="padding-top: 10px;">
+            
+            <div class="tabs-nav">
+                <button type="button" class="tab-btn active" data-target="tab-info">Profilis</button>
+                <button type="button" class="tab-btn" data-target="tab-listings">Skelbimai</button>
+                <button type="button" class="tab-btn" data-target="tab-comm-orders">Bendruomenės Užsakymai</button>
+                <button type="button" class="tab-btn" data-target="tab-store-orders">Parduotuvė</button>
+                <button type="button" class="tab-btn" data-target="tab-reports">Pranešimai</button>
+                <button type="button" class="tab-btn" data-target="tab-threads">Temos</button>
+                <button type="button" class="tab-btn" data-target="tab-tickets">Pagalba</button>
+            </div>
 
-            <h4 style="margin-top:0; margin-bottom:15px;">Redaguoti informaciją</h4>
-            <form method="post">
-                <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
-                <input type="hidden" name="action" value="update_user">
-                <input type="hidden" name="user_id" id="u_formId">
-                
-                <div class="row-split">
-                    <div class="form-group">
-                        <label>Vardas</label>
-                        <input type="text" name="name" id="u_formName" required>
-                    </div>
-                    <div class="form-group">
-                        <label>El. paštas</label>
-                        <input type="email" name="email" id="u_formEmail" required>
-                    </div>
-                </div>
+            <div id="tab-info" class="tab-content active">
+                <div id="u_block_status" style="margin-bottom: 20px;"></div>
 
-                <div class="row-split">
-                    <div class="form-group">
-                        <label>Gimimo data</label>
-                        <input type="date" name="birthdate" id="u_formBirthdate">
+                <form method="post">
+                    <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
+                    <input type="hidden" name="action" value="update_user">
+                    <input type="hidden" name="user_id" id="u_formId">
+                    
+                    <div class="row-split">
+                        <div class="form-group">
+                            <label>Vardas</label>
+                            <input type="text" name="name" id="u_formName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>El. paštas</label>
+                            <input type="email" name="email" id="u_formEmail" required>
+                        </div>
                     </div>
+
+                    <div class="row-split">
+                        <div class="form-group">
+                            <label>Gimimo data</label>
+                            <input type="date" name="birthdate" id="u_formBirthdate">
+                        </div>
+                        <div class="form-group">
+                            <label>Lytis</label>
+                            <select name="gender" id="u_formGender">
+                                <option value="">-</option>
+                                <option value="male">Vyras</option>
+                                <option value="female">Moteris</option>
+                                <option value="other">Kita</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row-split">
+                        <div class="form-group">
+                            <label>Miestas</label>
+                            <input type="text" name="city" id="u_formCity">
+                        </div>
+                        <div class="form-group">
+                            <label>Šalis</label>
+                            <input type="text" name="country" id="u_formCountry">
+                        </div>
+                    </div>
+
                     <div class="form-group">
-                        <label>Lytis</label>
-                        <select name="gender" id="u_formGender">
-                            <option value="">-</option>
-                            <option value="male">Vyras</option>
-                            <option value="female">Moteris</option>
-                            <option value="other">Kita</option>
+                        <label>Sistemos rolė</label>
+                        <select name="is_admin" id="u_formIsAdmin">
+                            <option value="0">Paprastas vartotojas</option>
+                            <option value="1">Administratorius</option>
                         </select>
                     </div>
-                </div>
 
-                <div class="row-split">
-                    <div class="form-group">
-                        <label>Miestas</label>
-                        <input type="text" name="city" id="u_formCity">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid #eee; padding-top:20px;">
+                        <button type="submit" class="btn">Išsaugoti pakeitimus</button>
                     </div>
-                    <div class="form-group">
-                        <label>Šalis</label>
-                        <input type="text" name="country" id="u_formCountry">
-                    </div>
-                </div>
+                </form>
 
-                <div class="form-group">
-                    <label>Sistemos rolė</label>
-                    <select name="is_admin" id="u_formIsAdmin">
-                        <option value="0">Paprastas vartotojas</option>
-                        <option value="1">Administratorius</option>
-                    </select>
-                </div>
+                <form method="post" onsubmit="return confirm('Ar tikrai norite ištrinti šį vartotoją? Šis veiksmas negrįžtamas.');" style="margin-top: 15px;">
+                    <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
+                    <input type="hidden" name="action" value="delete_user">
+                    <input type="hidden" name="user_id" id="u_deleteId">
+                    <button type="submit" class="btn" style="background:#fee2e2; color:#b91c1c; border-color:#fecaca; width:100%;">Ištrinti vartotoją iš sistemos</button>
+                </form>
+            </div>
 
-                <button type="submit" class="btn">Išsaugoti pakeitimus</button>
-            </form>
+            <div id="tab-listings" class="tab-content">
+                <div id="u_listings_container"></div>
+            </div>
 
-            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+            <div id="tab-comm-orders" class="tab-content">
+                <h4 style="margin-top:0;">Nupirkti daiktai</h4>
+                <div id="u_orders_bought_container"></div>
+                <hr style="border:0; border-top:1px dashed #ddd; margin:20px 0;">
+                <h4 style="margin-top:0;">Parduoti daiktai</h4>
+                <div id="u_orders_sold_container"></div>
+            </div>
 
-            <h4 style="margin-bottom: 15px;">Bendruomenės veikla</h4>
-            <div id="u_community_info" style="background: #f9fafb; padding: 15px; border-radius: 8px;"></div>
-            
-            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
-
-            <div class="info-row" style="border:none;">
-                <h4 style="margin-top:0; margin-bottom:10px;">Paskutiniai Parduotuvės Užsakymai</h4>
+            <div id="tab-store-orders" class="tab-content">
                 <div id="u_orders_container"></div>
             </div>
 
-            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
-            
-            <form method="post" onsubmit="return confirm('Ar tikrai norite ištrinti šį vartotoją? Šis veiksmas negrįžtamas.');">
-                <?php echo function_exists('csrfField') ? csrfField() : ''; ?>
-                <input type="hidden" name="action" value="delete_user">
-                <input type="hidden" name="user_id" id="u_deleteId">
-                <button type="submit" class="btn" style="background:#fee2e2; color:#b91c1c; border-color:#fecaca; width:100%;">Ištrinti vartotoją iš sistemos</button>
-            </form>
+            <div id="tab-reports" class="tab-content">
+                <div id="u_reports_container"></div>
+            </div>
+
+            <div id="tab-threads" class="tab-content">
+                <div id="u_threads_container"></div>
+            </div>
+
+            <div id="tab-tickets" class="tab-content">
+                <div id="u_tickets_container"></div>
+            </div>
 
         </div>
     </div>
@@ -305,6 +365,34 @@ unset($u);
 <script>
     const userModal = document.getElementById('userModal');
     
+    // Tabų perjungimo logika
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            this.classList.add('active');
+            document.getElementById(this.getAttribute('data-target')).classList.add('active');
+        });
+    });
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function getStatusDot(status) {
+        if(!status) return '<span class="status-dot"></span>';
+        let s = status.toLowerCase();
+        if (s.includes('įvykdyt') || s.includes('apmokėt') || s.includes('išsiųst') || s.includes('paid') || s.includes('completed')) {
+            return '<span class="status-dot completed"></span>';
+        }
+        if (s.includes('atšauk') || s.includes('atmest') || s.includes('failed') || s.includes('cancelled')) {
+            return '<span class="status-dot cancelled"></span>';
+        }
+        return '<span class="status-dot pending"></span>';
+    }
+
     document.querySelectorAll('.open-user-modal').forEach(btn => {
         btn.addEventListener('click', function() {
             let data = {};
@@ -312,7 +400,13 @@ unset($u);
                 data = JSON.parse(this.getAttribute('data-user'));
             } catch(e) { console.error(e); return; }
             
-            // Užpildome formos laukus
+            // Atstatome tabus į pirmąjį
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('.tab-btn[data-target="tab-info"]').classList.add('active');
+            document.getElementById('tab-info').classList.add('active');
+
+            // 1. Profilio Forma
             document.getElementById('u_id').innerText = data.id;
             document.getElementById('u_formId').value = data.id;
             document.getElementById('u_deleteId').value = data.id;
@@ -325,55 +419,132 @@ unset($u);
             document.getElementById('u_formCountry').value = data.country || '';
             document.getElementById('u_formIsAdmin').value = data.is_admin == 1 ? '1' : '0';
             
-            // Bendruomenės statisitika
-            const commBox = document.getElementById('u_community_info');
-            let commHtml = '';
-
+            // Blokavimo statusas
+            const blockBox = document.getElementById('u_block_status');
             if (data.active_block) {
                 let until = data.active_block.banned_until ? data.active_block.banned_until : 'Visam laikui';
-                commHtml += `<div style="background:#fee2e2; color:#b91c1c; padding:10px; border-radius:6px; margin-bottom:15px;">
-                    <strong>UŽBLOKUOTAS</strong><br>Priežastis: ${data.active_block.reason}<br>Iki: ${until}
+                blockBox.innerHTML = `<div style="background:#fee2e2; color:#b91c1c; padding:12px; border-radius:6px; border:1px solid #fecaca;">
+                    <strong style="font-size:14px;">⚠️ VARTOTOJAS UŽBLOKUOTAS BENDRUOMENĖJE</strong><br>
+                    Priežastis: ${escapeHtml(data.active_block.reason)}<br>Iki: ${until}
                 </div>`;
             } else {
-                commHtml += `<div style="color:#10b981; font-weight:600; margin-bottom:15px;">Vartotojas nėra užblokuotas bendruomenėje</div>`;
+                blockBox.innerHTML = '';
             }
 
-            commHtml += `
-                <ul class="community-stats">
-                    <li><span>Skelbimai</span><strong>${data.listings_count}</strong></li>
-                    <li><span>Nupirkti daiktai</span><strong>${data.community_orders_bought}</strong></li>
-                    <li><span>Parduoti daiktai</span><strong>${data.community_orders_sold}</strong></li>
-                    <li><span>Pranešimai (Reports)</span><strong>${data.reports_count}</strong></li>
-                    <li><span>Sukurtos temos</span><strong>${data.threads_count}</strong></li>
-                    <li><span>Pagalbos bilietai</span><strong>${data.tickets_count}</strong></li>
-                    <li><span>Komentarai</span><strong>${data.comments_count}</strong></li>
-                </ul>
-            `;
-            commBox.innerHTML = commHtml;
+            // 2. Skelbimai
+            const lContainer = document.getElementById('u_listings_container');
+            if (data.listings && data.listings.length > 0) {
+                lContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>ID</th><th>Pavadinimas</th><th>Kaina</th><th>Statusas</th><th>Sukurta</th></tr></thead>
+                    <tbody>
+                        ${data.listings.map(i => `<tr>
+                            <td>#${i.id}</td>
+                            <td>${escapeHtml(i.title)}</td>
+                            <td>${parseFloat(i.price).toFixed(2)} €</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { lContainer.innerHTML = '<p class="muted-text">Nėra skelbimų.</p>'; }
 
-            // Užsakymų renderinimas
-            const ordersBox = document.getElementById('u_orders_container');
+            // 3. Bendruomenės užsakymai (Nupirkti)
+            const obContainer = document.getElementById('u_orders_bought_container');
+            if (data.orders_bought && data.orders_bought.length > 0) {
+                obContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>Užsakymo ID</th><th>Daikto ID</th><th>Suma</th><th>Statusas</th><th>Data</th></tr></thead>
+                    <tbody>
+                        ${data.orders_bought.map(i => `<tr>
+                            <td>#${i.id}</td><td>#${i.item_id}</td>
+                            <td>${parseFloat(i.total_amount).toFixed(2)} €</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { obContainer.innerHTML = '<p class="muted-text">Nėra nupirktų daiktų.</p>'; }
+
+            // 4. Bendruomenės užsakymai (Parduoti)
+            const osContainer = document.getElementById('u_orders_sold_container');
+            if (data.orders_sold && data.orders_sold.length > 0) {
+                osContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>Užsakymo ID</th><th>Daikto ID</th><th>Suma</th><th>Statusas</th><th>Data</th></tr></thead>
+                    <tbody>
+                        ${data.orders_sold.map(i => `<tr>
+                            <td>#${i.id}</td><td>#${i.item_id}</td>
+                            <td>${parseFloat(i.total_amount).toFixed(2)} €</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { osContainer.innerHTML = '<p class="muted-text">Nėra parduotų daiktų.</p>'; }
+
+            // 5. Parduotuvės užsakymai
+            const soContainer = document.getElementById('u_orders_container');
             if (data.recent_orders && data.recent_orders.length > 0) {
-                let html = '<table class="mini-orders-table"><thead><tr><th>ID</th><th>Data</th><th>Suma</th><th>Statusas</th></tr></thead><tbody>';
-                data.recent_orders.forEach(o => {
-                    let dotClass = 'pending';
-                    const st = o.status ? o.status.toLowerCase() : '';
-                    if (st.includes('įvykdyt') || st.includes('apmokėt') || st.includes('išsiųst')) dotClass = 'completed';
-                    if (st.includes('atšauk') || st.includes('atmest')) dotClass = 'cancelled';
-                    
-                    html += `<tr>
-                        <td>#${o.id}</td>
-                        <td>${o.created_at ? o.created_at.substring(0, 10) : '-'}</td>
-                        <td>${o.total ? parseFloat(o.total).toFixed(2) : '0.00'} €</td>
-                        <td><span class="status-dot ${dotClass}"></span>${o.status || '-'}</td>
-                    </tr>`;
-                });
-                html += '</tbody></table>';
-                ordersBox.innerHTML = html;
-            } else {
-                ordersBox.innerHTML = '<div style="color:#999; font-size:13px; padding-top:5px;">Parduotuvės užsakymų nėra.</div>';
-            }
+                soContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>ID</th><th>Suma</th><th>Statusas</th><th>Data</th></tr></thead>
+                    <tbody>
+                        ${data.recent_orders.map(i => `<tr>
+                            <td>#${i.id}</td>
+                            <td>${parseFloat(i.total).toFixed(2)} €</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { soContainer.innerHTML = '<p class="muted-text">Parduotuvės užsakymų nėra.</p>'; }
+
+            // 6. Pranešimai (Reports)
+            const rContainer = document.getElementById('u_reports_container');
+            if (data.reports && data.reports.length > 0) {
+                rContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>ID</th><th>Skelbimo ID</th><th>Priežastis</th><th>Statusas</th><th>Data</th></tr></thead>
+                    <tbody>
+                        ${data.reports.map(i => `<tr>
+                            <td>#${i.id}</td><td>#${i.listing_id}</td>
+                            <td>${escapeHtml(i.reason)}</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { rContainer.innerHTML = '<p class="muted-text">Nėra pranešimų apie nusižengimus.</p>'; }
+
+            // 7. Temos (Threads)
+            const tContainer = document.getElementById('u_threads_container');
+            if (data.threads && data.threads.length > 0) {
+                tContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>ID</th><th>Temos pavadinimas</th><th>Sukurta</th></tr></thead>
+                    <tbody>
+                        ${data.threads.map(i => `<tr>
+                            <td>#${i.id}</td>
+                            <td>${escapeHtml(i.title)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { tContainer.innerHTML = '<p class="muted-text">Nesukurta nei viena tema.</p>'; }
+
+            // 8. Bilietai (Tickets)
+            const tkContainer = document.getElementById('u_tickets_container');
+            if (data.tickets && data.tickets.length > 0) {
+                tkContainer.innerHTML = `<table class="data-table">
+                    <thead><tr><th>ID</th><th>Tipas</th><th>Susijęs Užsakymas</th><th>Statusas</th><th>Data</th></tr></thead>
+                    <tbody>
+                        ${data.tickets.map(i => `<tr>
+                            <td>#${i.id}</td>
+                            <td>${escapeHtml(i.type)}</td>
+                            <td>${i.order_id ? '#'+i.order_id : '-'}</td>
+                            <td>${getStatusDot(i.status)} ${escapeHtml(i.status)}</td>
+                            <td class="muted-text">${i.created_at.substring(0, 16)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            } else { tkContainer.innerHTML = '<p class="muted-text">Nėra pagalbos bilietų.</p>'; }
             
+            // Parodome modalą
             userModal.style.display = 'flex';
             setTimeout(() => userModal.classList.add('open'), 10);
         });
