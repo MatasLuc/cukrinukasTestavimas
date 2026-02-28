@@ -120,7 +120,7 @@ if (isset($_POST['create_paysera_shipment'])) {
                 }
             }
 
-            $projectId      = "248259";
+            $projectId      = 248259;
             $password       = $_ENV['PAYSERA_PASSWORD'] ?? getenv('PAYSERA_PASSWORD') ?? '';
             $password       = trim($password, " \t\r\n\"'");
             $apiUrl         = rtrim($_ENV['PAYSERA_DELIVERY_API_URL'] ?? getenv('PAYSERA_DELIVERY_API_URL') ?? 'https://delivery-api.paysera.com/rest/v1', '/');
