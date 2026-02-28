@@ -245,9 +245,7 @@ if (isset($_POST['create_paysera_shipment'])) {
             $payload,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             );
-            
-            $payloadJson = trim($payloadJson);
-            
+                        
             payseraLog("FINAL JSON LENGTH: " . strlen($payloadJson));
             payseraLog("FINAL JSON SHA256 HEX: " . hash('sha256', $payloadJson));
             payseraLog("FINAL JSON: " . $payloadJson);
@@ -262,7 +260,6 @@ if (isset($_POST['create_paysera_shipment'])) {
                 'Content-Type: application/json; charset=utf-8',
                 'Accept: application/json',
                 'Authorization: ' . $macAuth,
-                'Content-Length: ' . $payloadBytes,
                 'Expect:'
             ];
             
