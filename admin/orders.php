@@ -159,13 +159,12 @@ if (isset($_POST['create_paysera_shipment'])) {
                 $receiver->setParcelMachineId($delDetails['locker_id'] ?? '');
             }
 
-            // 3. Sukuriama Siunta (Shipment)
+            // 3. Sukuriama Siunta (Shipment) - išmatavimai atstoja dydį
             $shipmentCreate = (new \Paysera\DeliveryApi\MerchantClient\Entity\ShipmentCreate())
                 ->setWeight(1000)
                 ->setWidth(380)
                 ->setLength(640)
-                ->setHeight(190)
-                ->setPackageSize('M');
+                ->setHeight(190);
 
             // 4. Apjungiamas Užsakymas (OrderCreate)
             $orderCreate = (new \Paysera\DeliveryApi\MerchantClient\Entity\OrderCreate())
