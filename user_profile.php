@@ -108,39 +108,29 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
 ?>
 
 <style>
-    /* Profilio unikalūs stiliai */
-    .profile-hero {
-        background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
-        position: relative;
-        overflow: hidden;
-    }
-    .profile-hero::after {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: url('data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.2)"/></svg>') repeat;
-        pointer-events: none;
-    }
+    body { background-color: #f8f9fa; }
     .profile-avatar-lg {
         width: 120px;
         height: 120px;
         font-size: 3.5rem;
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
+        color: white;
+        box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.2);
     }
     .profile-avatar-sm {
         width: 48px;
         height: 48px;
         font-size: 1.25rem;
+        background-color: #e9ecef;
+        color: #0d6efd;
     }
-    .text-hover-primary:hover { color: #0d6efd !important; }
-    .object-fit-cover { object-fit: cover; }
-    .group-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-    .group-hover:hover { transform: translateY(-5px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; }
-    .nav-pills .nav-link { color: #6c757d; font-weight: 600; border-radius: 50rem; padding: 0.5rem 1.5rem; transition: all 0.2s ease;}
-    .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff !important; box-shadow: 0 4px 6px rgba(13, 110, 253, 0.2); }
-    .nav-pills .nav-link:not(.active):hover { background-color: #f8f9fa; color: #0d6efd; }
+    .hover-shadow { transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .hover-shadow:hover { box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.1)!important; transform: translateY(-3px); }
+    .nav-pills .nav-link { color: #6c757d; font-weight: 600; border-radius: 50rem; padding: 0.6rem 1.5rem; transition: all 0.2s ease;}
+    .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff !important; box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3); }
+    .nav-pills .nav-link:not(.active):hover { background-color: #e9ecef; color: #0d6efd; }
     .rating-stars { letter-spacing: 2px; }
-    .tracking-wider { letter-spacing: 0.05em; }
+    .object-fit-cover { object-fit: cover; }
 </style>
 
 <div class="container py-5">
@@ -158,30 +148,30 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
         </div>
     <?php endif; ?>
 
-    <div class="card border-0 shadow-sm rounded-4 mb-4 profile-hero">
-        <div class="card-body p-4 p-md-5 text-white d-flex flex-column flex-md-row align-items-center position-relative z-1 text-center text-md-start">
-            <div class="rounded-circle bg-white text-primary d-inline-flex align-items-center justify-content-center fw-bold profile-avatar-lg mb-4 mb-md-0 me-md-4 flex-shrink-0">
-                <?= mb_strtoupper(mb_substr($profileUser['name'], 0, 1)) ?>
-            </div>
-            <div>
-                <h1 class="fw-bolder mb-2"><?= htmlspecialchars($profileUser['name']) ?></h1>
-                <p class="mb-3 opacity-75 fs-5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-calendar-check me-2 mb-1" viewBox="0 0 16 16"><path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
-                    Bendruomenės narys nuo <?= date('Y-m-d', strtotime($profileUser['created_at'])) ?>
-                </p>
-                <div class="d-inline-flex align-items-center bg-white bg-opacity-25 rounded-pill px-4 py-2">
-                    <span class="fs-5 text-warning me-3 rating-stars">
-                        <?= str_repeat('★', round($avgRating)) ?><?= str_repeat('☆', 5 - round($avgRating)) ?>
-                    </span>
-                    <span class="badge bg-white text-primary rounded-pill fs-6 px-3 py-1"><?= $avgRating ?> / 5 (<?= $totalReviews ?> atsiliepimų)</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="row g-4">
         
-        <div class="col-lg-4 order-2 order-lg-1">
+        <div class="col-lg-4">
+            
+            <div class="card border-0 shadow-sm rounded-4 mb-4 text-center">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center fw-bold profile-avatar-lg mb-4">
+                        <?= mb_strtoupper(mb_substr($profileUser['name'], 0, 1)) ?>
+                    </div>
+                    <h3 class="fw-bolder mb-1"><?= htmlspecialchars($profileUser['name']) ?></h3>
+                    <p class="text-muted mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-check me-1 mb-1" viewBox="0 0 16 16"><path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
+                        Narys nuo <?= date('Y-m-d', strtotime($profileUser['created_at'])) ?>
+                    </p>
+                    
+                    <div class="bg-light rounded-4 p-3 mb-2">
+                        <div class="fs-4 text-warning rating-stars mb-1">
+                            <?= str_repeat('★', round($avgRating)) ?><?= str_repeat('☆', 5 - round($avgRating)) ?>
+                        </div>
+                        <h5 class="fw-bold mb-0 text-dark"><?= $avgRating ?> <span class="text-muted fs-6 fw-normal">/ 5 (iš <?= $totalReviews ?> vertinimų)</span></h5>
+                    </div>
+                </div>
+            </div>
+
             <?php if ($currentUserId && $currentUserId !== $profileUser['id']): ?>
                 <div class="card border-0 shadow-sm rounded-4 sticky-top" style="top: 2rem; z-index: 1020;">
                     <div class="card-body p-4">
@@ -192,9 +182,9 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                         <form method="post" action="">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             
-                            <div class="mb-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wider">Įvertinimas</label>
-                                <select name="rating" class="form-select form-select-lg bg-light border-0 shadow-none" required>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Įvertinimas</label>
+                                <select name="rating" class="form-select bg-light border-0 shadow-none" required>
                                     <option value="" disabled <?= !$existingReviewForm ? 'selected' : '' ?>>Pasirinkite...</option>
                                     <option value="5" <?= ($existingReviewForm && $existingReviewForm['rating'] == 5) ? 'selected' : '' ?>>5 ★ - Puikiai</option>
                                     <option value="4" <?= ($existingReviewForm && $existingReviewForm['rating'] == 4) ? 'selected' : '' ?>>4 ★ - Gerai</option>
@@ -204,10 +194,10 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                                 </select>
                             </div>
                             <div class="mb-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wider">Komentaras</label>
+                                <label class="form-label text-muted small fw-bold text-uppercase">Komentaras</label>
                                 <textarea name="review_text" class="form-control bg-light border-0 shadow-none" rows="4" required placeholder="Aprašykite savo patirtį su šiuo nariu..."><?= $existingReviewForm ? htmlspecialchars($existingReviewForm['review_text']) : '' ?></textarea>
                             </div>
-                            <button type="submit" name="submit_review" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm">
+                            <button type="submit" name="submit_review" class="btn btn-primary w-100 rounded-pill fw-bold py-2 shadow-sm">
                                 <?= $existingReviewForm ? 'Atnaujinti atsiliepimą' : 'Pateikti atsiliepimą' ?>
                             </button>
                         </form>
@@ -216,7 +206,7 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
             <?php elseif (!$currentUserId): ?>
                 <div class="card border-0 shadow-sm rounded-4 text-center p-4">
                     <div class="card-body">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-info-circle text-info mb-3 opacity-75" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-info-circle text-primary mb-3 opacity-75" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>
                         <h5 class="fw-bold mb-3">Norite palikti atsiliepimą?</h5>
                         <a href="login.php" class="btn btn-outline-primary rounded-pill px-4 fw-bold">Prisijunkite</a>
                     </div>
@@ -231,18 +221,18 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
             <?php endif; ?>
         </div>
 
-        <div class="col-lg-8 order-1 order-lg-2">
+        <div class="col-lg-8">
             
-            <ul class="nav nav-pills mb-4 gap-2" id="profileTabs" role="tablist">
+            <ul class="nav nav-pills mb-4 gap-2 border-bottom pb-3" id="profileTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews" type="button" role="tab" aria-controls="reviews" aria-selected="true">
-                        Atsiliepimai <span class="badge bg-white text-primary ms-1 shadow-sm"><?= count($reviews) ?></span>
+                        Atsiliepimai <span class="badge bg-white text-primary ms-1 shadow-sm rounded-pill"><?= count($reviews) ?></span>
                     </button>
                 </li>
                 <?php if (count($listings) > 0): ?>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="listings-tab" data-bs-toggle="tab" data-bs-target="#listings" type="button" role="tab" aria-controls="listings" aria-selected="false">
-                        Skelbimai turgelyje <span class="badge bg-secondary ms-1 shadow-sm"><?= count($listings) ?></span>
+                        Skelbimai turgelyje <span class="badge bg-secondary ms-1 shadow-sm rounded-pill"><?= count($listings) ?></span>
                     </button>
                 </li>
                 <?php endif; ?>
@@ -254,23 +244,23 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                     <?php if (count($reviews) > 0): ?>
                         <div class="d-flex flex-column gap-3">
                             <?php foreach ($reviews as $review): ?>
-                                <div class="card border-0 shadow-sm rounded-4">
+                                <div class="card border-0 shadow-sm rounded-4 hover-shadow">
                                     <div class="card-body p-4">
                                         <div class="d-flex justify-content-between align-items-start align-items-sm-center flex-column flex-sm-row mb-3 gap-2">
                                             <div class="d-flex align-items-center">
-                                                <div class="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center fw-bold me-3 profile-avatar-sm">
+                                                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold me-3 profile-avatar-sm">
                                                     <?= mb_strtoupper(mb_substr($review['reviewer_name'], 0, 1)) ?>
                                                 </div>
                                                 <div>
                                                     <h6 class="mb-0 fw-bold">
-                                                        <a href="user_profile.php?id=<?= $review['reviewer_id'] ?>" class="text-dark text-decoration-none text-hover-primary">
+                                                        <a href="user_profile.php?id=<?= $review['reviewer_id'] ?>" class="text-dark text-decoration-none text-primary-hover">
                                                             <?= htmlspecialchars($review['reviewer_name']) ?>
                                                         </a>
                                                     </h6>
                                                     <small class="text-muted"><?= date('Y-m-d H:i', strtotime($review['created_at'])) ?></small>
                                                 </div>
                                             </div>
-                                            <div class="text-warning fs-6 bg-light px-3 py-1 rounded-pill fw-bold tracking-wider">
+                                            <div class="text-warning fs-6 bg-light px-3 py-1 rounded-pill fw-bold">
                                                 <?= str_repeat('★', $review['rating']) ?><?= str_repeat('☆', 5 - $review['rating']) ?>
                                             </div>
                                         </div>
@@ -284,7 +274,7 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                     <?php else: ?>
                         <div class="card border-0 shadow-sm rounded-4 text-center p-5">
                             <div class="card-body py-5">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-chat-square-text text-muted mb-3 opacity-50" viewBox="0 0 16 16"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2.5a2 2 0 0 0-1.6.8L8 14.333 6.1 11.8a2 2 0 0 0-1.6-.8H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5a1 1 0 0 1 .8.4l1.9 2.533a1 1 0 0 0 1.6 0l1.9-2.533a1 1 0 0 1 .8-.4H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-chat-square-text text-muted mb-3 opacity-25" viewBox="0 0 16 16"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2.5a2 2 0 0 0-1.6.8L8 14.333 6.1 11.8a2 2 0 0 0-1.6-.8H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5a1 1 0 0 1 .8.4l1.9 2.533a1 1 0 0 0 1.6 0l1.9-2.533a1 1 0 0 1 .8-.4H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>
                                 <h5 class="text-muted fw-bold mb-0">Šis narys dar neturi atsiliepimų.</h5>
                             </div>
                         </div>
@@ -296,17 +286,17 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                     <div class="row row-cols-1 row-cols-md-2 g-4">
                         <?php foreach ($listings as $listing): ?>
                             <div class="col">
-                                <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden group-hover">
+                                <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden hover-shadow">
                                     <div class="position-relative">
                                         <?php if (!empty($listing['image'])): ?>
-                                            <img src="uploads/<?= htmlspecialchars($listing['image']) ?>" class="card-img-top object-fit-cover" alt="Skelbimo nuotrauka" style="height: 220px;">
+                                            <img src="uploads/<?= htmlspecialchars($listing['image']) ?>" class="card-img-top object-fit-cover" alt="Skelbimo nuotrauka" style="height: 200px;">
                                         <?php else: ?>
-                                            <div class="bg-light text-muted d-flex align-items-center justify-content-center" style="height: 220px;">
+                                            <div class="bg-light text-muted d-flex align-items-center justify-content-center" style="height: 200px;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-image opacity-25" viewBox="0 0 16 16"><path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M14 14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12zM2 3h12a1 1 0 0 1 1 1v8l-2.5-2.5a1.5 1.5 0 0 0-2.122 0l-1.038 1.038-3.04-3.04a1.5 1.5 0 0 0-2.122 0L1 11V4a1 1 0 0 1 1-1z"/></svg>
                                             </div>
                                         <?php endif; ?>
                                         <div class="position-absolute top-0 end-0 m-3">
-                                            <span class="badge bg-primary rounded-pill fs-6 shadow px-3 py-2"><?= number_format($listing['price'], 2) ?> &euro;</span>
+                                            <span class="badge bg-primary rounded-pill fs-6 shadow-sm px-3 py-2"><?= number_format($listing['price'], 2) ?> &euro;</span>
                                         </div>
                                     </div>
                                     <div class="card-body p-4 d-flex flex-column">
