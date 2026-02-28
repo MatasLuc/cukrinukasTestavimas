@@ -248,7 +248,6 @@ if (isset($_POST['create_paysera_shipment'])) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
-                'Content-Length: ' . $payloadBytes,
                 'Accept: application/json',
                 'Authorization: ' . $macAuth,
                 'Expect: ',
