@@ -268,6 +268,7 @@ a { color:inherit; text-decoration:none; }
              <div class="info-row">
                 <span class="info-label"><?php echo $listingType === 'buy' ? 'Pirkėjas' : 'Pardavėjas'; ?></span>
                 <span class="info-value"><?php echo htmlspecialchars($listing['seller_name']); ?></span>
+        
              </div>
              
              <div class="info-row">
