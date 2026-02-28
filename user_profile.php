@@ -11,7 +11,8 @@ $pdo = getPdo();
 $userId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if (!$userId) {
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Nenurodytas vartotojo ID.</div></div>";
+    renderHeader($pdo, "Klaida");
+    echo "<div class='container py-5'><div class='alert alert-danger shadow-sm rounded-4 border-0 p-4 text-center'><h4 class='mb-0 fw-bold'>Nenurodytas vartotojo ID.</h4></div></div>";
     renderFooter();
     exit;
 }
@@ -22,7 +23,8 @@ $stmt->execute([$userId]);
 $profileUser = $stmt->fetch();
 
 if (!$profileUser) {
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Vartotojas nerastas.</div></div>";
+    renderHeader($pdo, "Klaida");
+    echo "<div class='container py-5'><div class='alert alert-danger shadow-sm rounded-4 border-0 p-4 text-center'><h4 class='mb-0 fw-bold'>Vartotojas nerastas.</h4></div></div>";
     renderFooter();
     exit;
 }
@@ -92,7 +94,7 @@ $reviewsStmt = $pdo->prepare("
 $reviewsStmt->execute([$profileUser['id']]);
 $reviews = $reviewsStmt->fetchAll();
 
-// (Papildoma) Ištraukiame šio nario aktyvius turgelio skelbimus (jei naudojate community_listings)
+// (Papildoma) Ištraukiame šio nario aktyvius turgelio skelbimus
 $listings = [];
 try {
     $listingsStmt = $pdo->prepare("SELECT id, title, price, image FROM community_listings WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 6");
@@ -102,52 +104,98 @@ try {
     // Ignoruojame, jei skelbimų sistemos nėra arba stulpeliai nesutampa
 }
 
-// Pataisyta eilutė - pridedamas $pdo ir naudojamas ['name']
 renderHeader($pdo, $profileUser['name'] . " profilis");
 ?>
 
-<div class="container mt-5">
+<style>
+    /* Profilio unikalūs stiliai */
+    .profile-hero {
+        background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .profile-hero::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: url('data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.2)"/></svg>') repeat;
+        pointer-events: none;
+    }
+    .profile-avatar-lg {
+        width: 120px;
+        height: 120px;
+        font-size: 3.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+    }
+    .profile-avatar-sm {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+    .text-hover-primary:hover { color: #0d6efd !important; }
+    .object-fit-cover { object-fit: cover; }
+    .group-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .group-hover:hover { transform: translateY(-5px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; }
+    .nav-pills .nav-link { color: #6c757d; font-weight: 600; border-radius: 50rem; padding: 0.5rem 1.5rem; transition: all 0.2s ease;}
+    .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff !important; box-shadow: 0 4px 6px rgba(13, 110, 253, 0.2); }
+    .nav-pills .nav-link:not(.active):hover { background-color: #f8f9fa; color: #0d6efd; }
+    .rating-stars { letter-spacing: 2px; }
+    .tracking-wider { letter-spacing: 0.05em; }
+</style>
+
+<div class="container py-5">
+    
     <?php if ($error): ?>
-        <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+        <div class="alert alert-danger shadow-sm rounded-4 border-0 mb-4 d-flex align-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill me-3 flex-shrink-0" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
+            <div><?= htmlspecialchars($error) ?></div>
+        </div>
     <?php endif; ?>
     <?php if ($success): ?>
-        <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+        <div class="alert alert-success shadow-sm rounded-4 border-0 mb-4 d-flex align-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-check-circle-fill me-3 flex-shrink-0" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/></svg>
+            <div><?= htmlspecialchars($success) ?></div>
+        </div>
     <?php endif; ?>
 
-    <div class="row">
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm text-center">
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px; font-size: 2.5rem;">
-                            <?= mb_strtoupper(mb_substr($profileUser['name'], 0, 1)) ?>
-                        </div>
-                    </div>
-                    <h3 class="card-title"><?= htmlspecialchars($profileUser['name']) ?></h3>
-                    <p class="text-muted mb-1">Bendruomenės narys nuo <?= date('Y-m-d', strtotime($profileUser['created_at'])) ?></p>
-                    <div class="mt-3">
-                        <span class="fs-4 text-warning">
-                            <?= str_repeat('★', round($avgRating)) ?><?= str_repeat('☆', 5 - round($avgRating)) ?>
-                        </span>
-                        <br>
-                        <strong><?= $avgRating ?> / 5</strong> (<?= $totalReviews ?> atsiliepimų)
-                    </div>
+    <div class="card border-0 shadow-sm rounded-4 mb-4 profile-hero">
+        <div class="card-body p-4 p-md-5 text-white d-flex flex-column flex-md-row align-items-center position-relative z-1 text-center text-md-start">
+            <div class="rounded-circle bg-white text-primary d-inline-flex align-items-center justify-content-center fw-bold profile-avatar-lg mb-4 mb-md-0 me-md-4 flex-shrink-0">
+                <?= mb_strtoupper(mb_substr($profileUser['name'], 0, 1)) ?>
+            </div>
+            <div>
+                <h1 class="fw-bolder mb-2"><?= htmlspecialchars($profileUser['name']) ?></h1>
+                <p class="mb-3 opacity-75 fs-5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-calendar-check me-2 mb-1" viewBox="0 0 16 16"><path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
+                    Bendruomenės narys nuo <?= date('Y-m-d', strtotime($profileUser['created_at'])) ?>
+                </p>
+                <div class="d-inline-flex align-items-center bg-white bg-opacity-25 rounded-pill px-4 py-2">
+                    <span class="fs-5 text-warning me-3 rating-stars">
+                        <?= str_repeat('★', round($avgRating)) ?><?= str_repeat('☆', 5 - round($avgRating)) ?>
+                    </span>
+                    <span class="badge bg-white text-primary rounded-pill fs-6 px-3 py-1"><?= $avgRating ?> / 5 (<?= $totalReviews ?> atsiliepimų)</span>
                 </div>
             </div>
+        </div>
+    </div>
 
+    <div class="row g-4">
+        
+        <div class="col-lg-4 order-2 order-lg-1">
             <?php if ($currentUserId && $currentUserId !== $profileUser['id']): ?>
-                <div class="card shadow-sm mt-4">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><?= $existingReviewForm ? 'Redaguoti savo atsiliepimą' : 'Palikti atsiliepimą' ?></h5>
-                    </div>
-                    <div class="card-body">
+                <div class="card border-0 shadow-sm rounded-4 sticky-top" style="top: 2rem; z-index: 1020;">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold mb-4 d-flex align-items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-star-fill text-warning me-2" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/></svg>
+                            <?= $existingReviewForm ? 'Redaguoti atsiliepimą' : 'Palikti atsiliepimą' ?>
+                        </h5>
                         <form method="post" action="">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Įvertinimas</label>
-                                <select name="rating" class="form-select" required>
-                                    <option value="" disabled <?= !$existingReviewForm ? 'selected' : '' ?>>Pasirinkite įvertinimą...</option>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wider">Įvertinimas</label>
+                                <select name="rating" class="form-select form-select-lg bg-light border-0 shadow-none" required>
+                                    <option value="" disabled <?= !$existingReviewForm ? 'selected' : '' ?>>Pasirinkite...</option>
                                     <option value="5" <?= ($existingReviewForm && $existingReviewForm['rating'] == 5) ? 'selected' : '' ?>>5 ★ - Puikiai</option>
                                     <option value="4" <?= ($existingReviewForm && $existingReviewForm['rating'] == 4) ? 'selected' : '' ?>>4 ★ - Gerai</option>
                                     <option value="3" <?= ($existingReviewForm && $existingReviewForm['rating'] == 3) ? 'selected' : '' ?>>3 ★ - Vidutiniškai</option>
@@ -155,75 +203,128 @@ renderHeader($pdo, $profileUser['name'] . " profilis");
                                     <option value="1" <?= ($existingReviewForm && $existingReviewForm['rating'] == 1) ? 'selected' : '' ?>>1 ★ - Labai prastai</option>
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Komentaras</label>
-                                <textarea name="review_text" class="form-control" rows="3" required placeholder="Aprašykite savo patirtį..."><?= $existingReviewForm ? htmlspecialchars($existingReviewForm['review_text']) : '' ?></textarea>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wider">Komentaras</label>
+                                <textarea name="review_text" class="form-control bg-light border-0 shadow-none" rows="4" required placeholder="Aprašykite savo patirtį su šiuo nariu..."><?= $existingReviewForm ? htmlspecialchars($existingReviewForm['review_text']) : '' ?></textarea>
                             </div>
-                            <button type="submit" name="submit_review" class="btn btn-primary w-100">
+                            <button type="submit" name="submit_review" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm">
                                 <?= $existingReviewForm ? 'Atnaujinti atsiliepimą' : 'Pateikti atsiliepimą' ?>
                             </button>
                         </form>
                     </div>
                 </div>
             <?php elseif (!$currentUserId): ?>
-                <div class="alert alert-info mt-4 text-center">
-                    <a href="login.php" class="alert-link">Prisijunkite</a>, kad galėtumėte palikti atsiliepimą.
+                <div class="card border-0 shadow-sm rounded-4 text-center p-4">
+                    <div class="card-body">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-info-circle text-info mb-3 opacity-75" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>
+                        <h5 class="fw-bold mb-3">Norite palikti atsiliepimą?</h5>
+                        <a href="login.php" class="btn btn-outline-primary rounded-pill px-4 fw-bold">Prisijunkite</a>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="card border-0 shadow-sm rounded-4 text-center p-4">
+                    <div class="card-body">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-person-check text-success mb-3 opacity-75" viewBox="0 0 16 16"><path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm1.679-4.493-1.335 2.226a.75.75 0 0 1-1.174.144l-.774-.773a.5.5 0 0 1 .708-.708l.547.548 1.17-1.951a.5.5 0 1 1 .858.514ZM11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="M8.256 14a4.474 4.474 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10c.26 0 .507.009.74.025.226-.341.496-.65.804-.918C9.077 9.038 8.564 9 8 9c-5 0-6 3-6 4s1 1 1 1h5.256Z"/></svg>
+                        <h5 class="mb-0 fw-bold text-muted">Tai jūsų profilis</h5>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>
 
-        <div class="col-md-8">
-            <h4 class="mb-3">Nario atsiliepimai</h4>
-            <?php if (count($reviews) > 0): ?>
-                <div class="list-group mb-5 shadow-sm">
-                    <?php foreach ($reviews as $review): ?>
-                        <div class="list-group-item list-group-item-action flex-column align-items-start p-3">
-                            <div class="d-flex w-100 justify-content-between align-items-center">
-                                <h6 class="mb-1 fw-bold">
-                                    <a href="user_profile.php?id=<?= $review['reviewer_id'] ?>" class="text-decoration-none">
-                                        <?= htmlspecialchars($review['reviewer_name']) ?>
-                                    </a>
-                                </h6>
-                                <small class="text-muted"><?= date('Y-m-d', strtotime($review['created_at'])) ?></small>
-                            </div>
-                            <p class="mb-2 text-warning" style="font-size: 1.2rem;">
-                                <?= str_repeat('★', $review['rating']) ?><?= str_repeat('☆', 5 - $review['rating']) ?>
-                            </p>
-                            <p class="mb-1 text-break"><?= nl2br(htmlspecialchars($review['review_text'])) ?></p>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div class="alert alert-light border text-muted">
-                    Šis narys dar neturi atsiliepimų.
-                </div>
-            <?php endif; ?>
+        <div class="col-lg-8 order-1 order-lg-2">
+            
+            <ul class="nav nav-pills mb-4 gap-2" id="profileTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews" type="button" role="tab" aria-controls="reviews" aria-selected="true">
+                        Atsiliepimai <span class="badge bg-white text-primary ms-1 shadow-sm"><?= count($reviews) ?></span>
+                    </button>
+                </li>
+                <?php if (count($listings) > 0): ?>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="listings-tab" data-bs-toggle="tab" data-bs-target="#listings" type="button" role="tab" aria-controls="listings" aria-selected="false">
+                        Skelbimai turgelyje <span class="badge bg-secondary ms-1 shadow-sm"><?= count($listings) ?></span>
+                    </button>
+                </li>
+                <?php endif; ?>
+            </ul>
 
-            <?php if (count($listings) > 0): ?>
-                <h4 class="mb-3 mt-4">Šio nario skelbimai turgelyje</h4>
-                <div class="row row-cols-1 row-cols-md-3 g-3">
-                    <?php foreach ($listings as $listing): ?>
-                        <div class="col">
-                            <div class="card h-100 shadow-sm">
-                                <?php if (!empty($listing['image'])): ?>
-                                    <img src="uploads/<?= htmlspecialchars($listing['image']) ?>" class="card-img-top" alt="Skelbimo nuotrauka" style="height: 150px; object-fit: cover;">
-                                <?php else: ?>
-                                    <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 150px;">
-                                        Nėra nuotraukos
+            <div class="tab-content" id="profileTabsContent">
+                
+                <div class="tab-pane fade show active" id="reviews" role="tabpanel" aria-labelledby="reviews-tab">
+                    <?php if (count($reviews) > 0): ?>
+                        <div class="d-flex flex-column gap-3">
+                            <?php foreach ($reviews as $review): ?>
+                                <div class="card border-0 shadow-sm rounded-4">
+                                    <div class="card-body p-4">
+                                        <div class="d-flex justify-content-between align-items-start align-items-sm-center flex-column flex-sm-row mb-3 gap-2">
+                                            <div class="d-flex align-items-center">
+                                                <div class="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center fw-bold me-3 profile-avatar-sm">
+                                                    <?= mb_strtoupper(mb_substr($review['reviewer_name'], 0, 1)) ?>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-0 fw-bold">
+                                                        <a href="user_profile.php?id=<?= $review['reviewer_id'] ?>" class="text-dark text-decoration-none text-hover-primary">
+                                                            <?= htmlspecialchars($review['reviewer_name']) ?>
+                                                        </a>
+                                                    </h6>
+                                                    <small class="text-muted"><?= date('Y-m-d H:i', strtotime($review['created_at'])) ?></small>
+                                                </div>
+                                            </div>
+                                            <div class="text-warning fs-6 bg-light px-3 py-1 rounded-pill fw-bold tracking-wider">
+                                                <?= str_repeat('★', $review['rating']) ?><?= str_repeat('☆', 5 - $review['rating']) ?>
+                                            </div>
+                                        </div>
+                                        <p class="mb-0 text-secondary" style="line-height: 1.6;">
+                                            <?= nl2br(htmlspecialchars($review['review_text'])) ?>
+                                        </p>
                                     </div>
-                                <?php endif; ?>
-                                <div class="card-body p-2 text-center">
-                                    <h6 class="card-title mb-1 text-truncate" title="<?= htmlspecialchars($listing['title']) ?>">
-                                        <?= htmlspecialchars($listing['title']) ?>
-                                    </h6>
-                                    <p class="card-text text-primary fw-bold mb-2"><?= number_format($listing['price'], 2) ?> &euro;</p>
-                                    <a href="community_listing.php?id=<?= $listing['id'] ?>" class="btn btn-sm btn-outline-primary w-100">Peržiūrėti</a>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="card border-0 shadow-sm rounded-4 text-center p-5">
+                            <div class="card-body py-5">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-chat-square-text text-muted mb-3 opacity-50" viewBox="0 0 16 16"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2.5a2 2 0 0 0-1.6.8L8 14.333 6.1 11.8a2 2 0 0 0-1.6-.8H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5a1 1 0 0 1 .8.4l1.9 2.533a1 1 0 0 0 1.6 0l1.9-2.533a1 1 0 0 1 .8-.4H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>
+                                <h5 class="text-muted fw-bold mb-0">Šis narys dar neturi atsiliepimų.</h5>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <?php if (count($listings) > 0): ?>
+                <div class="tab-pane fade" id="listings" role="tabpanel" aria-labelledby="listings-tab">
+                    <div class="row row-cols-1 row-cols-md-2 g-4">
+                        <?php foreach ($listings as $listing): ?>
+                            <div class="col">
+                                <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden group-hover">
+                                    <div class="position-relative">
+                                        <?php if (!empty($listing['image'])): ?>
+                                            <img src="uploads/<?= htmlspecialchars($listing['image']) ?>" class="card-img-top object-fit-cover" alt="Skelbimo nuotrauka" style="height: 220px;">
+                                        <?php else: ?>
+                                            <div class="bg-light text-muted d-flex align-items-center justify-content-center" style="height: 220px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-image opacity-25" viewBox="0 0 16 16"><path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M14 14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12zM2 3h12a1 1 0 0 1 1 1v8l-2.5-2.5a1.5 1.5 0 0 0-2.122 0l-1.038 1.038-3.04-3.04a1.5 1.5 0 0 0-2.122 0L1 11V4a1 1 0 0 1 1-1z"/></svg>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div class="position-absolute top-0 end-0 m-3">
+                                            <span class="badge bg-primary rounded-pill fs-6 shadow px-3 py-2"><?= number_format($listing['price'], 2) ?> &euro;</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body p-4 d-flex flex-column">
+                                        <h5 class="card-title fw-bold text-truncate mb-4" title="<?= htmlspecialchars($listing['title']) ?>">
+                                            <?= htmlspecialchars($listing['title']) ?>
+                                        </h5>
+                                        <div class="mt-auto">
+                                            <a href="community_listing.php?id=<?= $listing['id'] ?>" class="btn btn-outline-primary rounded-pill w-100 fw-bold">Peržiūrėti skelbimą</a>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-            <?php endif; ?>
+                <?php endif; ?>
+                
+            </div>
         </div>
     </div>
 </div>
