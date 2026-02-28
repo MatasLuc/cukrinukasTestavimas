@@ -123,11 +123,10 @@ if (isset($_POST['create_paysera_shipment'])) {
             $password    = str_replace(['"', "'", "\r", "\n"], '', trim($rawPassword));
             $apiUrl      = $_ENV['PAYSERA_DELIVERY_API_URL'] ?? 'https://delivery-api.paysera.com/rest/v1';
 
-            // Jei slaptažodis yra hex string — decode į binary
-            $passwordForMac = (ctype_xdigit($password) && strlen($password) % 2 === 0)
-                ? hex2bin($password)
-                : $password;
-            payseraLog("passwordForMac ilgis: " . strlen($passwordForMac) . " | hex pirmi 10: " . bin2hex(substr($passwordForMac, 0, 10)));
+
+            // Slaptažodis naudojamas tiesiogiai (kaip cron_worker.php)
+            $passwordForMac = $password;
+            payseraLog("passwordForMac ilgis: " . strlen($passwordForMac) . " | pirmi 4: " . substr($passwordForMac, 0, 4));
 
             payseraLog("projectId: " . $projectId);
             payseraLog("rawPassword ilgis: " . strlen($rawPassword) . " | po trim: " . strlen($password));
