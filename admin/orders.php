@@ -1,7 +1,9 @@
 <?php
 // admin/orders.php
 // Pilnas administracinis užsakymų valdymo failas su Paysera Integration
-
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // --- DEBUG LOGGER ---
 function payseraLog(string $message): void {
     $logFile = __DIR__ . '/../mailer_errors.log';
