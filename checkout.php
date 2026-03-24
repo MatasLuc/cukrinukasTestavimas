@@ -14,6 +14,7 @@ if (empty($_SESSION['csrf_token'])) {
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/helpers.php'; 
+require_once __DIR__ . '/lpexpress_helper.php'; // Pridėta LP Express klasė
 
 $pdo = getPdo();
 
@@ -56,7 +57,6 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
     if (empty($code)) return ['valid' => false, 'error' => 'Įveskite kodą.'];
 
     try {
-        // Ištaisyta lentelė ir stulpelis
         $stmt = $pdo->prepare("SELECT * FROM discount_codes WHERE code = ? AND active = 1 LIMIT 1");
         $stmt->execute([$code]);
         $discount = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -95,7 +95,6 @@ function checkDiscountCode($pdo, $code, $cartTotal) {
         ];
 
     } catch (Exception $e) {
-        // Pridėtas tikslesnis klaidos išvedimas atvaizdavimui debugingui
         return ['valid' => false, 'error' => 'Klaida tikrinant nuolaidą: ' . $e->getMessage()];
     }
 }
@@ -267,27 +266,31 @@ $courierPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['courie
 // 7. PAŠTOMATŲ SĄRAŠAS (JS)
 $lockersForJs = [];
 try {
-    $stmtLockers = $pdo->query("SELECT * FROM parcel_lockers"); 
-    if ($stmtLockers) {
-        $allLockers = $stmtLockers->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($allLockers as $l) {
-            $addressParts = explode(',', $l['address']);
-            $derivedCity = trim($addressParts[0] ?? '');
+    $lpHelper = new LPExpressHelper($pdo);
+    $terminals = $lpHelper->getTerminals();
+    
+    if (is_array($terminals)) {
+        foreach ($terminals as $l) {
+            $city = $l['city'] ?? '';
+            $address = $l['address'] ?? '';
+            $name = $l['name'] ?? $address;
             
             $lockersForJs[] = [
-                'title' => $l['title'],
-                'address' => $l['address'],
-                'city' => $derivedCity,
-                'type' => strtolower(trim($l['provider'] ?? 'other')), 
-                'full' => ($derivedCity ? $derivedCity . ' - ' : '') . $l['title'] . ' (' . $l['address'] . ')',
-                'machine_id' => $l['terminal_id'] ?? '' // Paštomato ID integracijai imamas iš terminal_id
+                'title' => $name,
+                'address' => $address,
+                'city' => $city,
+                'type' => 'lp', // LP Express paštomatai
+                'full' => ($city ? $city . ' - ' : '') . $name . ' (' . $address . ')',
+                'machine_id' => $l['id'] ?? ''
             ];
         }
         usort($lockersForJs, function($a, $b) {
             return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
         });
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    error_log("LP Express klaida: " . $e->getMessage());
+}
 
 // 8. UŽSAKYMO ĮRAŠYMAS
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
@@ -304,8 +307,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $paymentMethod = $_POST['payment_method'] ?? 'stripe';
     $notes = trim($_POST['notes'] ?? '');
     
-    // Naujas kintamasis pritaikytas dinaminiai kainai
-    $dynamicShippingPrice = isset($_POST['dynamic_shipping_price']) ? (float)$_POST['dynamic_shipping_price'] : 0;
+    // Nustatome tikslų metodą DB pagal LP Express reikalavimus
+    $dbDeliveryMethod = ($method === 'locker') ? 'lpexpress_terminal' : 'lpexpress_courier';
     
     $selectedLockerId = trim($_POST['locker_select'] ?? '');
     $selectedLockerName = trim($_POST['locker_name'] ?? '');
@@ -345,9 +348,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $finalShippingPrice = 0;
             if (!$isShippingFree && !$isCommunityOnly) {
-                // Palyginame bazinę ir gautą dinaminę kainą
-                $basePrice = ($method === 'courier') ? (float)$shippingSettings['courier_price'] : (float)$shippingSettings['locker_price'];
-                $finalShippingPrice = max($basePrice, $dynamicShippingPrice);
+                // Naudojame statines kainas iš nustatymų
+                $finalShippingPrice = ($method === 'courier') ? (float)$shippingSettings['courier_price'] : (float)$shippingSettings['locker_price'];
             }
 
             $grandTotal = $totalAfterDiscount + $finalShippingPrice;
@@ -391,10 +393,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $phone,
                 $fullAddress,
                 $activeDiscountCode,
-                $totalDiscount, // Įrašoma bendra pritaikyta nuolaida (kodas + globali)
+                $totalDiscount, 
                 $finalShippingPrice, 
                 $grandTotal,
-                $method,
+                $dbDeliveryMethod, // Įrašomas konkretus lpexpress tipas
                 $deliveryDetailsJson
             ]);
             
@@ -417,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 ]);
             }
 
-            // Atnaujiname nuolaidos panaudojimą ištaisydami į discount_codes
+            // Atnaujiname nuolaidos panaudojimą 
             if (!empty($activeDiscountCode)) {
                 $pdo->prepare("UPDATE discount_codes SET used_count = used_count + 1 WHERE code = ?")->execute([$activeDiscountCode]);
             }
@@ -621,7 +623,6 @@ if (!empty($_SESSION['user_id'])) {
                 <form id="checkout-form" method="POST">
                     <input type="hidden" name="place_order" value="1">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <input type="hidden" name="dynamic_shipping_price" id="dynamic-shipping-price" value="">
 
                     <div class="card">
                         <h3>
@@ -899,46 +900,17 @@ if (!empty($_SESSION['user_id'])) {
         let currentProvider = '';
         let currentFilteredLockers = [];
 
-        // Dinaminės kainos užklausos funkcija
-        async function calculateDynamicPrice(method, payload) {
+        function calculateDynamicPrice(method, payload) {
             if (isCommunityOnly) return;
-            
-            try {
-                const formData = new FormData();
-                formData.append('method', method);
-                for (const key in payload) {
-                    formData.append(key, payload[key]);
-                }
-                
-                const response = await fetch('ajax_paysera_delivery.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    let apiPrice = parseFloat(data.price);
-                    let basePrice = parseFloat(prices[method] || 0);
-                    let finalPrice = Math.max(apiPrice, basePrice);
-                    
-                    updatePriceUI(method, finalPrice);
-                }
-            } catch (e) {
-                console.error('Klaida gaunant pristatymo kainą:', e);
-                updatePriceUI(method, parseFloat(prices[method] || 0));
-            }
+            updatePriceUI(method, parseFloat(prices[method] || 0));
         }
 
         function updatePriceUI(method, calculatedPrice) {
             let shipPrice = isCommunityOnly ? 0 : calculatedPrice;
             
-            // Apsauga: jei krepšeliui priklauso nemokamas siuntimas, kaina visada 0
             if (isShippingFree) {
                 shipPrice = 0;
             }
-            
-            document.getElementById('dynamic-shipping-price').value = shipPrice.toFixed(2);
             
             const shipDisplay = document.getElementById('shipping-display');
             const totalDisplay = document.getElementById('total-display');
@@ -952,7 +924,6 @@ if (!empty($_SESSION['user_id'])) {
                 totalDisplay.textContent = finalTotal.toFixed(2) + ' €';
             }
             
-            // Atnaujiname radijo mygtuko vizualią kainą
             const radioEl = document.querySelector(`input[name="delivery_method"][value="${method}"]`);
             if (radioEl) {
                 const priceEl = radioEl.nextElementSibling;
@@ -980,18 +951,15 @@ if (!empty($_SESSION['user_id'])) {
             }
         }
 
-        // Stebime kurjerio įvesties laukų pokyčius kainos perskaičiavimui
         document.getElementById('input-city').addEventListener('blur', triggerCourierCalculation);
         document.getElementById('input-zip').addEventListener('blur', triggerCourierCalculation);
 
         function selectShipping(element, method) {
-            // Visual Update
             document.querySelectorAll('input[name="delivery_method"]').forEach(el => {
                 el.closest('.radio-card').classList.remove('active');
             });
             element.classList.add('active');
             
-            // Check hidden radio
             const radio = element.querySelector('input[type="radio"]');
             if(radio) radio.checked = true;
 
@@ -1011,21 +979,18 @@ if (!empty($_SESSION['user_id'])) {
             const addrField = document.getElementById('address-field');
             const lockerField = document.getElementById('locker-field');
             
-            // Required inputs IDs
             const reqInputs = ['input-city', 'input-street', 'input-house', 'input-zip'];
             const lockerInput = document.getElementById('locker-select-input');
 
-            // Reset visibility & requirements
             addrField.style.display = 'none';
             lockerField.style.display = 'none';
             lockerInput.removeAttribute('required');
             reqInputs.forEach(id => document.getElementById(id).removeAttribute('required'));
 
-            // Logic
             if (method === 'courier') {
                 addrField.style.display = 'block';
                 reqInputs.forEach(id => document.getElementById(id).setAttribute('required', 'required'));
-                triggerCourierCalculation(); // Patikriname, ar jau yra įvestų duomenų perskaičiavimui
+                triggerCourierCalculation(); 
             } else if (method === 'locker') {
                 lockerField.style.display = 'block';
                 lockerInput.setAttribute('required', 'required');
@@ -1045,20 +1010,16 @@ if (!empty($_SESSION['user_id'])) {
             currentProvider = provider;
             document.getElementById('locker-provider-input').value = provider;
             
-            // Update buttons visual state
             document.querySelectorAll('.provider-btn').forEach(btn => btn.classList.remove('active'));
             if(btnElement) btnElement.classList.add('active');
 
-            // Show selection area
             document.getElementById('locker-selection-area').style.display = 'block';
 
-            // Reset selection
             document.getElementById('selected-locker-text').textContent = '-- Pasirinkite paštomatą --';
             document.getElementById('locker-select-input').value = '';
             document.getElementById('locker-name-input').value = '';
             document.getElementById('locker-search-input').value = '';
 
-            // Generate list
             generateCustomOptions(provider);
         }
 
@@ -1066,7 +1027,6 @@ if (!empty($_SESSION['user_id'])) {
             const list = document.getElementById('options-list');
             list.innerHTML = '';
             
-            // Filter by provider only
             currentFilteredLockers = allLockers.filter(l => l.type === provider);
 
             if(currentFilteredLockers.length === 0) {
@@ -1087,7 +1047,6 @@ if (!empty($_SESSION['user_id'])) {
             const div = document.createElement('div');
             div.className = 'custom-option';
             div.textContent = locker.full;
-            // Priskiriame paštomato ID integracijai
             div.dataset.value = locker.machine_id; 
             
             div.onclick = function() {
@@ -1101,7 +1060,6 @@ if (!empty($_SESSION['user_id'])) {
             const wrapper = document.getElementById('custom-select-wrapper');
             wrapper.classList.toggle('open');
             
-            // If opening, focus search
             if (wrapper.classList.contains('open')) {
                 setTimeout(() => document.getElementById('locker-search-input').focus(), 100);
             }
@@ -1113,7 +1071,6 @@ if (!empty($_SESSION['user_id'])) {
             document.getElementById('selected-locker-text').textContent = fullName;
             document.getElementById('custom-select-wrapper').classList.remove('open');
             
-            // Pasirinkus paštomatą kviečiame dinaminį siuntimo kainos apskaičiavimą
             calculateDynamicPrice('locker', { locker_id: machineId });
         }
 
@@ -1136,7 +1093,6 @@ if (!empty($_SESSION['user_id'])) {
             }
         }
 
-        // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             const wrapper = document.getElementById('custom-select-wrapper');
             if (!wrapper.contains(e.target)) {
@@ -1149,6 +1105,11 @@ if (!empty($_SESSION['user_id'])) {
             const selected = document.querySelector('input[name="delivery_method"]:checked');
             if (selected) {
                 updateUI(selected.value);
+            }
+            // Automatiškai parenkame LP Express skirtuką paštomatų sąrašui
+            const lpBtn = document.querySelector('.provider-btn');
+            if (lpBtn) {
+                filterLockers('lp', lpBtn);
             }
         });
     </script>
