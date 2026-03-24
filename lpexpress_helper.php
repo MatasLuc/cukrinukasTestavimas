@@ -18,12 +18,11 @@ class LPExpressHelper {
      * Gauna Access Token. Jei jis išsaugotas DB ir dar galioja, naudoja jį.
      */
     private function getAccessToken() {
-        // Patikriname, ar tokenas yra duomenų bazėje
+        // Patikriname, ar tokenas yra duomenų bazėje (naudojame PDO)
         $stmt = $this->conn->prepare("SELECT setting_value FROM settings WHERE setting_key = 'lpexpress_token_data'");
         $stmt->execute();
-        $result = $stmt->get_result();
         
-        if ($row = $result->fetch_assoc()) {
+        if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $tokenData = json_decode($row['setting_value'], true);
             // Patikriname ar tokenas dar galioja (paliekame 5 min buferį)
             if (isset($tokenData['expires_at']) && $tokenData['expires_at'] > (time() + 300)) {
@@ -44,7 +43,7 @@ class LPExpressHelper {
         if ($httpCode === 200 && $response) {
             $data = json_decode($response, true);
             if (isset($data['access_token'])) {
-                // Išsaugome tokeną į DB
+                // Išsaugome tokeną į DB (naudojame PDO)
                 $expiresAt = time() + $data['expires_in'];
                 $saveData = json_encode([
                     'access_token' => $data['access_token'],
@@ -52,8 +51,7 @@ class LPExpressHelper {
                 ]);
 
                 $stmt = $this->conn->prepare("REPLACE INTO settings (setting_key, setting_value) VALUES ('lpexpress_token_data', ?)");
-                $stmt->bind_param("s", $saveData);
-                $stmt->execute();
+                $stmt->execute([$saveData]);
 
                 return $data['access_token'];
             }
@@ -142,8 +140,7 @@ class LPExpressHelper {
                 "terminalId" => $terminalId
             ];
         } else {
-            // Kurjeriui reikia adreso (dokumentacijoje nurodyta street, locality ir t.t.)
-            // Paprastumo dėlei bandome perduoti visą adresą į 'street' (nors geriau būtų išskaidyti)
+            // Kurjeriui reikia adreso
             $payload["receiver"]["address"] = [
                 "countryCode" => "LT",
                 "street" => mb_substr($addressData, 0, 100) 
