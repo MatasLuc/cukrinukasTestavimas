@@ -38,7 +38,7 @@ class LPExpressHelper {
         curl_setopt($ch, CURLOPT_POST, true);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // curl_close nereikalingas PHP 8.0+
 
         if ($httpCode === 200 && $response) {
             $data = json_decode($response, true);
@@ -83,7 +83,7 @@ class LPExpressHelper {
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // curl_close nereikalingas PHP 8.0+
 
         $decoded = json_decode($response, true);
         
