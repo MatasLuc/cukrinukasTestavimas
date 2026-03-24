@@ -177,4 +177,14 @@ class LPExpressHelper {
     public function getLabelPdf($parcelId) {
         return $this->request('GET', '/api/v2/sticker/pdf?parcelIds=' . $parcelId . '&layout=LAYOUT_10x15&labelOrientation=PORTRAIT');
     }
+    /**
+     * 6. Gauna siuntų įvykių (statusų) istoriją pagal barkodų masyvą
+     */
+    public function getTrackingEvents($barcodes) {
+        if (empty($barcodes)) {
+            return [];
+        }
+        // Pagal dokumentaciją, siunčiame [ "barkodas1", "barkodas2" ] masyvą
+        return $this->request('POST', '/api/v2/tracking/events', $barcodes);
+    }
 }
