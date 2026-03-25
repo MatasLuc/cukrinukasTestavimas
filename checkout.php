@@ -263,8 +263,10 @@ elseif (!empty($shippingSettings['free_over']) && $shippingSettings['free_over']
 $lockerPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['locker_price'];
 $courierPriceDisplay = $isShippingFree ? 0.00 : (float)$shippingSettings['courier_price'];
 
-// 7. PAŠTOMATŲ SĄRAŠAS (JS)
+// 7. PAŠTOMATŲ SĄRAŠAS (JS) (LP EXPRESS + OMNIVA)
 $lockersForJs = [];
+
+// LP EXPRESS
 try {
     $lpHelper = new LPExpressHelper($pdo);
     $terminals = $lpHelper->getTerminals();
@@ -284,13 +286,43 @@ try {
                 'machine_id' => $l['id'] ?? ''
             ];
         }
-        usort($lockersForJs, function($a, $b) {
-            return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
-        });
     }
 } catch (Exception $e) {
     error_log("LP Express klaida: " . $e->getMessage());
 }
+
+// OMNIVA
+try {
+    if (file_exists(__DIR__ . '/omniva_helper.php')) {
+        require_once __DIR__ . '/omniva_helper.php';
+        $omnivaHelper = new OmnivaHelper($pdo);
+        $omnivaTerminals = $omnivaHelper->getTerminals();
+        
+        if (is_array($omnivaTerminals)) {
+            foreach ($omnivaTerminals as $l) {
+                $city = $l['city'] ?? '';
+                $address = $l['address'] ?? '';
+                $name = $l['name'] ?? $address;
+                
+                $lockersForJs[] = [
+                    'title' => $name,
+                    'address' => $address,
+                    'city' => $city,
+                    'type' => 'omniva', // Omniva paštomatai
+                    'full' => ($city ? $city . ' - ' : '') . $name . ' (' . $address . ')',
+                    'machine_id' => $l['id'] ?? ''
+                ];
+            }
+        }
+    }
+} catch (Exception $e) {
+    error_log("Omniva klaida: " . $e->getMessage());
+}
+
+// Rūšiavimas abėcėlės tvarka
+usort($lockersForJs, function($a, $b) {
+    return strcmp($a['city'], $b['city']) ?: strcmp($a['title'], $b['title']);
+});
 
 // 8. UŽSAKYMO ĮRAŠYMAS
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
@@ -307,12 +339,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $paymentMethod = $_POST['payment_method'] ?? 'stripe';
     $notes = trim($_POST['notes'] ?? '');
     
-    // Nustatome tikslų metodą DB pagal LP Express reikalavimus
-    $dbDeliveryMethod = ($method === 'locker') ? 'lpexpress_terminal' : 'lpexpress_courier';
-    
     $selectedLockerId = trim($_POST['locker_select'] ?? '');
     $selectedLockerName = trim($_POST['locker_name'] ?? '');
     $lockerProvider = trim($_POST['locker_provider'] ?? '');
+
+    // Nustatome tikslų metodą DB pagal LP Express ir Omniva reikalavimus
+    $dbDeliveryMethod = 'lpexpress_courier'; // fallback kurjeriui
+    if ($method === 'locker') {
+        if ($lockerProvider === 'omniva') {
+            $dbDeliveryMethod = 'omniva_terminal';
+        } else {
+            $dbDeliveryMethod = 'lpexpress_terminal';
+        }
+    }
 
     // Mokėjimo būdų saugumo patikrinimas
     if ($paymentMethod === 'paysera' && $hasCommunityProducts) {
@@ -335,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         if (empty($selectedLockerId)) {
             $errors[] = 'Pasirinkite paštomatą.';
         }
-        $fullAddress = "Paštomatas: " . $selectedLockerName;
+        $fullAddress = "Paštomatas ($lockerProvider): " . $selectedLockerName;
     }
 
     if (empty($name) || empty($phone) || empty($email)) {
@@ -396,7 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $totalDiscount, 
                 $finalShippingPrice, 
                 $grandTotal,
-                $dbDeliveryMethod, // Įrašomas konkretus lpexpress tipas
+                $dbDeliveryMethod, // Įrašomas konkretus tipas, pvz. 'omniva_terminal' arba 'lpexpress_terminal'
                 $deliveryDetailsJson
             ]);
             
