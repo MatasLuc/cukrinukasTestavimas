@@ -96,7 +96,7 @@ else {
 }
 
 // ---------------------------------------------------
-// UŽSAKYMO TVARKYMAS IR LP EXPRESS AUTOMATIZACIJA
+// UŽSAKYMO TVARKYMAS IR AUTOMATIZACIJA
 // ---------------------------------------------------
 
 if ($orderId) {
@@ -108,23 +108,20 @@ if ($orderId) {
         if ($result) {
             webhook_log("Užsakymas #$orderId sėkmingai užbaigtas (Webhooks inicijavo).");
             
-            // === LP EXPRESS AUTOMATIZACIJA ===
             try {
-                $lpHelper = new LPExpressHelper($pdo);
-                
                 // Gauname užsakymo duomenis
                 $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
                 $stmt->execute([$orderId]);
                 $order = $stmt->fetch(PDO::FETCH_ASSOC);
                 
-                // Tikriname, ar pasirinktas būtent LP Express siuntimas
                 if ($order && in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
+                    // === LP EXPRESS AUTOMATIZACIJA ===
                     webhook_log("Pradedamas LP Express siuntos kūrimas užsakymui #$orderId");
+                    $lpHelper = new LPExpressHelper($pdo);
                     
                     $deliveryDetails = json_decode($order['delivery_details'], true);
                     $terminalId = $deliveryDetails['locker_id'] ?? null;
                     
-                    // 1. Sukuriame siuntą
                     $parcelId = $lpHelper->createParcel(
                         $orderId,
                         $order['delivery_method'],
@@ -137,21 +134,14 @@ if ($orderId) {
                     
                     if ($parcelId) {
                         webhook_log("LP Express siunta sukurta. Parcel ID: $parcelId");
-                        
-                        // 2. Inicijuojame siuntą (patvirtiname)
                         $requestId = $lpHelper->initiateShipping($parcelId);
                         
                         if ($requestId) {
                             webhook_log("LP Express siunta inicijuota. Request ID: $requestId");
-                            
-                            // Šiek tiek palaukiame (2 sek.), kol sistema sugeneruos barkodą (kartais užtrunka API pusėje)
                             sleep(2);
-                            
-                            // 3. Gauname barkodą
                             $barcode = $lpHelper->getShippingStatus($requestId);
                             webhook_log("Gautas barkodas: " . ($barcode ?? 'NEGAUTA'));
                             
-                            // 4. Išsaugome viską atgal į duomenų bazę
                             $stmtUpdate = $pdo->prepare("
                                 UPDATE orders 
                                 SET lpexpress_parcel_id = ?, 
@@ -161,20 +151,49 @@ if ($orderId) {
                             ");
                             $stmtUpdate->execute([$parcelId, $requestId, $barcode, $orderId]);
                             webhook_log("LP Express duomenys išsaugoti DB.");
-                            
                         } else {
                             webhook_log("KLAIDA: Nepavyko inicijuoti siuntos (nėra requestId).");
                         }
                     } else {
                         webhook_log("KLAIDA: Nepavyko sukurti siuntos (nėra parcelId).");
                     }
-                } else {
-                    webhook_log("LP Express automatizacija praleista (pristatymo būdas: " . ($order['delivery_method'] ?? 'N/A') . ")");
+                } 
+                elseif ($order && $order['delivery_method'] === 'omniva_terminal') {
+                    // === OMNIVA AUTOMATIZACIJA ===
+                    webhook_log("Pradedamas Omniva siuntos kūrimas užsakymui #$orderId");
+                    require_once __DIR__ . '/omniva_helper.php';
+                    $omnivaHelper = new OmnivaHelper($pdo);
+                    
+                    $deliveryDetails = json_decode($order['delivery_details'], true);
+                    $terminalId = $deliveryDetails['locker_id'] ?? null;
+                    
+                    if ($terminalId) {
+                        $barcode = $omnivaHelper->createParcel(
+                            $orderId,
+                            $order['customer_name'],
+                            $order['customer_phone'],
+                            $order['customer_email'],
+                            $terminalId
+                        );
+                        
+                        if ($barcode) {
+                            webhook_log("Omniva siunta sukurta. Barkodas: $barcode");
+                            $stmtUpdate = $pdo->prepare("UPDATE orders SET tracking_number = ? WHERE id = ?");
+                            $stmtUpdate->execute([$barcode, $orderId]);
+                            webhook_log("Omniva duomenys išsaugoti DB.");
+                        } else {
+                            webhook_log("KLAIDA: Nepavyko sukurti Omniva siuntos.");
+                        }
+                    } else {
+                        webhook_log("KLAIDA: Nėra terminalId Omniva siuntai.");
+                    }
+                } 
+                else {
+                    webhook_log("Siuntų automatizacija praleista (pristatymo būdas: " . ($order['delivery_method'] ?? 'N/A') . ")");
                 }
             } catch (Exception $e) {
-                webhook_log("LP Express automatizacijos klaida: " . $e->getMessage());
+                webhook_log("Siuntų automatizacijos klaida: " . $e->getMessage());
             }
-            // === PABAIGA: LP EXPRESS AUTOMATIZACIJA ===
 
         } else {
             webhook_log("Užsakymas #$orderId jau buvo sutvarkytas arba nerastas.");

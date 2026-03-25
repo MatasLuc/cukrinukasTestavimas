@@ -7,6 +7,12 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 use Mijora\Omniva\Locations\PickupPoints;
+use Mijora\Omniva\Shipment\Package\Package;
+use Mijora\Omniva\Shipment\Package\Address;
+use Mijora\Omniva\Shipment\Package\Contact;
+use Mijora\Omniva\Shipment\Shipment;
+use Mijora\Omniva\Shipment\Order;
+use Mijora\Omniva\Shipment\Tracking;
 
 class OmnivaHelper {
     private $pdo;
@@ -55,6 +61,73 @@ class OmnivaHelper {
         } catch (Exception $e) {
             error_log("Omniva API klaida gaunant terminalus: " . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Sukuria Omniva siuntą ir grąžina jos barkodą
+     */
+    public function createParcel($orderId, $receiverName, $phone, $email, $terminalId) {
+        try {
+            $senderAddress = (new Address())
+                ->setCountry('LT')
+                ->setPostcode(getenv('STORE_ZIP') ?: '00000') // Būtina nurodyti bent minimalų ZIP
+                ->setDeliverypoint(getenv('STORE_CITY') ?: 'Vilnius')
+                ->setStreet(getenv('STORE_STREET') ?: 'Pardavėjo g. 1');
+                
+            $senderContact = (new Contact())
+                ->setAddress($senderAddress)
+                ->setMobile(getenv('STORE_PHONE') ?: '+37060000000')
+                ->setPersonName(getenv('STORE_NAME') ?: 'Cukrinukas');
+
+            $receiverAddress = (new Address())
+                ->setCountry('LT')
+                ->setOffloadPostcode($terminalId); // Paštomato ZIP kodas tarnauja kaip ID
+
+            $receiverContact = (new Contact())
+                ->setAddress($receiverAddress)
+                ->setMobile($phone)
+                ->setPersonName(mb_substr($receiverName, 0, 100));
+
+            $package = new Package();
+            $package
+                ->setId('ORDER_' . $orderId)
+                ->setService('PU') // PU reiškia 'Parcel Machine' / Paštomatas
+                ->setWeight(1) // Standartinis svoris
+                ->setReceiverContact($receiverContact)
+                ->setSenderContact($senderContact);
+
+            $shipment = new Shipment();
+            $shipment->setPackages([$package]);
+
+            $order = new Order();
+            $order->setAuth($this->username, $this->password);
+
+            $result = $order->create($shipment);
+
+            if (isset($result['savedBarcodes']) && !empty($result['savedBarcodes'])) {
+                return $result['savedBarcodes'][0];
+            }
+            
+            error_log("Omniva API siuntos kūrimo atsakymas: " . json_encode($result));
+            return null;
+        } catch (Exception $e) {
+            error_log("Omniva API klaida kuriant siuntą: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Gauna siuntos sekimo informaciją
+     */
+    public function getTrackingEvents($barcode) {
+        try {
+            $tracking = new Tracking();
+            $tracking->setAuth($this->username, $this->password);
+            return $tracking->getTracking($barcode);
+        } catch (Exception $e) {
+            error_log("Omniva API klaida gaunant tracking: " . $e->getMessage());
+            return null;
         }
     }
 }

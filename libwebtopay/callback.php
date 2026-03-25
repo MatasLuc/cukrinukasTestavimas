@@ -20,8 +20,75 @@ try {
         $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', 'pending'], true));
 
         if ($isPaid) {
-            // Naudojame naują funkciją iš helpers.php
+            // Naudojame funkciją iš helpers.php apmokėjimo patvirtinimui
             approveOrder($pdo, $orderId);
+
+            // ==========================================
+            // SIUNTŲ AUTOMATIZACIJA (LP EXPRESS / OMNIVA)
+            // ==========================================
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+                $stmt->execute([$orderId]);
+                $order = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($order && empty($order['tracking_number'])) { // Tik jei siunta dar nesukurta
+                    if (in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
+                        require_once __DIR__ . '/../lpexpress_helper.php';
+                        $lpHelper = new LPExpressHelper($pdo);
+                        
+                        $deliveryDetails = json_decode($order['delivery_details'], true);
+                        $terminalId = $deliveryDetails['locker_id'] ?? null;
+                        
+                        $parcelId = $lpHelper->createParcel(
+                            $orderId,
+                            $order['delivery_method'],
+                            $order['customer_name'],
+                            $order['customer_phone'],
+                            $order['customer_email'],
+                            $order['customer_address'],
+                            $terminalId
+                        );
+                        
+                        if ($parcelId) {
+                            $requestId = $lpHelper->initiateShipping($parcelId);
+                            if ($requestId) {
+                                sleep(2);
+                                $barcode = $lpHelper->getShippingStatus($requestId);
+                                
+                                $stmtUpdate = $pdo->prepare("UPDATE orders SET lpexpress_parcel_id = ?, lpexpress_request_id = ?, tracking_number = ? WHERE id = ?");
+                                $stmtUpdate->execute([$parcelId, $requestId, $barcode, $orderId]);
+                            }
+                        }
+                    } elseif ($order['delivery_method'] === 'omniva_terminal') {
+                        require_once __DIR__ . '/../omniva_helper.php';
+                        $omnivaHelper = new OmnivaHelper($pdo);
+                        
+                        $deliveryDetails = json_decode($order['delivery_details'], true);
+                        $terminalId = $deliveryDetails['locker_id'] ?? null;
+                        
+                        if ($terminalId) {
+                            $barcode = $omnivaHelper->createParcel(
+                                $orderId,
+                                $order['customer_name'],
+                                $order['customer_phone'],
+                                $order['customer_email'],
+                                $terminalId
+                            );
+                            
+                            if ($barcode) {
+                                $stmtUpdate = $pdo->prepare("UPDATE orders SET tracking_number = ? WHERE id = ?");
+                                $stmtUpdate->execute([$barcode, $orderId]);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                if (function_exists('logError')) {
+                    logError('Klaida kuriant siuntą Paysera callback metu: ', $e);
+                }
+            }
+            // ==========================================
+            
         } 
         elseif ($status === '0' || $status === 'pending') 
         {
