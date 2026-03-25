@@ -23,7 +23,36 @@ class OmnivaHelper {
         $this->pdo = $pdo;
         // Naudokite savo prisijungimus
         $this->username = getenv('OMNIVA_API_USERNAME') ?: '8206349';
-        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Test123';
+        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Kosmosas420';
+    }
+
+    /**
+     * Patikrina ar teisingi Omniva API prisijungimo duomenys (username / password)
+     * Grąžina true, jei prisijungti pavyko, false - jei ne.
+     */
+    public function checkConnection() {
+        try {
+            $tracking = new Tracking();
+            $tracking->setAuth($this->username, $this->password);
+            
+            // Bandom išsiųsti testinę užklausą su netikru barkodu. 
+            // Tikslas - pažiūrėti, ar API mus apskritai įleidžia (autorizuoja).
+            $tracking->getTracking('TESTCONNECTION123');
+            
+            return true;
+        } catch (Exception $e) {
+            $msg = strtolower($e->getMessage());
+            
+            // Jei API grąžina 401 klaidą, "unauthorized" ar pan. - slaptažodis/ID neteisingi
+            if (strpos($msg, '401') !== false || strpos($msg, 'unauthorized') !== false || strpos($msg, 'auth') !== false || strpos($msg, 'password') !== false) {
+                error_log("Omniva API Prisijungimo klaida: Neteisingas vartotojo vardas arba slaptažodis. Detalės: " . $e->getMessage());
+                return false;
+            }
+            
+            // Jei gauname logišką API klaidą (pvz., "siunta nerasta", "invalid barcode"), 
+            // reiškia pats prisijungimas buvo SĖKMINGAS.
+            return true;
+        }
     }
 
     /**
