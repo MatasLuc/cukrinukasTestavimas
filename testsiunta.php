@@ -2,20 +2,32 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/omniva_helper.php';
+// Pridėkite savo autoload failą, jei naudojate Composer
+require_once __DIR__ . '/vendor/autoload.php'; 
 
-$pdo = getPdo();
-$omnivaHelper = new OmnivaHelper($pdo);
+use Mijora\Omniva\Request;
+use Mijora\Omniva\Shipment\Request\CustomOmxRequest;
+use Mijora\Omniva\Shipment\Request\OmxRequestInterface;
 
-// ĮRAŠYKITE SAVO ATŠAUKTOS SIUNTOS BARKODĄ ČIA:
-$barcode = 'CC982515234EE'; 
+// ĮRAŠYKITE SAVO OMNIVA PRISIJUNGIMO DUOMENIS (arba pasiimkite iš savo DB/env):
+$omnivaUser = '8206349'; 
+$omnivaPass = 's%vi>H{cb1';
+$barcode = 'CC982515234EE'; // Atšauktos siuntos barkodas
 
 try {
-    $events = $omnivaHelper->getTrackingEvents($barcode);
-    echo "<pre>";
-    print_r($events);
+    $request = new Request($omnivaUser, $omnivaPass);
+    
+    // Darome tiesioginę užklausą į API
+    $customRequest = (new CustomOmxRequest())
+        ->setEndpoint('shipments/' . $barcode)
+        ->setRequestMethod(OmxRequestInterface::REQUEST_METHOD_GET);
+        
+    $response = $request->callOmxApi($customRequest);
+    
+    echo "<pre>PILNAS OMNIVA API ATSAKYMAS:\n";
+    print_r(json_decode($response, true));
     echo "</pre>";
+    
 } catch (Exception $e) {
     echo "Klaida: " . $e->getMessage();
 }
