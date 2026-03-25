@@ -113,13 +113,23 @@ if (count($orders) > 0) {
                         // RET (Returned)  - Grąžinta
                         // INC, OUT, SND   - Siunčiama
                         // Atnaujintas kodas su atšaukimo logika:
-                        if (in_array($stateCode, ['DLV', 'DELIVERED'])) {
+                        if (in_array($stateCode, ['DLV', 'DELIVERED', 'PACKET_STATE_DELIVERED'])) {
                             $newStatus = 'įvykdyta';
-                        } elseif (in_array($stateCode, ['RET', 'RETURNED'])) {
+                        } elseif (in_array($stateCode, ['RET', 'RETURNED', 'PACKET_STATE_RETURNED', 'PACKET_EVENT_RETURN'])) {
                             $newStatus = 'grąžinta';
                         } elseif (in_array($stateCode, ['SND', 'OUT', 'INC'])) {
                             $newStatus = 'siunčiama';
-                        } elseif (in_array($stateCode, ['CAN', 'CNL', 'CANCELED', 'CANCELLED'])) {
+                        } elseif (in_array($stateCode, [
+                            'CAN', 
+                            'CNL', 
+                            'CANCELED', 
+                            'CANCELLED', 
+                            'PACKET_STATE_CANCELLED', 
+                            'PACKET_STATE_DELETED', 
+                            'PACKET_EVENT_DELIVERY_CANCELLED',
+                            'DELETED'
+                        ])) {
+                            // Oficialūs Omniva atšaukimo kodai iš Helper.php failo
                             $newStatus = 'atšaukta';
                         }
                         
