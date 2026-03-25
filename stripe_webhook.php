@@ -107,86 +107,100 @@ if ($orderId) {
     $stmt->execute([$orderId]);
     $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    $currentStatus = $order ? mb_strtolower($order['status']) : '';
+
     // Jeigu užsakymas dar nėra apmokėtas - sukuriame siuntos numerį PIRMA
-    if ($order && mb_strtolower($order['status']) !== 'apmokėta') {
+    if ($order && $currentStatus !== 'apmokėta' && $currentStatus !== 'apdorojama' && $currentStatus !== 'išsiųsta' && $currentStatus !== 'įvykdyta') {
         
-        // === SIUNTŲ AUTOMATIZACIJA ===
-        try {
-            if (in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
-                webhook_log("Pradedamas LP Express siuntos kūrimas užsakymui #$orderId");
-                $lpHelper = new LPExpressHelper($pdo);
-                
-                $deliveryDetails = json_decode($order['delivery_details'], true);
-                $terminalId = $deliveryDetails['locker_id'] ?? null;
-                
-                $parcelId = $lpHelper->createParcel(
-                    $orderId,
-                    $order['delivery_method'],
-                    $order['customer_name'],
-                    $order['customer_phone'],
-                    $order['customer_email'],
-                    $order['customer_address'],
-                    $terminalId
-                );
-                
-                if ($parcelId) {
-                    webhook_log("LP Express siunta sukurta. Parcel ID: $parcelId");
-                    $requestId = $lpHelper->initiateShipping($parcelId);
+        // === RACE CONDITION UŽRAKTAS ===
+        // Užrakiname užsakymą laikinai pakeisdami statusą, kad kitas webhook'as (kuris ateina tuo pačiu metu) jo neliestų.
+        $stmtLock = $pdo->prepare("UPDATE orders SET status = 'apdorojama' WHERE id = ? AND status = ?");
+        $stmtLock->execute([$orderId, $order['status']]);
+        
+        if ($stmtLock->rowCount() > 0) {
+
+            // === SIUNTŲ AUTOMATIZACIJA ===
+            try {
+                if (in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
+                    webhook_log("Pradedamas LP Express siuntos kūrimas užsakymui #$orderId");
+                    $lpHelper = new LPExpressHelper($pdo);
                     
-                    if ($requestId) {
-                        webhook_log("LP Express siunta inicijuota. Request ID: $requestId");
-                        sleep(2);
-                        $barcode = $lpHelper->getShippingStatus($requestId);
-                        webhook_log("Gautas barkodas: " . ($barcode ?? 'NEGAUTA'));
-                        
-                        $stmtUpdate = $pdo->prepare("
-                            UPDATE orders 
-                            SET lpexpress_parcel_id = ?, 
-                                lpexpress_request_id = ?, 
-                                tracking_number = ? 
-                            WHERE id = ?
-                        ");
-                        $stmtUpdate->execute([$parcelId, $requestId, $barcode, $orderId]);
-                        webhook_log("LP Express duomenys išsaugoti DB.");
-                    }
-                }
-            } 
-            elseif ($order['delivery_method'] === 'omniva_terminal') {
-                webhook_log("Pradedamas Omniva siuntos kūrimas užsakymui #$orderId");
-                require_once __DIR__ . '/omniva_helper.php';
-                $omnivaHelper = new OmnivaHelper($pdo);
-                
-                $deliveryDetails = json_decode($order['delivery_details'], true);
-                $terminalId = $deliveryDetails['locker_id'] ?? null;
-                
-                if ($terminalId) {
-                    $barcode = $omnivaHelper->createParcel(
+                    $deliveryDetails = json_decode($order['delivery_details'], true);
+                    $terminalId = $deliveryDetails['locker_id'] ?? null;
+                    
+                    $parcelId = $lpHelper->createParcel(
                         $orderId,
+                        $order['delivery_method'],
                         $order['customer_name'],
                         $order['customer_phone'],
                         $order['customer_email'],
+                        $order['customer_address'],
                         $terminalId
                     );
                     
-                    if ($barcode) {
-                        webhook_log("Omniva siunta sukurta. Barkodas: $barcode");
-                        $stmtUpdate = $pdo->prepare("UPDATE orders SET tracking_number = ? WHERE id = ?");
-                        $stmtUpdate->execute([$barcode, $orderId]);
-                        webhook_log("Omniva duomenys išsaugoti DB.");
+                    if ($parcelId) {
+                        webhook_log("LP Express siunta sukurta. Parcel ID: $parcelId");
+                        $requestId = $lpHelper->initiateShipping($parcelId);
+                        
+                        if ($requestId) {
+                            webhook_log("LP Express siunta inicijuota. Request ID: $requestId");
+                            sleep(2);
+                            $barcode = $lpHelper->getShippingStatus($requestId);
+                            webhook_log("Gautas barkodas: " . ($barcode ?? 'NEGAUTA'));
+                            
+                            $stmtUpdate = $pdo->prepare("
+                                UPDATE orders 
+                                SET lpexpress_parcel_id = ?, 
+                                    lpexpress_request_id = ?, 
+                                    tracking_number = ? 
+                                WHERE id = ?
+                            ");
+                            $stmtUpdate->execute([$parcelId, $requestId, $barcode, $orderId]);
+                            webhook_log("LP Express duomenys išsaugoti DB.");
+                        }
+                    }
+                } 
+                elseif ($order['delivery_method'] === 'omniva_terminal') {
+                    webhook_log("Pradedamas Omniva siuntos kūrimas užsakymui #$orderId");
+                    require_once __DIR__ . '/omniva_helper.php';
+                    $omnivaHelper = new OmnivaHelper($pdo);
+                    
+                    $deliveryDetails = json_decode($order['delivery_details'], true);
+                    $terminalId = $deliveryDetails['locker_id'] ?? null;
+                    
+                    if ($terminalId) {
+                        $barcode = $omnivaHelper->createParcel(
+                            $orderId,
+                            $order['customer_name'],
+                            $order['customer_phone'],
+                            $order['customer_email'],
+                            $terminalId
+                        );
+                        
+                        if ($barcode) {
+                            webhook_log("Omniva siunta sukurta. Barkodas: $barcode");
+                            $stmtUpdate = $pdo->prepare("UPDATE orders SET tracking_number = ? WHERE id = ?");
+                            $stmtUpdate->execute([$barcode, $orderId]);
+                            webhook_log("Omniva duomenys išsaugoti DB.");
+                        }
                     }
                 }
+            } catch (Exception $e) {
+                webhook_log("Siuntų automatizacijos klaida: " . $e->getMessage());
             }
-        } catch (Exception $e) {
-            webhook_log("Siuntų automatizacijos klaida: " . $e->getMessage());
-        }
 
-        // === DABAR UŽBAIGIAME UŽSAKYMĄ IR SIUNČIAME LAIŠKUS ===
-        if (function_exists('completeOrder')) {
-            // Ši funkcija pakeis statusą į apmokėta ir išsiųs laiškus jau SU sugeneruotu sekimo kodu
-            $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
-            if ($result) {
-                webhook_log("Užsakymas #$orderId sėkmingai užbaigtas (Webhooks inicijavo).");
+            // === DABAR UŽBAIGIAME UŽSAKYMĄ IR SIUNČIAME LAIŠKUS ===
+            if (function_exists('completeOrder')) {
+                // Ši funkcija pakeis statusą į apmokėta ir išsiųs laiškus jau SU sugeneruotu sekimo kodu
+                $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
+                if ($result) {
+                    webhook_log("Užsakymas #$orderId sėkmingai užbaigtas (Webhooks inicijavo).");
+                }
             }
+            
+        } else {
+            // Jei rowCount() == 0, vadinasi statusą ką tik pakeitė kitas, tuo pačiu metu veikiantis webhook'as
+            webhook_log("Užsakymas #$orderId jau apdorojamas kito webhook'o (išvengta dubliavimosi ir tuščių laiškų).");
         }
     } else {
         webhook_log("Užsakymas #$orderId jau buvo sutvarkytas arba nerastas.");
