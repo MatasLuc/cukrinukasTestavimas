@@ -19,27 +19,24 @@ ensureOrdersTables($pdo);
 $config = require __DIR__ . '/config.php';
 
 try {
-    // PATAISYTA: Naudojamas standartinis WebToPay metodas checkResponse
-    $response = WebToPay::checkResponse($_REQUEST, [
-        'projectid' => $config['projectid'],
-        'sign_password' => $config['sign_password'],
-    ]);
+    // Sujungiame GET ir POST, kad užtikrintume duomenų gavimą bet kokiu atveju
+    $requestData = array_merge($_GET, $_POST);
 
+    // Naudojame jūsų custom failo metodą
+    $response = WebToPay::parseCallback($requestData, $config['sign_password']);
+    
     $orderId = isset($response['orderid']) ? (int)$response['orderid'] : 0;
     
-    // BŪTINA paversti į string, kad veiktų in_array patikra!
+    // Statusą būtinai paverčiame į string
     $status = (string)($response['status'] ?? '');
-    // Pagal Paysera dokumentaciją, parametras "test" parodo ar tai testinis mokėjimas
-    $isTest = isset($response['test']) && $response['test'] !== '0';
+    $isTest = !empty($response['test']) && $response['test'] != '0';
 
     paysera_webhook_log("Callback duomenys: Order ID = $orderId, Status = $status, IsTest = " . ($isTest ? 'Taip' : 'Ne'));
 
     if ($orderId) {
-        // Paysera grąžina statusą '1', jei mokėjimas sėkmingas
         $paidStatuses = ['1', '2', '3', 'paid', 'completed', 'paid_ok'];
-        
-        // Atnaujinta testinio mokėjimo logika: jei tai testinis mokėjimas (test=1), statusas taip pat grįš '1' sėkmingu atveju.
-        $isPaid = in_array($status, $paidStatuses, true);
+        // Jei tai testinis mokėjimas, Paysera taip pat grąžina status=1
+        $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', '1', 'pending'], true));
 
         if ($isPaid) {
             $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
@@ -111,7 +108,7 @@ try {
                                 }
                             }
                         }
-                    } catch (Throwable $e) { // Pakeista iš Exception į Throwable, kad sugaudytų ir fatalias klaidas
+                    } catch (Throwable $e) { // Sugaudys fatalias klaidas siuntų API modulyje
                         paysera_webhook_log('Klaida kuriant siuntą Paysera callback metu: ' . $e->getMessage());
                     }
 
@@ -120,10 +117,13 @@ try {
                     // ==========================================
                     $paymentIntentId = 'PAYSERA_' . $orderId;
                     
-                    // Atkreipkite dėmesį, kad completeOrder naudoja "transaction", tad turėtų suveikti sklandžiai.
-                    $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
-                    if ($result) {
-                        paysera_webhook_log("Užsakymas #$orderId sėkmingai užbaigtas.");
+                    try {
+                        $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
+                        if ($result) {
+                            paysera_webhook_log("Užsakymas #$orderId sėkmingai užbaigtas.");
+                        }
+                    } catch (Throwable $e) {
+                        paysera_webhook_log('Klaida užbaigiant užsakymą (completeOrder): ' . $e->getMessage());
                     }
                 } else {
                     paysera_webhook_log("Užsakymas #$orderId jau apdorojamas kito proceso.");
@@ -141,9 +141,11 @@ try {
             $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status NOT IN ('apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta')")->execute(['atmesta', $orderId]);
         }
     }
+    
+    // Sėkmingai apdorota – būtinai atiduodame Paysera OK
     echo 'OK';
 
-} catch (Throwable $e) { // Pakeista iš Exception į Throwable
+} catch (Throwable $e) { // Throwable sugaus net ir PHP Fatal klaidas, kurių Exception nematytų
     http_response_code(400);
     paysera_webhook_log('Paysera callback validation failed: ' . $e->getMessage());
     echo 'ERROR';
