@@ -55,7 +55,7 @@ try {
     // 1. Patvirtins parduotuvės prekių užsakymą
     // 2. Patvirtins "laukiama" turgelio prekių užsakymą
     // 3. Išsiųs visus el. laiškus
-    completeOrder($pdo, $orderId, true, $paymentIntentId);
+    //completeOrder($pdo, $orderId, true, $paymentIntentId);
 
     // 5. Išvalome likusius krepšelius, nes viskas išsaugota DB!
     unset($_SESSION['cart']);
