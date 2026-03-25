@@ -17,21 +17,31 @@ function paysera_accept_log($msg) {
     file_put_contents($logFile, $entry, FILE_APPEND);
 }
 
+$orderId = 0;
+
 try {
+    // Jeigu Paysera neperdavė jokių parametrų, negalime validuoti su parseCallback
+    if (empty($_REQUEST['data'])) {
+        throw new Exception("Nėra 'data' parametro užklausoje. Galbūt tai tiesioginis perėjimas.");
+    }
+
     $response = WebToPay::parseCallback($_REQUEST, $config['sign_password']);
     $orderId = isset($response['orderid']) ? (int)$response['orderid'] : 0;
-    $status = $response['status'] ?? '';
-    $isTest = isset($response['test']) && (string)$response['test'] !== '';
+    
+    // Statusą BŪTINA paversti į string dėl PHP apribojimų
+    $status = (string)($response['status'] ?? '');
+    $isTest = !empty($response['test']) && $response['test'] != '0';
     
     $amountCents = isset($response['amount']) ? (int)$response['amount'] : 0;
     $currency = isset($response['currency']) ? (string)$response['currency'] : 'EUR';
 
+    paysera_accept_log("Accept užklausa: Order ID = $orderId, Status = $status, IsTest = " . ($isTest ? 'Taip' : 'Ne'));
+
     if ($orderId) {
-        $paidStatuses = ['1', '2', '3', 'paid', 'completed', 'paid_ok', 'test'];
-        $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', 'pending'], true));
+        $paidStatuses = ['1', '2', '3', 'paid', 'completed', 'paid_ok'];
+        $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', '1', 'pending'], true));
 
         if ($isPaid) {
-            // Išsaugome GTM duomenis
             $_SESSION['gtm_purchase_event'] = [
                 'transaction_id' => (string)$orderId,
                 'value' => $amountCents / 100,
@@ -44,14 +54,14 @@ try {
 
             $currentStatus = $order ? mb_strtolower($order['status']) : '';
 
-            // Apdorojame lygiai taip pat kaip callback'e, jeigu jis nespėjo suveikti
-            if ($order && $currentStatus !== 'apmokėta' && $currentStatus !== 'apdorojama' && $currentStatus !== 'išsiųsta' && $currentStatus !== 'įvykdyta') {
+            // Jeigu fone esantis callback nespėjo suveikti, sutvarkome užsakymą čia
+            if ($order && !in_array($currentStatus, ['apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta'])) {
                 
                 $stmtLock = $pdo->prepare("UPDATE orders SET status = 'apdorojama' WHERE id = ? AND status = ?");
                 $stmtLock->execute([$orderId, $order['status']]);
                 
                 if ($stmtLock->rowCount() > 0) {
-                    paysera_accept_log("Užsakymas #$orderId užrakintas. Pradedamas siuntos kūrimas iš accept.php");
+                    paysera_accept_log("Užsakymas #$orderId užrakintas accept failo. Pradedamas siuntos kūrimas.");
 
                     try {
                         if (in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
@@ -113,26 +123,43 @@ try {
 
             $_SESSION['flash_success'] = 'Apmokėjimas patvirtintas. Ačiū!';
             
-            // Išvalome krepšelius, nes sėkmingai apmokėta
-            unset($_SESSION['cart']);
-            unset($_SESSION['cart_community']);
-            unset($_SESSION['checkout_delivery']);
-            unset($_SESSION['cart_variations']);
+            // Išvalome krepšelius
+            unset($_SESSION['cart'], $_SESSION['cart_community'], $_SESSION['checkout_delivery'], $_SESSION['cart_variations']);
             
         } else {
             $newStatus = ($status === '0' || $status === 'pending') ? 'laukiama apmokėjimo' : 'atmesta';
-            $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? AND status != ?')->execute([$newStatus, $orderId, 'apmokėta']);
-            $_SESSION['flash_error'] = 'Nepavyko patvirtinti mokėjimo. Bandykite dar kartą arba susisiekite su mumis.';
+            $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status NOT IN ('apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta')")->execute([$newStatus, $orderId]);
+            $_SESSION['flash_error'] = 'Mokėjimas nebuvo įvykdytas (Statusas: '.$status.'). Bandykite dar kartą arba susisiekite su mumis.';
         }
     }
 } catch (Exception $e) {
-    if (function_exists('logError')) logError('Payment confirmation failed', $e);
-    $_SESSION['flash_error'] = 'Nepavyko patvirtinti mokėjimo. Bandykite dar kartą arba susisiekite su mumis.';
+    paysera_accept_log('Klaida accept.php bloke: ' . $e->getMessage());
+    
+    // Pabandome atkurti orderId iš GET kintamųjų (jei perduodame)
+    if (!$orderId && isset($_GET['order_id'])) {
+        $orderId = (int)$_GET['order_id'];
+    } elseif (!$orderId && isset($_GET['orderid'])) {
+        $orderId = (int)$_GET['orderid'];
+    }
+
+    if ($orderId) {
+        // Patikriname, ar tiesiog callback'as jau spėjo padaryti darbą
+        $stmt = $pdo->prepare("SELECT status FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $statusDB = mb_strtolower((string)$stmt->fetchColumn());
+        
+        if (in_array($statusDB, ['apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta'])) {
+            $_SESSION['flash_success'] = 'Apmokėjimas patvirtintas. Ačiū!';
+            unset($_SESSION['cart'], $_SESSION['cart_community'], $_SESSION['checkout_delivery'], $_SESSION['cart_variations']);
+        } else {
+            $_SESSION['flash_error'] = 'Nepavyko patvirtinti mokėjimo arba duomenys vėluoja. Susisiekite su mumis.';
+        }
+    } else {
+        $_SESSION['flash_error'] = 'Nepavyko patvirtinti mokėjimo. Bandykite dar kartą arba susisiekite su mumis.';
+    }
 }
 
 if (isset($_SESSION['user_id'])) {
     header('Location: /orders.php');
 } else {
-    header('Location: /order_success.php?order_id=' . urlencode($orderId ?? ''));
-}
-exit;
+    header('Location: /order_success.php?

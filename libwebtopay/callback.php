@@ -21,12 +21,17 @@ $config = require __DIR__ . '/config.php';
 try {
     $response = WebToPay::parseCallback($_REQUEST, $config['sign_password']);
     $orderId = isset($response['orderid']) ? (int)$response['orderid'] : 0;
-    $status = $response['status'] ?? '';
-    $isTest = isset($response['test']) && (string)$response['test'] !== '';
+    
+    // BŪTINA paversti į string, kad veiktų in_array patikra!
+    $status = (string)($response['status'] ?? '');
+    $isTest = !empty($response['test']) && $response['test'] != '0';
+
+    paysera_webhook_log("Callback duomenys: Order ID = $orderId, Status = $status, IsTest = " . ($isTest ? 'Taip' : 'Ne'));
 
     if ($orderId) {
-        $paidStatuses = ['1', '2', '3', 'paid', 'completed', 'paid_ok', 'test'];
-        $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', 'pending'], true));
+        $paidStatuses = ['1', '2', '3', 'paid', 'completed', 'paid_ok'];
+        // Testiniam režimui tinka ir statusas '0'
+        $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', '1', 'pending'], true));
 
         if ($isPaid) {
             $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
@@ -35,7 +40,8 @@ try {
 
             $currentStatus = $order ? mb_strtolower($order['status']) : '';
 
-            if ($order && $currentStatus !== 'apmokėta' && $currentStatus !== 'apdorojama' && $currentStatus !== 'išsiųsta' && $currentStatus !== 'įvykdyta') {
+            // Tikriname ar užsakymas dar nebuvo apmokėtas
+            if ($order && !in_array($currentStatus, ['apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta'])) {
                 
                 // RACE CONDITION UŽRAKTAS
                 $stmtLock = $pdo->prepare("UPDATE orders SET status = 'apdorojama' WHERE id = ? AND status = ?");
@@ -102,7 +108,7 @@ try {
                     }
 
                     // ==========================================
-                    // DABAR PATVIRTINAME UŽSAKYMĄ IR SIUNČIAME LAIŠKUS
+                    // PATVIRTINAME UŽSAKYMĄ IR SIUNČIAME LAIŠKUS
                     // ==========================================
                     $paymentIntentId = 'PAYSERA_' . $orderId;
                     $result = completeOrder($pdo, $orderId, true, $paymentIntentId);
@@ -118,11 +124,11 @@ try {
         } 
         elseif ($status === '0' || $status === 'pending') 
         {
-            $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? AND status != ?')->execute(['laukiama apmokėjimo', $orderId, 'apmokėta']);
+            $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status NOT IN ('apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta')")->execute(['laukiama apmokėjimo', $orderId]);
         } 
         else 
         {
-            $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? AND status != ?')->execute(['atmesta', $orderId, 'apmokėta']);
+            $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status NOT IN ('apmokėta', 'apdorojama', 'išsiųsta', 'įvykdyta')")->execute(['atmesta', $orderId]);
         }
     }
     echo 'OK';
