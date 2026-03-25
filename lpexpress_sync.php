@@ -112,12 +112,15 @@ if (count($orders) > 0) {
                         // DVL (Delivered) - Įvykdyta
                         // RET (Returned)  - Grąžinta
                         // INC, OUT, SND   - Siunčiama
+                        // Atnaujintas kodas su atšaukimo logika:
                         if (in_array($stateCode, ['DLV', 'DELIVERED'])) {
                             $newStatus = 'įvykdyta';
                         } elseif (in_array($stateCode, ['RET', 'RETURNED'])) {
                             $newStatus = 'grąžinta';
                         } elseif (in_array($stateCode, ['SND', 'OUT', 'INC'])) {
                             $newStatus = 'siunčiama';
+                        } elseif (in_array($stateCode, ['CAN', 'CNL', 'CANCELED', 'CANCELLED'])) {
+                            $newStatus = 'atšaukta';
                         }
                         
                         if ($newStatus) {
