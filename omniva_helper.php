@@ -24,7 +24,7 @@ class OmnivaHelper {
         $this->pdo = $pdo;
         // Naudokite savo prisijungimus
         $this->username = getenv('OMNIVA_API_USERNAME') ?: '8206349';
-        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Kosmosas420';
+        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Kosmosas420!';
     }
 
     /**
