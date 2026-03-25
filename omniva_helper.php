@@ -22,7 +22,7 @@ class OmnivaHelper {
     public function __construct($pdo = null) {
         $this->pdo = $pdo;
         $this->username = getenv('OMNIVA_API_USERNAME') ?: '8206349';
-        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Test123';
+        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Kosmosas420!';
     }
 
     /**
