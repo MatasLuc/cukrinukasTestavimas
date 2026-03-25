@@ -10,8 +10,9 @@ use Mijora\Omniva\Locations\PickupPoints;
 use Mijora\Omniva\Shipment\Package\Package;
 use Mijora\Omniva\Shipment\Package\Address;
 use Mijora\Omniva\Shipment\Package\Contact;
+use Mijora\Omniva\Shipment\Package\Measures;
 use Mijora\Omniva\Shipment\Shipment;
-use Mijora\Omniva\Shipment\Order;
+use Mijora\Omniva\Shipment\ShipmentHeader;
 use Mijora\Omniva\Shipment\Tracking;
 
 class OmnivaHelper {
@@ -66,15 +67,9 @@ class OmnivaHelper {
             
             $terminals = [];
             foreach ($locations as $loc) {
-                // Naudojame masyvo sintaksę: $loc['RAKTAS'] vietoj $loc->RAKTAS
-                
-                // A2_NAME dažniausiai yra miestas, A1_NAME - apskritis
                 $city = !empty($loc['A2_NAME']) ? $loc['A2_NAME'] : ($loc['A1_NAME'] ?? '');
-                
-                // Suformuojame adresą
                 $address = trim(($loc['A5_NAME'] ?? '') . ' ' . ($loc['A7_NAME'] ?? ''));
                 
-                // Jei kartais A5 ir A7 tušti, apsidraudimui panaudojame tiesiog NAME
                 if (empty($address)) {
                     $address = $loc['NAME'] ?? '';
                 }
@@ -98,15 +93,25 @@ class OmnivaHelper {
      */
     public function createParcel($orderId, $receiverName, $phone, $email, $terminalId) {
         try {
+            $shipment = new Shipment();
+            $shipment->setComment('Uzsakymas #' . $orderId);
+            
+            $shipmentHeader = new ShipmentHeader();
+            $shipmentHeader
+                ->setSenderCd($this->username)
+                ->setFileId(date('YmdHis') . $orderId);
+            $shipment->setShipmentHeader($shipmentHeader);
+
             $senderAddress = (new Address())
                 ->setCountry('LT')
                 ->setPostcode(getenv('STORE_ZIP') ?: '00000') // Būtina nurodyti bent minimalų ZIP
                 ->setDeliverypoint(getenv('STORE_CITY') ?: 'Vilnius')
-                ->setStreet(getenv('STORE_STREET') ?: 'Pardavėjo g. 1');
+                ->setStreet(getenv('STORE_STREET') ?: 'Pardavejo g. 1');
                 
             $senderContact = (new Contact())
                 ->setAddress($senderAddress)
                 ->setMobile(getenv('STORE_PHONE') ?: '+37060000000')
+                ->setEmail(getenv('STORE_EMAIL') ?: 'info@cukrinukas.lt')
                 ->setPersonName(getenv('STORE_NAME') ?: 'Cukrinukas');
 
             $receiverAddress = (new Address())
@@ -116,29 +121,40 @@ class OmnivaHelper {
             $receiverContact = (new Contact())
                 ->setAddress($receiverAddress)
                 ->setMobile($phone)
+                ->setEmail($email)
                 ->setPersonName(mb_substr($receiverName, 0, 100));
 
             $package = new Package();
             $package
                 ->setId('ORDER_' . $orderId)
                 ->setService('PU') // PU reiškia 'Parcel Machine' / Paštomatas
-                ->setWeight(1) // Standartinis svoris
                 ->setReceiverContact($receiverContact)
                 ->setSenderContact($senderContact);
 
-            $shipment = new Shipment();
+            // ======================================
+            // Ištaisyta svorio nustatymo logika
+            // ======================================
+            $measures = new Measures();
+            $measures->setWeight(1); // Standartinis svoris
+            $package->setMeasures($measures);
+
             $shipment->setPackages([$package]);
+            $shipment->setAuth($this->username, $this->password);
 
-            $order = new Order();
-            $order->setAuth($this->username, $this->password);
+            // Kviečiame API naudodami seną, stabilesnį metodą (išvengiam pakibimų)
+            $result = $shipment->registerShipment(true);
 
-            $result = $order->create($shipment);
-
-            if (isset($result['savedBarcodes']) && !empty($result['savedBarcodes'])) {
-                return $result['savedBarcodes'][0];
+            if (is_array($result) && isset($result['barcodes']) && !empty($result['barcodes'])) {
+                return $result['barcodes'][0];
+            } elseif (is_string($result)) {
+                // Pabandom paskaityti senojo API (XML) atsakymą
+                $xmlResponse = @simplexml_load_string($result);
+                if ($xmlResponse !== false && isset($xmlResponse->savedPacketInfo->barcode)) {
+                     return (string) $xmlResponse->savedPacketInfo->barcode;
+                }
             }
             
-            error_log("Omniva API siuntos kūrimo atsakymas: " . json_encode($result));
+            error_log("Omniva API siuntos kūrimo klaida / nenumatytas atsakymas: " . json_encode($result));
             return null;
         } catch (Exception $e) {
             error_log("Omniva API klaida kuriant siuntą: " . $e->getMessage());
