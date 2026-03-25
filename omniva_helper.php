@@ -7,12 +7,6 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 use Mijora\Omniva\Locations\PickupPoints;
-use Mijora\Omniva\Shipment\Shipment;
-use Mijora\Omniva\Shipment\ShipmentHeader;
-use Mijora\Omniva\Shipment\Package\Package;
-use Mijora\Omniva\Shipment\Package\Address;
-use Mijora\Omniva\Shipment\Package\Contact;
-use Mijora\Omniva\Shipment\Package\Measures;
 
 class OmnivaHelper {
     private $pdo;
@@ -21,8 +15,9 @@ class OmnivaHelper {
 
     public function __construct($pdo = null) {
         $this->pdo = $pdo;
+        // Naudokite savo prisijungimus
         $this->username = getenv('OMNIVA_API_USERNAME') ?: '8206349';
-        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Kosmosas420!';
+        $this->password = getenv('OMNIVA_API_PASSWORD') ?: 'Test123';
     }
 
     /**
@@ -36,12 +31,24 @@ class OmnivaHelper {
             
             $terminals = [];
             foreach ($locations as $loc) {
+                // Naudojame masyvo sintaksę: $loc['RAKTAS'] vietoj $loc->RAKTAS
+                
+                // A2_NAME dažniausiai yra miestas, A1_NAME - apskritis
+                $city = !empty($loc['A2_NAME']) ? $loc['A2_NAME'] : ($loc['A1_NAME'] ?? '');
+                
+                // Suformuojame adresą
+                $address = trim(($loc['A5_NAME'] ?? '') . ' ' . ($loc['A7_NAME'] ?? ''));
+                
+                // Jei kartais A5 ir A7 tušti, apsidraudimui panaudojame tiesiog NAME
+                if (empty($address)) {
+                    $address = $loc['NAME'] ?? '';
+                }
+
                 $terminals[] = [
-                    'id' => $loc->ZIP,
-                    'name' => $loc->NAME,
-                    // A2_NAME dažniausiai yra miestas, A1_NAME - apskritis
-                    'city' => !empty($loc->A2_NAME) ? $loc->A2_NAME : $loc->A1_NAME, 
-                    'address' => trim(($loc->A5_NAME ?? '') . ' ' . ($loc->A7_NAME ?? '')),
+                    'id' => $loc['ZIP'] ?? '',
+                    'name' => $loc['NAME'] ?? '',
+                    'city' => $city, 
+                    'address' => $address,
                 ];
             }
             return $terminals;
