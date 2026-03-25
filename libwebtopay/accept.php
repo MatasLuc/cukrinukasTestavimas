@@ -47,6 +47,7 @@ try {
 if (isset($_SESSION['user_id'])) {
     header('Location: /orders.php');
 } else {
-    header('Location: /order_success.php');
+    // Pridedame užsakymo ID prie nuorodos, kad order_success.php žinotų, ką atvaizduoti
+    header('Location: /order_success.php?order_id=' . urlencode($orderId));
 }
 exit;

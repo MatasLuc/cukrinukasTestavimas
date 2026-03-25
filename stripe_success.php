@@ -63,8 +63,8 @@ try {
     unset($_SESSION['checkout_delivery']);
     unset($_SESSION['cart_variations']);
 
-    // 6. Nukreipiame į padėkos puslapį
-    header("Location: orders.php?success=1");
+    // 6. Nukreipiame į padėkos puslapį ir perduodame sesijos ID
+    header("Location: order_success.php?session_id=" . urlencode($session_id));
     exit;
 
 } catch (Exception $e) {
