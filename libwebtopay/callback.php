@@ -20,18 +20,16 @@ try {
         $isPaid = in_array($status, $paidStatuses, true) || ($isTest && in_array($status, ['0', 'pending'], true));
 
         if ($isPaid) {
-            // Naudojame funkciją iš helpers.php apmokėjimo patvirtinimui
-            approveOrder($pdo, $orderId);
 
             // ==========================================
-            // SIUNTŲ AUTOMATIZACIJA (LP EXPRESS / OMNIVA)
+            // SIUNTŲ AUTOMATIZACIJA (PIRMA, KAD TURĖTUME KODĄ)
             // ==========================================
             try {
                 $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
                 $stmt->execute([$orderId]);
                 $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                if ($order && empty($order['tracking_number'])) { // Tik jei siunta dar nesukurta
+                if ($order && empty($order['tracking_number']) && mb_strtolower($order['status']) !== 'apmokėta') {
                     if (in_array($order['delivery_method'], ['lpexpress_terminal', 'lpexpress_courier'])) {
                         require_once __DIR__ . '/../lpexpress_helper.php';
                         $lpHelper = new LPExpressHelper($pdo);
@@ -88,11 +86,13 @@ try {
                 }
             }
             // ==========================================
-            
+
+            // DABAR PATVIRTINAME UŽSAKYMĄ IR SIUNČIAME LAIŠKUS
+            approveOrder($pdo, $orderId);
+
         } 
         elseif ($status === '0' || $status === 'pending') 
         {
-            // Jei dar laukiama (pending), bet ne testinis - atnaujinam statusą, bet atsargų nemažinam
             $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? AND status != ?')->execute(['laukiama apmokėjimo', $orderId, 'apmokėta']);
         } 
         else 

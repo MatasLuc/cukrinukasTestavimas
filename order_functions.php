@@ -364,7 +364,19 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
             </tr>";
         }
 
-        $emailContent = "
+        // ==========================================
+        // 1. LAIŠKAS PIRKĖJUI
+        // ==========================================
+        $trackingHtmlBuyer = '';
+        if (!empty($order['tracking_number'])) {
+            $trackingHtmlBuyer = "
+            <div style='margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;'>
+                <p style='margin: 0 0 8px 0; color: #64748b; font-size: 14px;'>Jūsų siuntos sekimo numeris:</p>
+                <p style='margin: 0; color: #2563eb; font-size: 18px; font-weight: 700; letter-spacing: 0.5px;'>{$order['tracking_number']}</p>
+            </div>";
+        }
+
+        $emailContentBuyer = "
         <html>
         <head>
             <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
@@ -404,6 +416,7 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
                         <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Būdas:</strong> $deliveryMethod</p>
                         <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
                         <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($deliveryDetails['phone'] ?? ($order['customer_phone'] ?? '-')) . "</p>
+                        $trackingHtmlBuyer
                     </div>
                 </div>
 
@@ -414,13 +427,77 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
         </body>
         </html>";
 
+        // ==========================================
+        // 2. LAIŠKAS ADMINISTRATORIUI (PARDAVĖJUI)
+        // ==========================================
+        $trackingHtmlAdmin = '';
+        if (!empty($order['tracking_number'])) {
+            $trackingHtmlAdmin = "<p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Sekimo numeris:</strong> {$order['tracking_number']}</p>";
+        }
+
+        $emailContentAdmin = "
+        <html>
+        <head>
+            <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
+        </head>
+        <body style='font-family: \"Inter\", Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;'>
+            <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>
+                
+                <div style='padding: 32px; background-color: #1e293b; color: #ffffff; text-align: center;'>
+                    <h1 style='margin: 0; font-size: 24px; font-weight: 700;'>Naujas užsakymas #$orderId</h1>
+                </div>
+
+                <div style='padding: 32px;'>
+                    <div style='margin-bottom: 32px;'>
+                        <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;'>Pirkėjo informacija</h3>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Vardas:</strong> " . htmlspecialchars($order['customer_name']) . "</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>El. paštas:</strong> <a href='mailto:" . htmlspecialchars($order['customer_email']) . "' style='color: #2563eb; text-decoration: none;'>" . htmlspecialchars($order['customer_email']) . "</a></p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Telefonas:</strong> " . htmlspecialchars($order['customer_phone']) . "</p>
+                    </div>
+
+                    <div style='margin-bottom: 32px;'>
+                        <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;'>Užsakytos prekės</h3>
+                        <table style='width: 100%; border-collapse: collapse;'>
+                            <thead>
+                                <tr>
+                                    <th style='$styleHeader text-align: left;'>Prekė</th>
+                                    <th style='$styleHeader text-align: center;'>Kiekis</th>
+                                    <th style='$styleHeader text-align: right;'>Vnt.</th>
+                                    <th style='$styleHeader text-align: right;'>Suma</th>
+                                </tr>
+                            </thead>
+                            <tbody>$itemsRows</tbody>
+                            <tfoot>
+                                $shippingRow
+                                <tr>
+                                    <td colspan='3' style='padding: 16px 12px; text-align: right; font-size: 16px; color: #0f172a;'><strong>VISO BENDRA SUMA:</strong></td>
+                                    <td style='padding: 16px 12px; text-align: right; font-size: 18px; color: #2563eb; font-weight: 700;'><strong>" . number_format($order['total'], 2) . " €</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div style='background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;'>
+                        <h3 style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600;'>Pristatymo informacija</h3>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Būdas:</strong> $deliveryMethod</p>
+                        <p style='margin: 8px 0; color: #475467; font-size: 14px;'><strong>Adresas:</strong> " . htmlspecialchars($fullAddress) . "</p>
+                        $trackingHtmlAdmin
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>";
+
+        // ==========================================
+        // LAIŠKŲ SIUNTIMAS
+        // ==========================================
         if (!empty($order['customer_email'])) {
-            sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId gautas", $emailContent);
+            sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId gautas", $emailContentBuyer);
         }
         
         $adminEmail = requireEnv('SMTP_USER'); 
         if($adminEmail) {
-            sendEmail($adminEmail, "[NAUJAS UŽSAKYMAS] #$orderId", $emailContent);
+            sendEmail($adminEmail, "[NAUJAS UŽSAKYMAS] #$orderId", $emailContentAdmin);
         }
 
     } catch (Exception $e) {
