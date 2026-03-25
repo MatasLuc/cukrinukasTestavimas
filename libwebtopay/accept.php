@@ -162,4 +162,6 @@ try {
 if (isset($_SESSION['user_id'])) {
     header('Location: /orders.php');
 } else {
-    header('Location: /order_success.php?
+    header('Location: /order_success.php?order_id=' . urlencode((string)$orderId));
+}
+exit;
