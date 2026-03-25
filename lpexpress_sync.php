@@ -100,44 +100,47 @@ if (count($orders) > 0) {
                 $events = $omnivaHelper->getTrackingEvents($barcode);
                 
                 if (!empty($events) && is_array($events)) {
-                    // Imame naujausią statusą iš visų grąžintų sekimo įvykių
-                    $latestEvent = $events[0] ?? null;
+                    // 1. Randame NAUJAUSIĄ įvykį pagal 'eventDate' (nes Omniva API grąžina nuo seniausio iki naujausio)
+                    $latestEvent = null;
+                    $latestTime = 0;
                     
-                    if ($latestEvent && isset($latestEvent['StateCode'])) {
-                        $stateCode = strtoupper($latestEvent['StateCode']);
-                        $newStatus = null;
-                        
-                        // Adaptuojame Omniva statusus atitinkamai prie jūsų sistemos logikos
-                        // Pagal Omniva Tracking API: 
-                        // DVL (Delivered) - Įvykdyta
-                        // RET (Returned)  - Grąžinta
-                        // INC, OUT, SND   - Siunčiama
-                        // Atnaujintas kodas su atšaukimo logika:
-                        if (in_array($stateCode, ['DLV', 'DELIVERED', 'PACKET_STATE_DELIVERED'])) {
-                            $newStatus = 'įvykdyta';
-                        } elseif (in_array($stateCode, ['RET', 'RETURNED', 'PACKET_STATE_RETURNED', 'PACKET_EVENT_RETURN'])) {
-                            $newStatus = 'grąžinta';
-                        } elseif (in_array($stateCode, ['SND', 'OUT', 'INC'])) {
-                            $newStatus = 'siunčiama';
-                        } elseif (in_array($stateCode, [
-                            'CAN', 
-                            'CNL', 
-                            'CANCELED', 
-                            'CANCELLED', 
-                            'PACKET_STATE_CANCELLED', 
-                            'PACKET_STATE_DELETED', 
-                            'PACKET_EVENT_DELIVERY_CANCELLED',
-                            'DELETED'
-                        ])) {
-                            // Oficialūs Omniva atšaukimo kodai iš Helper.php failo
-                            $newStatus = 'atšaukta';
+                    foreach ($events as $event) {
+                        if (isset($event['eventDate'])) {
+                            $eventTime = strtotime($event['eventDate']);
+                            if ($eventTime > $latestTime) {
+                                $latestTime = $eventTime;
+                                $latestEvent = $event;
+                            }
                         }
+                    }
+                    
+                    if ($latestEvent) {
+                        // 2. Ieškome įvykio kodo įvairiais galimais pavadinimais (svarbiausias - eventCode)
+                        $rawStateCode = $latestEvent['eventCode'] ?? $latestEvent['stateCode'] ?? $latestEvent['StateCode'] ?? $latestEvent['state'] ?? null;
                         
-                        if ($newStatus) {
-                            $upd = $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status != ?");
-                            $upd->execute([$newStatus, $order['id'], $newStatus]);
-                            if ($upd->rowCount() > 0) {
-                                $updatedCount++;
+                        if ($rawStateCode) {
+                            $stateCode = strtoupper($rawStateCode);
+                            $newStatus = null;
+                            
+                            // 3. Universalus statusų atpažinimas (veiks ir su naujais OMX 'TRT_SHIPMENT_...', ir su senais kodais)
+                            if (strpos($stateCode, 'DELIVERED') !== false || in_array($stateCode, ['DLV'])) {
+                                $newStatus = 'įvykdyta';
+                            } elseif (strpos($stateCode, 'RETURN') !== false || in_array($stateCode, ['RET'])) {
+                                $newStatus = 'grąžinta';
+                            } elseif (strpos($stateCode, 'CANCEL') !== false || in_array($stateCode, ['CAN', 'CNL', 'DELETED'])) {
+                                $newStatus = 'atšaukta';
+                            } elseif (strpos($stateCode, 'REGISTERED') === false) {
+                                // Jei tai ne registracija ir ne galutinis statusas, reiškia siunta kažkur juda
+                                $newStatus = 'siunčiama';
+                            }
+                            
+                            // 4. Atnaujiname duomenų bazę
+                            if ($newStatus) {
+                                $upd = $pdo->prepare("UPDATE orders SET status = ? WHERE id = ? AND status != ?");
+                                $upd->execute([$newStatus, $order['id'], $newStatus]);
+                                if ($upd->rowCount() > 0) {
+                                    $updatedCount++;
+                                }
                             }
                         }
                     }
