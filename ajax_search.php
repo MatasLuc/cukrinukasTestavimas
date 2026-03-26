@@ -20,12 +20,16 @@ $addResults = function($items, $type, $urlPrefix, $urlSuffix = '') use (&$result
     foreach ($items as $item) {
         if (count($results) >= $limit) return;
         
-        $image = !empty($item['image_url']) ? $item['image_url'] : '/uploads/default.png';
-        if (isset($item['profile_photo'])) {
-             $image = !empty($item['profile_photo']) ? $item['profile_photo'] : '/uploads/default_avatar.png';
+        $image = null;
+        if (!empty($item['image_url'])) {
+            $image = $item['image_url'];
+        } elseif (!empty($item['profile_photo'])) {
+            $image = $item['profile_photo'];
         }
         
-        $title = $item['title'] ?? $item['name'];
+        $title = $item['title'] ?? $item['name'] ?? '?';
+        $initial = mb_strtoupper(mb_substr(trim($title), 0, 1));
+        
         $url = $urlPrefix . slugify($title) . '-' . $item['id'] . $urlSuffix;
         
         // Individualūs URL formatai
@@ -37,6 +41,7 @@ $addResults = function($items, $type, $urlPrefix, $urlSuffix = '') use (&$result
             'title' => $title,
             'url' => $url,
             'image' => $image,
+            'initial' => $initial,
             'type' => $type
         ];
     }

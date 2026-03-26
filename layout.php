@@ -369,6 +369,11 @@ input[type=checkbox] {
 .search-dropdown-item:last-child { border-bottom: none; }
 .search-dropdown-item:hover { background: #f3f3f8; }
 .search-dropdown-img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; background: #f0f0f5; flex-shrink: 0; }
+.search-dropdown-img.text-avatar {
+  background: #eef2ff; color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; text-transform: uppercase;
+}
 .search-dropdown-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .search-dropdown-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #0b0b0b; }
 .search-dropdown-type { font-size: 11px; color: #6b6b7a; }
@@ -932,15 +937,20 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
                       .then(res => res.json())
                       .then(data => {
                           if (data.length > 0) {
-                              searchDropdown.innerHTML = data.map(item => `
+                              searchDropdown.innerHTML = data.map(item => {
+                                  const imgHtml = item.image 
+                                      ? `<img src="${item.image}" alt="" class="search-dropdown-img">`
+                                      : `<div class="search-dropdown-img text-avatar">${item.initial}</div>`;
+                                  
+                                  return `
                                   <a href="${item.url}" class="search-dropdown-item">
-                                      <img src="${item.image}" alt="" class="search-dropdown-img">
+                                      ${imgHtml}
                                       <div class="search-dropdown-info">
                                           <span class="search-dropdown-title">${item.title}</span>
                                           <span class="search-dropdown-type">${item.type}</span>
                                       </div>
                                   </a>
-                              `).join('') + `<a href="/search.php?q=${encodeURIComponent(query)}" class="search-dropdown-more">Rodyti visus rezultatus &rarr;</a>`;
+                              `}).join('') + `<a href="/search.php?q=${encodeURIComponent(query)}" class="search-dropdown-more">Rodyti visus rezultatus &rarr;</a>`;
                               searchDropdown.classList.add('active');
                           } else {
                               searchDropdown.innerHTML = `<div style="padding: 12px; text-align: center; font-size: 13px; color: #6b6b7a;">Pagal šią užklausą nieko nerasta</div>`;

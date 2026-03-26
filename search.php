@@ -94,6 +94,23 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
         .empty-state { text-align: center; padding: 60px 0; color: #6b6b7a; }
         .empty-state svg { opacity: 0.5; margin-bottom: 16px; }
         .empty-state h2 { margin-bottom: 8px; color: #0b0b0b; }
+
+        /* Fallback text-avatars placeholders */
+        .placeholder-img {
+            width: 100%;
+            background: #eef2ff; color: var(--accent);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 48px; font-weight: 700; text-transform: uppercase;
+        }
+        .product-card .placeholder-img { height: 190px; }
+        .news-card .placeholder-img { height: 160px; }
+        
+        .placeholder-avatar {
+            width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0;
+            background: #eef2ff; color: var(--accent);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 700; text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -122,7 +139,11 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="store-grid">
                     <?php foreach ($products as $p): ?>
                         <a href="/produktas/<?php echo slugify($p['title']); ?>-<?php echo $p['id']; ?>" class="product-card">
-                            <img src="<?php echo htmlspecialchars($p['image_url'] ?: '/uploads/default.png'); ?>" alt="<?php echo htmlspecialchars($p['title']); ?>">
+                            <?php if (!empty($p['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($p['image_url']); ?>" alt="<?php echo htmlspecialchars($p['title']); ?>">
+                            <?php else: ?>
+                                <div class="placeholder-img"><?= mb_strtoupper(mb_substr($p['title'] ?? '?', 0, 1)) ?></div>
+                            <?php endif; ?>
                             <div class="product-card__body">
                                 <h3 class="product-card__title"><?php echo htmlspecialchars($p['title']); ?></h3>
                                 <span class="price"><?php echo number_format((float)$p['price'], 2); ?> €</span>
@@ -137,7 +158,11 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="news-grid">
                     <?php foreach ($recipes as $r): ?>
                         <a href="/receptas/<?php echo slugify($r['title']); ?>-<?php echo $r['id']; ?>" class="news-card">
-                            <img src="<?php echo htmlspecialchars($r['image_url'] ?: '/uploads/default.png'); ?>" alt="<?php echo htmlspecialchars($r['title']); ?>">
+                            <?php if (!empty($r['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($r['image_url']); ?>" alt="<?php echo htmlspecialchars($r['title']); ?>">
+                            <?php else: ?>
+                                <div class="placeholder-img"><?= mb_strtoupper(mb_substr($r['title'] ?? '?', 0, 1)) ?></div>
+                            <?php endif; ?>
                             <div class="news-body">
                                 <h3 class="news-title"><?php echo htmlspecialchars($r['title']); ?></h3>
                                 <?php if (!empty($r['summary'])): ?>
@@ -154,7 +179,11 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="news-grid">
                     <?php foreach ($news as $n): ?>
                         <a href="/naujiena/<?php echo slugify($n['title']); ?>-<?php echo $n['id']; ?>" class="news-card">
-                            <img src="<?php echo htmlspecialchars($n['image_url'] ?: '/uploads/default.png'); ?>" alt="<?php echo htmlspecialchars($n['title']); ?>">
+                            <?php if (!empty($n['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($n['image_url']); ?>" alt="<?php echo htmlspecialchars($n['title']); ?>">
+                            <?php else: ?>
+                                <div class="placeholder-img"><?= mb_strtoupper(mb_substr($n['title'] ?? '?', 0, 1)) ?></div>
+                            <?php endif; ?>
                             <div class="news-body">
                                 <span class="news-date"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
                                 <h3 class="news-title"><?php echo htmlspecialchars($n['title']); ?></h3>
@@ -172,7 +201,11 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="store-grid">
                     <?php foreach ($communityListings as $cl): ?>
                         <a href="/community_listing.php?id=<?php echo $cl['id']; ?>" class="product-card">
-                            <img src="<?php echo htmlspecialchars($cl['image_url'] ?: '/uploads/default.png'); ?>" alt="<?php echo htmlspecialchars($cl['title']); ?>">
+                            <?php if (!empty($cl['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($cl['image_url']); ?>" alt="<?php echo htmlspecialchars($cl['title']); ?>">
+                            <?php else: ?>
+                                <div class="placeholder-img"><?= mb_strtoupper(mb_substr($cl['title'] ?? '?', 0, 1)) ?></div>
+                            <?php endif; ?>
                             <div class="product-card__body">
                                 <h3 class="product-card__title"><?php echo htmlspecialchars($cl['title']); ?></h3>
                                 <span class="price"><?php echo number_format((float)$cl['price'], 2); ?> €</span>
@@ -187,6 +220,7 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="list-group">
                     <?php foreach ($communityThreads as $t): ?>
                         <a href="/community_thread.php?id=<?php echo $t['id']; ?>" class="list-item">
+                            <div class="placeholder-avatar"><?= mb_strtoupper(mb_substr($t['title'] ?? '?', 0, 1)) ?></div>
                             <div class="list-item-content">
                                 <h3 class="list-item-title"><?php echo htmlspecialchars($t['title']); ?></h3>
                                 <p class="list-item-desc"><?php echo htmlspecialchars(strip_tags($t['body'])); ?></p>
@@ -201,7 +235,11 @@ $totalResults = count($products) + count($recipes) + count($news) + count($commu
                 <div class="list-group">
                     <?php foreach ($users as $u): ?>
                         <a href="/user_profile.php?id=<?php echo $u['id']; ?>" class="list-item">
-                            <img src="<?php echo htmlspecialchars($u['profile_photo'] ?: '/uploads/default_avatar.png'); ?>" alt="<?php echo htmlspecialchars($u['name']); ?>">
+                            <?php if (!empty($u['profile_photo'])): ?>
+                                <img src="<?php echo htmlspecialchars($u['profile_photo']); ?>" alt="<?php echo htmlspecialchars($u['name']); ?>">
+                            <?php else: ?>
+                                <div class="placeholder-avatar"><?= mb_strtoupper(mb_substr($u['name'] ?? '?', 0, 1)) ?></div>
+                            <?php endif; ?>
                             <div class="list-item-content">
                                 <h3 class="list-item-title"><?php echo htmlspecialchars($u['name']); ?></h3>
                                 <?php if (!empty($u['city'])): ?>
