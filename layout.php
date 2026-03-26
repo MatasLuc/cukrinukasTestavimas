@@ -202,59 +202,68 @@ a { color: var(--text-color); }
 }
 .nav-links a:hover { color: #0b0b0b; background: rgba(0,0,0,0.03); }
 
-.nav-links .user-area { position: relative; padding-bottom: 6px; }
-.nav-links .user-button {
-  display:flex;
+/* USER ACTIONS (Profile & Cart) */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-area { position: relative; }
+.user-button {
+  display:inline-flex;
   align-items:center;
-  gap:8px;
-  padding:8px 14px;
-  border-radius:99px;
-  background: transparent;
+  justify-content:center;
   color:#0b0b0b;
-  border:1px solid #dcdce7;
-  font-weight: 600;
-  font-size: 14px;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
   position: relative;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
+  text-decoration: none;
 }
-.nav-links .user-button:hover { border-color: #b0b0bd; background: #fff; }
+.user-button:hover { background: rgba(0,0,0,0.03); }
+.user-button svg { width: 24px; height: 24px; }
 
 .user-button__badge {
   position:absolute;
-  top:-2px;
-  right:-2px;
+  top: 0px;
+  right: 0px;
   background: var(--accent);
   color:#fff;
   font-weight: 700;
   font-size:10px;
   line-height:1;
-  padding:3px 5px;
-  border-radius:999px;
-  min-width: 16px;
-  text-align: center;
+  padding:0 4px;
+  border-radius:9px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.nav-links .user-menu {
+
+.user-menu {
   position:absolute;
-  top:100%;
+  top: calc(100% + 10px);
   right:0;
   background:#fff;
   color:var(--text-color);
   border-radius:12px;
-  box-shadow:0 10px 40px rgba(0,0,0,0.1);
+  box-shadow:0 20px 50px rgba(0,0,0,0.12);
   padding:8px;
   min-width:220px;
-  display:flex;
+  display:none;
   flex-direction:column;
   gap:4px;
   border:1px solid #e6e6ef;
-  opacity:0;
-  pointer-events:none;
-  transition:opacity .15s ease, transform .15s ease;
-  transform: translateY(10px);
-  z-index: 1003;
+  z-index: 1005;
 }
-.user-menu.open { transform: translateY(0); }
+.user-area:hover .user-menu,
+.user-area:focus-within .user-menu,
+.user-menu.open { display:flex; }
 
 .checkbox-row {
   display:flex;
@@ -284,10 +293,6 @@ input[type=checkbox] {
 }
 .user-menu a:hover,
 .user-menu button:hover { background:#f3f3f8; }
-.user-area:hover .user-menu,
-.user-area:focus-within .user-menu,
-.user-menu:hover,
-.user-menu.open { opacity:1; pointer-events:auto; transform: translateY(0); }
 
 .cart-link { position: relative; }
 .cart-icon {
@@ -299,13 +304,14 @@ input[type=checkbox] {
   padding: 8px;
   border-radius: 8px;
   transition: background 0.2s ease;
+  text-decoration: none;
 }
 .cart-icon:hover { background: rgba(0,0,0,0.03); }
 .cart-icon svg { width:24px; height:24px; }
 .cart-count {
   position: absolute;
-  top: 0;
-  right: -4px;
+  top: 0px;
+  right: 0px;
   background: #0b0b0b;
   color: #fff;
   min-width: 18px;
@@ -456,7 +462,7 @@ input[type=checkbox] {
   .navbar {
     justify-content: flex-start;
     padding: 12px 16px;
-    flex-wrap: wrap; /* Leidžia search laukeliui nukristi į apačią */
+    flex-wrap: wrap;
   }
   .brand {
     margin-right: auto;
@@ -466,20 +472,24 @@ input[type=checkbox] {
     display: inline-flex; 
     margin-right: 4px;
   }
-  .cart-link {
+  .user-actions {
     order: 2;
+    gap: 2px;
   }
   .search-container {
     width: 100%;
     order: 4;
     margin-top: 10px;
     flex-shrink: 0;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
   .search-form { width: 100%; margin-top: 0; }
   .search-input { width: 100%; }
   .search-input:focus { width: 100%; }
   
   .nav-links {
+    order: 5;
     display: none;
     position: absolute;
     top: 100%;
@@ -528,33 +538,7 @@ input[type=checkbox] {
   }
   .nav-item:hover .nav-submenu { display: flex; }
 
-  .user-area {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #f0f0f5;
-    width: 100%;
-  }
-  .user-button {
-    width: 100%;
-    justify-content: center;
-    background: #f7f7fb;
-    border: none;
-  }
-  .user-menu {
-    position: static;
-    opacity: 1;
-    pointer-events: auto;
-    box-shadow: none;
-    border: none;
-    margin-top: 8px;
-    width: 100%;
-    box-sizing: border-box;
-    z-index: auto;
-    transform: none;
-    padding: 0;
-  }
-
-  .cart-dropdown {
+  .cart-dropdown, .user-menu {
     position: fixed;
     top: 60px;
     left: 10px;
@@ -763,11 +747,29 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
       
       <div class="nav-links">
         <?php echo $renderNav($navItems); ?>
-          
+      </div>
+
+      <div class="search-container" style="margin-left: 16px; margin-right: 8px;">
+          <form class="search-form" action="/search.php" method="GET">
+              <input type="text" name="q" id="liveSearchInput" class="search-input" placeholder="Ieškoti..." required value="<?php echo htmlspecialchars((string)$searchQuery); ?>" autocomplete="off">
+              <button type="submit" class="search-btn" aria-label="Ieškoti">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </button>
+          </form>
+          <div class="search-dropdown" id="searchDropdown"></div>
+      </div>
+
+      <div class="user-actions">
           <?php if ($user['id']): ?>
               <div class="user-area">
-                <button class="user-button" type="button">Labas, <?php echo htmlspecialchars($user['name']); ?><?php if ($unreadMessages): ?><span class="user-button__badge"><?php echo $unreadMessages; ?></span><?php endif; ?></button>
+                <button class="user-button" type="button" aria-label="Profilis">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <?php if ($unreadMessages): ?><span class="user-button__badge"><?php echo $unreadMessages; ?></span><?php endif; ?>
+                </button>
                 <div class="user-menu">
+                  <div style="padding: 6px 12px; font-size: 13px; color: #6b6b7a; border-bottom: 1px solid #f0f0f5; margin-bottom: 4px;">
+                    Labas, <strong><?php echo htmlspecialchars($user['name']); ?></strong>
+                  </div>
                   <a class="user-menu__action" href="/orders.php">Užsakymai</a>
                   <a class="user-menu__action" href="/account.php">Paskyros redagavimas</a>
                   <a class="user-menu__action" href="/messages.php">Žinutės<?php if ($unreadMessages): ?> <span class="pill-count"><?php echo $unreadMessages; ?></span><?php endif; ?></a>
@@ -783,11 +785,14 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
                 </div>
               </div>
           <?php else: ?>
-            <a href="/login.php">Prisijungti</a>
+              <div class="user-area">
+                <a href="/login.php" class="user-button" aria-label="Prisijungti">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </a>
+              </div>
           <?php endif; ?>
-      </div>
 
-      <div class="cart-link">
+          <div class="cart-link">
             <a class="cart-icon" href="/cart.php" aria-label="Krepšelis">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M5 5h2l1 11h8l1-8H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -845,16 +850,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
                 </div>
               <?php endif; ?>
             </div>
-      </div>
-
-      <div class="search-container">
-          <form class="search-form" action="/search.php" method="GET">
-              <input type="text" name="q" id="liveSearchInput" class="search-input" placeholder="Ieškoti..." required value="<?php echo htmlspecialchars((string)$searchQuery); ?>" autocomplete="off">
-              <button type="submit" class="search-btn" aria-label="Ieškoti">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              </button>
-          </form>
-          <div class="search-dropdown" id="searchDropdown"></div>
+          </div>
       </div>
 
     </nav>
@@ -868,10 +864,10 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
           if (menu) menu.classList.add('open');
         }
         function closeMenu(){
-          timer = setTimeout(()=> menu && menu.classList.remove('open'), 80);
+          timer = setTimeout(()=> menu && menu.classList.remove('open'), 150);
         }
-        area.addEventListener('mouseenter', openMenu);
-        area.addEventListener('mouseleave', closeMenu);
+        ['mouseenter','focusin'].forEach(evt => area.addEventListener(evt, openMenu));
+        ['mouseleave','focusout'].forEach(evt => area.addEventListener(evt, closeMenu));
         if (menu){
           menu.addEventListener('mouseenter', openMenu);
           menu.addEventListener('mouseleave', closeMenu);
