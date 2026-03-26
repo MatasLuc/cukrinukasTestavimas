@@ -169,7 +169,8 @@ class OmnivaHelper {
         try {
             $tracking = new Tracking();
             $tracking->setAuth($this->username, $this->password);
-            return $tracking->getTracking($barcode);
+            // Pakeista į OMX API metodą
+            return $tracking->getTrackingOmx($barcode);
         } catch (Exception $e) {
             error_log("Omniva API klaida gaunant tracking: " . $e->getMessage());
             return null;
