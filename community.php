@@ -32,9 +32,14 @@ if (!empty($_SESSION['flash_error'])) {
     $errors[] = $_SESSION['flash_error'];
     unset($_SESSION['flash_error']);
 }
-
-echo headerStyles();
 ?>
+<!doctype html>
+<html lang="lt">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bendruomenė - Cukrinukas.lt</title>
+    <?php echo headerStyles(); ?>
 <style>
     :root {
       --bg: #f7f7fb;
@@ -195,6 +200,8 @@ echo headerStyles();
         .nav-grid, .info-grid { grid-template-columns: 1fr; }
     }
 </style>
+</head>
+<body>
 
 <?php renderHeader($pdo, 'community'); ?>
 
@@ -358,3 +365,5 @@ echo headerStyles();
 </div>
 
 <?php renderFooter($pdo); ?>
+</body>
+</html>

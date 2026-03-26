@@ -56,9 +56,14 @@ $sql = "
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $threads = $stmt->fetchAll();
-
-echo headerStyles();
 ?>
+<!doctype html>
+<html lang="lt">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forumas - Cukrinukas.lt</title>
+    <?php echo headerStyles(); ?>
 <style>
     :root {
       --bg: #f7f7fb;
@@ -151,6 +156,8 @@ echo headerStyles();
         .thread-stats { width: 100%; flex-direction: row; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
     }
 </style>
+</head>
+<body>
 
 <?php renderHeader($pdo, 'community'); ?>
 
@@ -242,3 +249,5 @@ echo headerStyles();
 </div>
 
 <?php renderFooter($pdo); ?>
+</body>
+</html>

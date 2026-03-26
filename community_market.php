@@ -72,9 +72,14 @@ $sql = "
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $items = $stmt->fetchAll();
-
-echo headerStyles();
 ?>
+<!doctype html>
+<html lang="lt">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turgelis - Cukrinukas.lt</title>
+    <?php echo headerStyles(); ?>
 <style>
     :root {
       --bg: #f7f7fb;
@@ -251,6 +256,8 @@ echo headerStyles();
         .hero-card { max-width: 100%; }
     }
 </style>
+</head>
+<body>
 
 <?php renderHeader($pdo, 'community'); ?>
 
@@ -407,3 +414,5 @@ echo headerStyles();
 </div>
 
 <?php renderFooter($pdo); ?>
+</body>
+</html>
