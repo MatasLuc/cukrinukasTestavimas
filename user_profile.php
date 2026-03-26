@@ -41,8 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
 
         if ($rating < 1 || $rating > 5) {
             $error = "Įvertinimas turi būti nuo 1 iki 5 žvaigždučių.";
-        } elseif (mb_strlen($reviewText) < 5) {
-            $error = "Atsiliepimas per trumpas. Parašykite bent kelis žodžius.";
         } else {
             // Patikriname, ar šis vartotojas jau yra palikęs atsiliepimą šiam nariui
             $checkStmt = $pdo->prepare("SELECT id FROM user_reviews WHERE reviewer_id = ? AND reviewee_id = ?");
@@ -143,8 +141,8 @@ try {
     body { margin:0; background: var(--bg); color: var(--text-main); font-family:'Inter', sans-serif; }
     a { color:inherit; text-decoration:none; }
     
-    /* Vieno stulpelio dizainas - siauresnis konteineris geresniam skaitomumui */
-    .page { max-width: 900px; margin:0 auto; padding:32px 20px 72px; display:flex; flex-direction: column; gap:28px; }
+    /* Pakeistas max-width į 1200px, kad atitiktų community.php */
+    .page { max-width: 1200px; margin:0 auto; padding:32px 20px 72px; display:flex; flex-direction: column; gap:28px; }
 
     /* Hero Section */
     .hero { 
@@ -412,7 +410,7 @@ try {
                         </select>
 
                         <label>Komentaras</label>
-                        <textarea name="review_text" class="form-control" rows="4" required placeholder="Aprašykite savo patirtį..."><?= $existingReviewForm ? htmlspecialchars($existingReviewForm['review_text']) : '' ?></textarea>
+                        <textarea name="review_text" class="form-control" rows="4" placeholder="Aprašykite savo patirtį..."><?= $existingReviewForm ? htmlspecialchars($existingReviewForm['review_text']) : '' ?></textarea>
                         
                         <button type="submit" name="submit_review" class="btn-primary" style="max-width: 200px;">
                             <?= $existingReviewForm ? 'Atnaujinti' : 'Pateikti' ?>
