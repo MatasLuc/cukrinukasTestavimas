@@ -147,18 +147,18 @@ a { color: var(--text-color); }
 }
         
 .brand {
-display: inline-flex;
-align-items: center;
-gap: 8px;
-font-weight: var(--font-weight-bold);
-letter-spacing: 0.3px;
-font-size: 19px;
-color: #0b0b0b;
-padding: 8px 12px;
-border-radius: 12px;
-transition: background .2s ease, color .2s ease;
-background: rgba(130,158,214,0.15);
-text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.3px;
+  font-size: 19px;
+  color: #0b0b0b;
+  padding: 8px 12px;
+  border-radius: 12px;
+  transition: background .2s ease, color .2s ease;
+  background: rgba(130,158,214,0.15);
+  text-decoration: none;
 }
         
 .brand:hover { background: rgba(130,158,214,0.28); }
@@ -345,6 +345,49 @@ input[type=checkbox] {
 .cart-preview-item img { width:48px; height:48px; object-fit:cover; border-radius:8px; background: #f7f7fb; }
 .cart-preview-meta { display:flex; justify-content: space-between; width:100%; align-items: flex-start; }
 .cart-preview-footer { display:flex; justify-content: space-between; align-items:center; margin-top:8px; padding-top: 12px; border-top: 2px solid #f0f0f5; }
+
+/* SEARCH BAR STYLES */
+.search-form {
+  display: flex;
+  align-items: center;
+  background: #f3f3f8;
+  border-radius: 99px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.search-form:focus-within {
+  background: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(130,158,214,0.2);
+}
+.search-input {
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 14px;
+  outline: none;
+  width: 140px;
+  transition: width 0.2s ease;
+  color: var(--text-color);
+}
+.search-input:focus {
+  width: 200px;
+}
+.search-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  color: #6b6b7a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.search-btn:hover {
+  color: var(--accent);
+}
+
 .btn {
   display:inline-flex;
   align-items:center;
@@ -389,6 +432,7 @@ input[type=checkbox] {
   .navbar {
     justify-content: flex-start;
     padding: 12px 16px;
+    flex-wrap: wrap; /* Leidžia search laukeliui nukristi į apačią */
   }
   .brand {
     margin-right: auto;
@@ -401,6 +445,14 @@ input[type=checkbox] {
   .cart-link {
     order: 2;
   }
+  .search-form {
+    width: 100%;
+    order: 4;
+    margin-top: 10px;
+    flex-shrink: 0;
+  }
+  .search-input { width: 100%; }
+  .search-input:focus { width: 100%; }
   
   .nav-links {
     display: none;
@@ -516,7 +568,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
 
     $cart = getCartData($pdo, $_SESSION['cart'] ?? [], $_SESSION['cart_variations'] ?? []);
     
-    // --- FIX: Pridedame bendruomenės prekes į headerio krepšelį ---
+    // --- Bendruomenės prekių krepšelis ---
     if (!empty($_SESSION['cart_community'])) {
         $commIds = array_keys($_SESSION['cart_community']);
         if ($commIds) {
@@ -526,24 +578,22 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
             $commItems = $stmtComm->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($commItems as $cItem) {
-                $cQty = 1; // Bendruomenės prekės visada po 1
+                $cQty = 1;
                 $cPrice = (float)$cItem['price'];
                 $cImg = !empty($cItem['image_url']) ? $cItem['image_url'] : 'uploads/default.png';
 
-                // Atnaujiname bendrą statistiką
                 $cart['count'] += $cQty;
                 $cart['total'] += $cPrice;
 
-                // Pridedame į items sąrašą, kad rodytų dropdowne
                 $cart['items'][] = [
-                    'cart_key' => 'comm_' . $cItem['id'], // Unikalus raktas
+                    'cart_key' => 'comm_' . $cItem['id'],
                     'title' => $cItem['title'],
                     'image_url' => $cImg,
                     'quantity' => $cQty,
                     'price' => $cPrice,
                     'line_total' => $cPrice,
-                    'line_base' => $cPrice, // Kad nerodytų nuolaidos stiliaus
-                    'variation' => [['group' => 'Turgelis', 'name' => 'Bendruomenė']] // Indikacija
+                    'line_base' => $cPrice,
+                    'variation' => [['group' => 'Turgelis', 'name' => 'Bendruomenė']]
                 ];
             }
         }
@@ -562,8 +612,6 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
     $bannerEnabled = !empty($siteContent['banner_enabled']) && $siteContent['banner_enabled'] !== '0';
     $bannerText = trim($siteContent['banner_text'] ?? '');
     $bannerLink = trim($siteContent['banner_link'] ?? '');
-    // $bannerBg now ignored in favor of modern dark theme in CSS, or can be used as accent if needed.
-    // We stick to the requested CSS modernization.
     
     $renderNav = function(array $items, bool $isChild = false) use (&$renderNav) {
         if (!$items) return '';
@@ -584,11 +632,11 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
 
     // --- GOOGLE TAG MANAGER & E-COMMERCE LOGIKA ---
     $gtmPurchaseData = isset($_SESSION['gtm_purchase_event']) ? $_SESSION['gtm_purchase_event'] : null;
-    // Išvalome sesiją po panaudojimo, kad neužskaitytų to paties pirkimo du kartus
     if ($gtmPurchaseData) {
         unset($_SESSION['gtm_purchase_event']);
     }
-    // ---------------------------------------------
+    // Paieškos query gavimas
+    $searchQuery = $_GET['q'] ?? '';
     ?>
     <head>
       <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -648,7 +696,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
         <?php 
         $purchaseData = $_SESSION['gtm_purchase_event'] ?? null;
         if ($purchaseData): 
-            unset($_SESSION['gtm_purchase_event']); // Išvalome, kad nesidubliuotų
+            unset($_SESSION['gtm_purchase_event']); 
         ?>
             fbq('track', 'Purchase', {
                 value: <?php echo $purchaseData['value']; ?>,
@@ -704,7 +752,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
                   <?php endif; ?>
                   <form method="post" action="/login.php" style="margin:0;">
                     <?php echo csrfField(); ?>
-<input type="hidden" name="logout" value="1">
+                    <input type="hidden" name="logout" value="1">
                     <button class="user-menu__action" type="submit">Atsijungti</button>
                   </form>
                 </div>
@@ -772,10 +820,18 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
                 </div>
               <?php endif; ?>
             </div>
-          </div>
+      </div>
+
+      <form class="search-form" action="/search.php" method="GET">
+          <input type="text" name="q" class="search-input" placeholder="Ieškoti..." required value="<?php echo htmlspecialchars((string)$searchQuery); ?>">
+          <button type="submit" class="search-btn" aria-label="Ieškoti">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </button>
+      </form>
+
     </nav>
-    </header>
-    <script>
+  </header>
+  <script>
       document.querySelectorAll('.user-area').forEach(function(area){
         let timer;
         const menu = area.querySelector('.user-menu');
@@ -831,8 +887,8 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
           });
         });
       }
-    </script>
-    <?php
+  </script>
+  <?php
 }
 
 function resolvePdo(?PDO $pdo = null): PDO {
