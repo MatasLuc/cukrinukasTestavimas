@@ -377,8 +377,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         $fullAddress = "Paštomatas ($lockerProvider): " . $selectedLockerName;
     }
 
+    // --- PRIDĖTOS PATIKROS EL. PAŠTUI IR TELEFONUI ---
     if (empty($name) || empty($phone) || empty($email)) {
         $errors[] = 'Neužpildyti kontaktiniai duomenys.';
+    } else {
+        // El. pašto patikra
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Įvestas neteisingas el. pašto adresas.';
+        }
+        // Telefono nr. patikra (leidžia +, skaičius, tarpus, minusus, ilgis 8-15 skaitmenų)
+        $cleanPhone = preg_replace('/[\s\-\(\)]+/', '', $phone);
+        if (!preg_match('/^\+?[0-9]{8,15}$/', $cleanPhone)) {
+            $errors[] = 'Įvestas neteisingas telefono numeris. Pavyzdys: +37061234567 arba 861234567.';
+        }
     }
 
     if (empty($errors)) {
@@ -679,7 +690,7 @@ if (!empty($_SESSION['user_id'])) {
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Telefonas</label>
-                                <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>" required>
+                                <input type="tel" name="phone" class="form-control" value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>" placeholder="+3706..." required>
                             </div>
                         </div>
                     </div>

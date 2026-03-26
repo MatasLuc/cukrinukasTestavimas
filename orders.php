@@ -459,7 +459,12 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
                               <span style="margin-right:8px;">🚚</span>
                               <div>
                                   <strong><?= htmlspecialchars($order['customer_name'] ?? '-'); ?></strong><br>
-                                  <?= htmlspecialchars($order['customer_address'] ?? '-'); ?>
+                                  <?php 
+                                      $rawAddress = $order['customer_address'] ?? '-';
+                                      $rawAddress = str_ireplace('Paštomatas (omniva):', 'Paštomatas (Omniva):', $rawAddress);
+                                      $rawAddress = str_ireplace('Paštomatas (lp):', 'Paštomatas (LP Express):', $rawAddress);
+                                      echo htmlspecialchars($rawAddress); 
+                                  ?>
                               </div>
                           </div>
                           
@@ -541,6 +546,10 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
                                         $deliveryMethodName = 'Pristatymas paštomatu' . ($provName ? " ($provName)" : '');
                                     } elseif ($order['delivery_method'] === 'courier') {
                                         $deliveryMethodName = 'Pristatymas kurjeriu';
+                                    } elseif ($order['delivery_method'] === 'omniva_terminal') {
+                                        $deliveryMethodName = 'Pristatymas (Omniva paštomatas)';
+                                    } elseif ($order['delivery_method'] === 'lpexpress_terminal') {
+                                        $deliveryMethodName = 'Pristatymas (LP Express paštomatas)';
                                     } else {
                                         $deliveryMethodName = 'Pristatymas (' . htmlspecialchars($order['delivery_method']) . ')';
                                     }
@@ -668,7 +677,12 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
                         $phone = $sale['customer_phone'] ?? $deliveryDetails['phone'] ?? $deliveryDetails['contact_phone'] ?? '-';
                         $email = $sale['p_email'] ?? $deliveryDetails['contact_email'] ?? '-';
                         $lockerName = $deliveryDetails['locker_name'] ?? $deliveryDetails['locker_address'] ?? '';
+                        
+                        // Pritaikome teksto keitimus ir pašto adresui
                         $address = $sale['customer_address'] ?? '-';
+                        $address = str_ireplace('Paštomatas (omniva):', 'Paštomatas (Omniva):', $address);
+                        $address = str_ireplace('Paštomatas (lp):', 'Paštomatas (LP Express):', $address);
+
                         $notes = $sale['note'] ?? $deliveryDetails['notes'] ?? '';
                         $buyerName = $sale['customer_name'] ?? $deliveryDetails['contact_name'] ?? $sale['p_name'] ?? 'Nežinomas pirkėjas';
 
@@ -680,6 +694,8 @@ if (!in_array($activeTab, ['shop', 'community_listings', 'community_sell'])) {
                         if ($method === 'locker') $methodText = 'Paštomatas' . ($provName ? " ($provName)" : '');
                         elseif ($method === 'courier') $methodText = 'Kurjeris';
                         elseif ($method === 'pickup') $methodText = 'Atsiėmimas vietoje';
+                        elseif ($method === 'omniva_terminal') $methodText = 'Omniva paštomatas';
+                        elseif ($method === 'lpexpress_terminal') $methodText = 'LP Express paštomatas';
                         elseif ($method !== 'Nežinomas') $methodText = htmlspecialchars($method);
                     ?>
                     <div class="card">
