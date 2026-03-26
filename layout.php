@@ -1,5 +1,17 @@
 <?php
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/db.php';
+
+// Pradedame sesiją, jei ji dar nepradėta
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Globalus "Prisiminti mane" (Auto-login) patikrinimas visiems puslapiams
+if (empty($_SESSION['user_id']) && function_exists('tryAutoLogin')) {
+    tryAutoLogin(getPdo());
+}
+
 enforcePostRequestCsrf();
 
 function currentUser(): array {
@@ -17,14 +29,21 @@ function headerStyles(?int $overrideShadow = null): string {
     $shadowOpacity = round(0.28 * ($shadowLevel / 100), 3);
     $shadowBlur = round(26 * ($shadowLevel / 100), 2);
 
-    return <<<CSS
+    // Sukuriame Favicon (bendrą visai sistemai)
+    $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='60' fill='black'%3EC%3C/text%3E%3C/svg%3E";
+
+    return <<<HTML
+<link rel="icon" type="image/svg+xml" href="{$faviconSvg}">
+<link rel="apple-touch-icon" href="/uploads/icon-192.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</noscript><style>
+</noscript>
+<style>
 :root {
   --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-weight-regular: 400;
@@ -555,7 +574,7 @@ input[type=checkbox] {
   }
 }
 </style>
-CSS;
+HTML;
 }
 
 function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
@@ -576,9 +595,6 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
             $metaDesc .= '...';
         }
     }
-
-    // Favicon apibrėžimas
-    $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='60' fill='black'%3EC%3C/text%3E%3C/svg%3E";
 
     $cart = getCartData($pdo, $_SESSION['cart'] ?? [], $_SESSION['cart_variations'] ?? []);
     
@@ -676,10 +692,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <link rel="manifest" href="/manifest.json">
       <meta name="theme-color" content="#829ed6">
-      <link rel="apple-touch-icon" href="/uploads/icon-192.png">
       
-      <link rel="icon" type="image/svg+xml" href="<?php echo $faviconSvg; ?>">
-
       <title><?php echo htmlspecialchars($metaTitle); ?></title>
       <meta name="description" content="<?php echo htmlspecialchars($metaDesc); ?>">
       <link rel="canonical" href="<?php echo htmlspecialchars($metaUrl); ?>">
