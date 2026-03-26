@@ -100,6 +100,10 @@ a { color:inherit; text-decoration:none; }
 .hero h1 { margin: 8px 0 4px; font-size: clamp(22px, 4vw, 30px); color: #0f172a; line-height: 1.3; }
 
 .thread-meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; margin-top: 6px; flex-wrap: wrap; }
+
+/* Autoriaus nuoroda ir avataras */
+.author-link { display: flex; align-items: center; gap: 8px; transition: opacity 0.2s; cursor: pointer; }
+.author-link:hover { opacity: 0.7; }
 .author-avatar { width: 28px; height: 28px; border-radius: 50%; background: #dbeafe; color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 1px solid #bfdbfe; }
 
 /* Kortelės */
@@ -153,10 +157,10 @@ a { color:inherit; text-decoration:none; }
          <h1><?php echo htmlspecialchars($thread['title']); ?></h1>
          
          <div class="thread-meta">
-            <div style="display:flex; align-items:center; gap:6px;">
+            <a href="/user_profile.php?id=<?php echo (int)$thread['user_id']; ?>" class="author-link">
                 <div class="author-avatar"><?php echo strtoupper(substr($thread['author_name'], 0, 1)); ?></div>
                 <span style="font-weight:600; color:var(--text);"><?php echo htmlspecialchars($thread['author_name']); ?></span>
-            </div>
+            </a>
             <span>•</span>
             <span><?php echo date('Y-m-d H:i', strtotime($thread['created_at'])); ?></span>
             <?php if (!empty($thread['is_admin'])): ?>
@@ -185,8 +189,10 @@ a { color:inherit; text-decoration:none; }
              <div class="comment-item" id="c<?php echo $comment['id']; ?>">
                 <div class="comment-header">
                     <div class="comment-author">
-                        <div class="author-avatar" style="width:24px; height:24px; font-size:11px;"><?php echo strtoupper(substr($comment['author_name'], 0, 1)); ?></div>
-                        <?php echo htmlspecialchars($comment['author_name']); ?>
+                        <a href="/user_profile.php?id=<?php echo (int)$comment['user_id']; ?>" class="author-link">
+                            <div class="author-avatar" style="width:24px; height:24px; font-size:11px;"><?php echo strtoupper(substr($comment['author_name'], 0, 1)); ?></div>
+                            <span><?php echo htmlspecialchars($comment['author_name']); ?></span>
+                        </a>
                         <?php if (!empty($comment['is_admin'])): ?>
                             <span class="admin-badge">ADMIN</span>
                         <?php endif; ?>
