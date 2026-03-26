@@ -21,6 +21,8 @@ BEFORE writing any code or response, the AI MUST read and strictly adhere to the
     * **Code Comments:** Lithuanian (Lietuvių k.).
 5.  **SECURITY:** All SQL queries MUST use **PDO Prepared Statements**. No direct variable injection into SQL strings.
 
+Kai generuoji naują PHP puslapio kodą arba pateiki pilną atnaujinto puslapio kodą, **VISADA privalai įtraukti standartinį HTML5 karkasą**, net jei puslapis naudoja išorinius `layout.php` ar atvaizdavimo funkcijas.
+
 ---
 
 ## 🛠 2. Tech Stack
@@ -54,18 +56,3 @@ AI must adhere to this structure when creating or referencing files:
 
 **Session Management:**
 * Rely on established `$_SESSION` variables (e.g., checking if user or admin is logged in) before executing restricted logic.
-
----
-
-## 📝 4. Current Task Specifics
-
-* *[Place for your current temporary notes]*
-
----
-
-## 🔄 5. Workflow Protocol
-
-1.  AI receives a prompt.
-2.  AI reads `README.md` guidelines.
-3.  **Ambiguity Check:** If the task is unclear -> AI asks the user.
-4.  **Execution:** AI provides the **FULL** file code, ensuring existing design and features remain intact.
