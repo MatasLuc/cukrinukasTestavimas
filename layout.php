@@ -346,6 +346,29 @@ input[type=checkbox] {
 .cart-preview-meta { display:flex; justify-content: space-between; width:100%; align-items: flex-start; }
 .cart-preview-footer { display:flex; justify-content: space-between; align-items:center; margin-top:8px; padding-top: 12px; border-top: 2px solid #f0f0f5; }
 
+/* PAIEŠKOS DROPDOWN STILIAI */
+.search-container { position: relative; display: flex; align-items: center; }
+.search-dropdown {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: #fff; border: 1px solid #e6e6ef; border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.12); overflow: hidden;
+  display: none; flex-direction: column; z-index: 1050; min-width: 250px;
+}
+.search-dropdown.active { display: flex; }
+.search-dropdown-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  text-decoration: none; color: var(--text-color); border-bottom: 1px solid #f0f0f5;
+  transition: background 0.2s;
+}
+.search-dropdown-item:last-child { border-bottom: none; }
+.search-dropdown-item:hover { background: #f3f3f8; }
+.search-dropdown-img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; background: #f0f0f5; flex-shrink: 0; }
+.search-dropdown-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.search-dropdown-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #0b0b0b; }
+.search-dropdown-type { font-size: 11px; color: #6b6b7a; }
+.search-dropdown-more { padding: 10px; text-align: center; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; background: #f9fafb; }
+.search-dropdown-more:hover { background: #f3f3f8; color: #0b0b0b; }
+
 /* SEARCH BAR STYLES */
 .search-form {
   display: flex;
@@ -355,6 +378,7 @@ input[type=checkbox] {
   padding: 4px 12px;
   border: 1px solid transparent;
   transition: all 0.2s ease;
+  width: 100%;
 }
 .search-form:focus-within {
   background: #fff;
@@ -445,12 +469,13 @@ input[type=checkbox] {
   .cart-link {
     order: 2;
   }
-  .search-form {
+  .search-container {
     width: 100%;
     order: 4;
     margin-top: 10px;
     flex-shrink: 0;
   }
+  .search-form { width: 100%; margin-top: 0; }
   .search-input { width: 100%; }
   .search-input:focus { width: 100%; }
   
@@ -822,12 +847,15 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
             </div>
       </div>
 
-      <form class="search-form" action="/search.php" method="GET">
-          <input type="text" name="q" class="search-input" placeholder="Ieškoti..." required value="<?php echo htmlspecialchars((string)$searchQuery); ?>">
-          <button type="submit" class="search-btn" aria-label="Ieškoti">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          </button>
-      </form>
+      <div class="search-container">
+          <form class="search-form" action="/search.php" method="GET">
+              <input type="text" name="q" id="liveSearchInput" class="search-input" placeholder="Ieškoti..." required value="<?php echo htmlspecialchars((string)$searchQuery); ?>" autocomplete="off">
+              <button type="submit" class="search-btn" aria-label="Ieškoti">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </button>
+          </form>
+          <div class="search-dropdown" id="searchDropdown"></div>
+      </div>
 
     </nav>
   </header>
@@ -886,6 +914,60 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
             navToggle.setAttribute('aria-expanded', 'false');
           });
         });
+      }
+
+      // LIVE SEARCH (AJAX) LOGIKA
+      const searchInput = document.getElementById('liveSearchInput');
+      const searchDropdown = document.getElementById('searchDropdown');
+      let searchTimeout;
+
+      if (searchInput && searchDropdown) {
+          searchInput.addEventListener('input', function() {
+              clearTimeout(searchTimeout);
+              const query = this.value.trim();
+              
+              if (query.length < 2) {
+                  searchDropdown.classList.remove('active');
+                  return;
+              }
+              
+              searchTimeout = setTimeout(() => {
+                  fetch(`/ajax_search.php?q=${encodeURIComponent(query)}`)
+                      .then(res => res.json())
+                      .then(data => {
+                          if (data.length > 0) {
+                              searchDropdown.innerHTML = data.map(item => `
+                                  <a href="${item.url}" class="search-dropdown-item">
+                                      <img src="${item.image}" alt="" class="search-dropdown-img">
+                                      <div class="search-dropdown-info">
+                                          <span class="search-dropdown-title">${item.title}</span>
+                                          <span class="search-dropdown-type">${item.type}</span>
+                                      </div>
+                                  </a>
+                              `).join('') + `<a href="/search.php?q=${encodeURIComponent(query)}" class="search-dropdown-more">Rodyti visus rezultatus &rarr;</a>`;
+                              searchDropdown.classList.add('active');
+                          } else {
+                              searchDropdown.innerHTML = `<div style="padding: 12px; text-align: center; font-size: 13px; color: #6b6b7a;">Pagal šią užklausą nieko nerasta</div>`;
+                              searchDropdown.classList.add('active');
+                          }
+                      })
+                      .catch(err => console.error('Paieškos klaida:', err));
+              }, 300);
+          });
+
+          // Uždaryti dropdown paspaudus bet kur kitur
+          document.addEventListener('click', (e) => {
+              if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                  searchDropdown.classList.remove('active');
+              }
+          });
+          
+          // Atidaryti dropdown sugrįžus į laukelį (jei jau yra įvestas tekstas)
+          searchInput.addEventListener('focus', () => {
+              if (searchInput.value.trim().length >= 2 && searchDropdown.innerHTML !== '') {
+                  searchDropdown.classList.add('active');
+              }
+          });
       }
   </script>
   <?php
