@@ -59,8 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['body'])) {
             $ins = $pdo->prepare('INSERT INTO community_comments (thread_id, user_id, body) VALUES (?, ?, ?)');
             $ins->execute([$threadId, $user['id'], $body]);
             
-            // Atnaujinam temos updated_at
-            $pdo->prepare('UPDATE community_threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$threadId]);
+            // PAŠALINTA SQL EILUTĖ SU 'updated_at', nes tokio stulpelio nėra 'community_threads' lentelėje
             
             $_SESSION['flash_success'] = 'Komentaras pridėtas.';
             header("Location: /community_thread.php?id=$threadId");
@@ -180,24 +179,8 @@ a { color:inherit; text-decoration:none; }
 
     <div>
        <h3 style="margin-bottom:16px; font-size:18px;">Komentarai (<?php echo count($comments); ?>)</h3>
-       
-       <div class="card comment-form">
-         <?php if ($user['id']): ?>
-            <form method="post">
-                <?php echo csrfField(); ?>
-                <textarea name="body" placeholder="Rašyti atsakymą..." required></textarea>
-                <div style="text-align:right;">
-                    <button class="btn" type="submit">Komentuoti</button>
-                </div>
-            </form>
-         <?php else: ?>
-            <div style="text-align:center; padding: 10px; color: var(--muted);">
-                <a href="/login.php" style="color:var(--accent); font-weight:bold;">Prisijunkite</a>, kad galėtumėte komentuoti.
-            </div>
-         <?php endif; ?>
-       </div>
 
-       <div class="comments-list">
+       <div class="comments-list" style="margin-bottom: 30px;">
           <?php foreach ($comments as $comment): ?>
              <div class="comment-item" id="c<?php echo $comment['id']; ?>">
                 <div class="comment-header">
@@ -222,6 +205,23 @@ a { color:inherit; text-decoration:none; }
             </div>
           <?php endif; ?>
        </div>
+       
+       <div class="card comment-form">
+         <?php if ($user['id']): ?>
+            <form method="post">
+                <?php echo csrfField(); ?>
+                <textarea name="body" placeholder="Rašyti atsakymą..." required></textarea>
+                <div style="text-align:right;">
+                    <button class="btn" type="submit">Komentuoti</button>
+                </div>
+            </form>
+         <?php else: ?>
+            <div style="text-align:center; padding: 10px; color: var(--muted);">
+                <a href="/login.php" style="color:var(--accent); font-weight:bold;">Prisijunkite</a>, kad galėtumėte komentuoti.
+            </div>
+         <?php endif; ?>
+       </div>
+
     </div>
   </div>
 
