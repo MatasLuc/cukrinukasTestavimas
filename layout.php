@@ -29,11 +29,8 @@ function headerStyles(?int $overrideShadow = null): string {
     $shadowOpacity = round(0.28 * ($shadowLevel / 100), 3);
     $shadowBlur = round(26 * ($shadowLevel / 100), 2);
 
-    // Sukuriame Favicon (bendrą visai sistemai)
-    $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='60' fill='black'%3EC%3C/text%3E%3C/svg%3E";
-
     return <<<HTML
-<link rel="icon" type="image/svg+xml" href="{$faviconSvg}">
+<link rel="icon" type="image/x-icon" href="https://cukrinukas.lt/uploads/favicon.ico">
 <link rel="apple-touch-icon" href="/uploads/icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
