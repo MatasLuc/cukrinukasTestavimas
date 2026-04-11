@@ -807,16 +807,87 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
-    /* TESTIMONIALS */
-    .testimonials-box {
-        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-        border:1px solid var(--border); border-radius:20px; padding:32px;
+    /* MODERN TESTIMONIALS */
+    .modern-testimonials { margin-bottom: 60px; }
+    .modern-testimonials-header { text-align: center; margin-bottom: 40px; }
+    .modern-testimonials-header h2 { font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; text-transform: uppercase; }
+    
+    .modern-testimonial-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+    
+    .modern-t-card {
+        background: #ffffff;
+        border-radius: 24px;
+        padding: 32px;
+        position: relative;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.04);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex;
+        flex-direction: column;
+        z-index: 1;
+        overflow: hidden;
     }
-    .testimonial-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:24px; }
-    .testimonial { background:#fff; border-radius:14px; padding:20px; border:1px solid #e2e8f0; box-shadow:var(--shadow-sm); height:100%; display:flex; flex-direction:column; }
-    .t-name { font-weight:700; margin-bottom:2px; font-size:15px; }
-    .t-role { font-size:12px; color:var(--muted); margin-bottom:10px; }
-    .t-text { font-size:14px; line-height:1.6; color:#475467; flex:1; }
+    .modern-t-card::before {
+        content: "”";
+        position: absolute;
+        top: -10px;
+        right: 20px;
+        font-size: 140px;
+        font-family: Georgia, serif;
+        color: var(--accent-light);
+        z-index: -1;
+        opacity: 0.7;
+        line-height: 1;
+    }
+    .modern-t-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.08);
+        border-color: rgba(37, 99, 235, 0.2);
+    }
+    .modern-t-stars {
+        display: flex;
+        gap: 4px;
+        color: #fbbf24;
+        margin-bottom: 20px;
+    }
+    .modern-t-stars svg { width: 20px; height: 20px; fill: currentColor; }
+    
+    .modern-t-text {
+        font-size: 16px;
+        line-height: 1.7;
+        color: #475467;
+        flex-grow: 1;
+        margin-bottom: 28px;
+        font-style: italic;
+        position: relative;
+    }
+    
+    .modern-t-author {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-top: 1px solid var(--border);
+        padding-top: 20px;
+    }
+    
+    .modern-t-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), #60a5fa);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 18px;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+    
+    .modern-t-meta { display: flex; flex-direction: column; }
+    .modern-t-name { font-weight: 700; color: #0f172a; font-size: 16px; margin-bottom: 2px; }
+    .modern-t-role { font-size: 13px; color: var(--muted); font-weight: 500; }
 
     /* FREE SHIPPING */
     .free-shipping-box {
@@ -878,7 +949,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
-        .testimonial-grid, .news-grid { grid-template-columns: 1fr 1fr; }
+        .news-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
@@ -890,7 +961,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .support-band .pill { display: none !important; }
     }
     @media (max-width: 600px) {
-        .testimonial-grid, .news-grid { grid-template-columns: 1fr; }
+        .news-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
         .promo-grid-seamless { grid-template-columns: 1fr; }
         a.promo-card-seamless:not(:last-child)::after { display: none; }
@@ -1111,20 +1182,32 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell testimonials">
-      <div class="section-head">
-        <h2>ATSILIEPIMAI</h2>
+    <section class="section-shell modern-testimonials">
+      <div class="modern-testimonials-header">
+        <h2>Atsiliepimai</h2>
       </div>
-      <div class="testimonials-box">
-        <div class="testimonial-grid">
-            <?php foreach ($testimonials as $t): ?>
-            <div class="testimonial">
-                <div class="t-name"><?php echo htmlspecialchars($t['name']); ?></div>
-                <div class="t-role"><?php echo htmlspecialchars($t['role']); ?></div>
-                <div class="t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+      <div class="modern-testimonial-grid">
+        <?php foreach ($testimonials as $t): ?>
+        <?php 
+            $initial = mb_substr(trim($t['name']), 0, 1);
+            if (!$initial) $initial = 'C';
+        ?>
+        <div class="modern-t-card">
+            <div class="modern-t-stars">
+                <?php for($i=0; $i<5; $i++): ?>
+                <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <?php endfor; ?>
             </div>
-            <?php endforeach; ?>
+            <div class="modern-t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+            <div class="modern-t-author">
+                <div class="modern-t-avatar"><?php echo htmlspecialchars(mb_strtoupper($initial)); ?></div>
+                <div class="modern-t-meta">
+                    <span class="modern-t-name"><?php echo htmlspecialchars($t['name']); ?></span>
+                    <span class="modern-t-role"><?php echo htmlspecialchars($t['role']); ?></span>
+                </div>
+            </div>
         </div>
+        <?php endforeach; ?>
       </div>
     </section>
 
