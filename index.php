@@ -350,8 +350,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-product-image-wrapper {
         position: relative;
         background: #f8fafc;
-        padding: 30px;
-        height: 240px;
+        padding: 16px; /* Sumažintas padding */
+        height: 140px; /* Sumažintas aukštis */
         display: flex;
         align-items: center;
         justify-content: center;
@@ -491,7 +491,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         text-decoration: none;
         color: var(--accent);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        min-height: 340px; /* Pritaikyta prie prekių kortelių maždaug aukščio */
+        min-height: 240px; /* Sumažintas, kad derėtų prie prekių kortelių aukščio */
     }
     .view-all-card:hover {
         transform: translateY(-8px);
