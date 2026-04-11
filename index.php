@@ -98,15 +98,6 @@ for ($i = 1; $i <= 3; $i++) {
     ];
 }
 
-$storyband = [
-    'title' => $siteContent['storyband_title'] ?? 'Kasdieniai sprendimai diabetui',
-    'body' => $siteContent['storyband_body'] ?? 'Sudėjome priemones ir žinias, kurios palengvina cukrinio diabeto priežiūrą: nuo matavimų iki receptų ir užkandžių.',
-    'cta_label' => $siteContent['storyband_cta_label'] ?? 'Rinktis rinkinį',
-    'cta_url' => $siteContent['storyband_cta_url'] ?? '/products.php',
-    'card_title' => $siteContent['storyband_card_title'] ?? '„Cukrinukas“ rinkiniai',
-    'card_body' => $siteContent['storyband_card_body'] ?? 'Starteriai su gliukometrais, užkandžiais ir atsargomis 30 dienų.',
-];
-
 $storyRow = [
     'title' => $siteContent['storyrow_title'] ?? 'Stebėjimas, užkandžiai ir ramybė',
     'body' => $siteContent['storyrow_body'] ?? 'Greitai pasiekiami sensorių pleistrai, cukraus kiekį subalansuojantys batonėliai ir starterių rinkiniai.',
@@ -281,7 +272,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transition: all 0.3s ease;
         position: relative;
     }
-    /* Vertikalūs skirtukai tarp elementų (išskyrus paskutinį) */
     @media (min-width: 601px) {
         a.promo-card-seamless:not(:last-child)::after {
             content: '';
@@ -318,25 +308,127 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         max-width: 250px;
     }
 
-    /* STORYBAND - BALTAS FONAS */
-    .storyband-box {
+    /* MODERNUS BENDRUOMENĖS BLOKAS (Vieta senam receptų blokui) */
+    .community-block {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        border-radius: 24px;
+        padding: 48px;
+        color: #fff;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 48px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.3);
+        margin-top: 20px;
+    }
+    .community-block::before {
+        content: '';
+        position: absolute;
+        top: -50px; right: -50px;
+        width: 250px; height: 250px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        filter: blur(40px);
+    }
+    .community-block::after {
+        content: '';
+        position: absolute;
+        bottom: -50px; left: 10%;
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+        filter: blur(60px);
+    }
+    .community-content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .community-content h2 {
+        font-size: clamp(28px, 4vw, 36px);
+        font-weight: 800;
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }
+    .community-content p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: #dbeafe;
+        margin: 0 0 32px;
+        max-width: 450px;
+    }
+    .btn-community-main {
+        align-self: flex-start;
         background: #fff;
-        border:1px solid var(--border); border-radius:20px; padding:32px;
-        display:grid; grid-template-columns: 1fr 300px; gap:40px; align-items:center;
+        color: #1e3a8a;
+        padding: 14px 32px;
+        border-radius: 99px;
+        font-weight: 700;
+        font-size: 15px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-    .metrics { margin-top:20px; }
-    .btn-recipes {
-        display: inline-flex; align-items: center; justify-content: center; width: 100%;
-        padding: 14px; background: #fff; border: 1px solid var(--border);
-        border-radius: 12px; font-weight: 700; color: #1f2937;
-        text-decoration: none; transition: all .2s;
-        box-shadow: var(--shadow-sm);
+    .btn-community-main:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        color: var(--accent);
     }
-    .btn-recipes:hover {
-        background: var(--accent-light); color: var(--accent); border-color: var(--accent);
+    .community-features {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        position: relative;
+        z-index: 2;
     }
-    
-    .story-card-inner { background:#fff; border-radius:14px; padding:20px; box-shadow:var(--shadow-md); border:1px solid #e0e7ff; }
+    .c-feature-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 16px;
+        padding: 24px;
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: #fff;
+    }
+    .c-feature-card:hover {
+        background: rgba(255, 255, 255, 0.15);
+        transform: translateX(-6px);
+        border-color: rgba(255, 255, 255, 0.4);
+    }
+    .c-icon-wrapper {
+        background: rgba(255,255,255,0.2);
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .c-icon-wrapper svg {
+        width: 26px; height: 26px; stroke: #fff;
+    }
+    .c-feature-text h4 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+    }
+    .c-feature-text p {
+        margin: 0;
+        font-size: 14px;
+        color: #bfdbfe;
+        line-height: 1.5;
+    }
 
     /* STORE GRID - 3 EILĖJE */
     .store-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; }
@@ -377,7 +469,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .fs-card h4 { margin:0 0 2px; font-size:13px; font-weight:600; line-height:1.3; }
     .fs-price { font-size:14px; font-weight:700; color:#0284c7; }
 
-    /* HIGHLIGHT & SUPPORT BAND (IDENTIŠKI) */
+    /* HIGHLIGHT & SUPPORT BAND */
     .support-box, .highlight-box {
         background:#fff; border:1px solid var(--border); border-radius:20px; padding:32px;
         display:grid; grid-template-columns: 1.2fr 1fr; gap:40px; box-shadow:var(--shadow-sm);
@@ -426,13 +518,12 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
-        .storyband-box, .highlight-box, .support-box { grid-template-columns: 1fr; gap:24px; }
+        .community-block, .highlight-box, .support-box { grid-template-columns: 1fr; gap:32px; padding: 32px; }
         .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
-        .glass-card.support-mini,
-        .story-card-inner {
+        .glass-card.support-mini {
             display: none !important;
         }
         .highlight-section .pill,
@@ -453,6 +544,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         a.promo-card-seamless:last-child {
              border-bottom: none;
         }
+        .community-block { padding: 24px; border-radius: 20px; }
     }
   </style>
 </head>
@@ -503,23 +595,38 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell storyband">
-      <div class="section-head">
-        <h2><?php echo htmlspecialchars($storyband['title']); ?></h2>
-        <a class="pill" href="<?php echo htmlspecialchars($storyband['cta_url']); ?>"><?php echo htmlspecialchars($storyband['cta_label']); ?> →</a>
-      </div>
-      <div class="storyband-box">
-        <div>
-          <p style="margin:0 0 16px; color:#475467; line-height:1.7; font-size:16px;"><?php echo htmlspecialchars($storyband['body']); ?></p>
-          <div class="metrics">
-            <a href="/recipes.php" class="btn-recipes">
-                Peržiūrėk visus mūsų receptus
-            </a>
+    <section class="section-shell" id="bendruomene">
+      <div class="community-block">
+        <div class="community-content">
+          <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
+          <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
+          <div class="community-actions">
+            <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
           </div>
         </div>
-        <div class="story-card-inner">
-          <h3 style="margin:0 0 8px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($storyband['card_title']); ?></h3>
-          <p style="margin:0; color:#4b5563; font-size:14px; line-height:1.5;"><?php echo htmlspecialchars($storyband['card_body']); ?></p>
+        <div class="community-features">
+          <a href="/community_discussions.php" class="c-feature-card">
+            <div class="c-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+              </svg>
+            </div>
+            <div class="c-feature-text">
+              <h4>Pokalbiai ir patarimai</h4>
+              <p>Klauskite, diskutuokite ir dalinkitės kasdiene diabeto patirtimi su tais, kurie jus supranta geriausiai.</p>
+            </div>
+          </a>
+          <a href="/community_market.php" class="c-feature-card">
+            <div class="c-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+            </div>
+            <div class="c-feature-text">
+              <h4>Bendruomenės Turgelis</h4>
+              <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
+            </div>
+          </a>
         </div>
       </div>
     </section>
