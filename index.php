@@ -807,6 +807,87 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
+    /* MODERN NEWS BLOCK */
+    .modern-news-section { margin-bottom: 60px; }
+    .modern-news-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 32px; gap: 16px; }
+    .modern-news-header h2 { font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; text-transform: uppercase; }
+    .modern-news-header .pill { border-radius: 99px; font-weight: 600; padding: 10px 20px; background: var(--accent-light); color: var(--accent); border: none; }
+    .modern-news-header .pill:hover { background: var(--accent); color: #fff; }
+
+    .modern-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+
+    @media (min-width: 900px) {
+        .modern-news-grid { grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(200px, auto); }
+        /* Pirmos naujienos išryškinimas (Bento stilius) */
+        .modern-news-card:nth-child(1) { grid-column: span 2; grid-row: span 2; }
+        .modern-news-card:nth-child(1) .modern-news-image { height: 100%; min-height: 100%; position: absolute; inset: 0; }
+        .modern-news-card:nth-child(1) .modern-news-content { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.8) 50%, transparent 100%); padding: 60px 32px 32px; background-color: transparent;}
+        .modern-news-card:nth-child(1) .modern-news-title { font-size: clamp(24px, 3vw, 32px); color: #fff; margin-bottom: 16px; }
+        .modern-news-card:nth-child(1) .modern-news-excerpt { color: #cbd5e1; font-size: 16px; -webkit-line-clamp: 4; }
+        .modern-news-card:nth-child(1) .modern-news-readmore { color: #60a5fa; }
+        .modern-news-card:nth-child(1) .modern-news-date { background: var(--accent); color: #fff; }
+    }
+
+    .modern-news-card {
+        background: var(--card);
+        border-radius: 24px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.04);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        text-decoration: none;
+        color: var(--text);
+        min-height: 380px;
+    }
+    .modern-news-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.1);
+        border-color: rgba(37, 99, 235, 0.2);
+    }
+    
+    .modern-news-image { position: relative; height: 220px; overflow: hidden; flex-shrink: 0; }
+    .modern-news-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s ease; }
+    .modern-news-card:hover .modern-news-image img { transform: scale(1.08); }
+    .modern-news-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.3), transparent 50%); opacity: 0; transition: opacity 0.4s ease; }
+    .modern-news-card:hover .modern-news-image::after { opacity: 1; }
+
+    .modern-news-date {
+        position: absolute; top: 16px; left: 16px;
+        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); color: #0f172a;
+        padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 700;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 2;
+    }
+
+    .modern-news-content {
+        padding: 24px; display: flex; flex-direction: column; flex-grow: 1; position: relative; z-index: 2;
+    }
+    
+    .modern-news-title {
+        margin: 0 0 12px; font-size: 18px; font-weight: 800; line-height: 1.4; color: #0f172a;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    
+    .modern-news-excerpt {
+        font-size: 14px; color: #475467; line-height: 1.6; margin: 0 0 24px;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; flex-grow: 1;
+    }
+
+    .modern-news-readmore {
+        display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
+        color: var(--accent); margin-top: auto; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s;
+    }
+    .modern-news-readmore svg { width: 18px; height: 18px; transition: transform 0.3s ease; stroke-width: 2.5; }
+    .modern-news-card:hover .modern-news-readmore { color: var(--accent-hover); }
+    .modern-news-card:hover .modern-news-readmore svg { transform: translateX(6px); }
+
+    @media (max-width: 899px) {
+        .modern-news-card { min-height: auto; }
+        .modern-news-image { height: 200px; }
+    }
+
     /* MODERN TESTIMONIALS */
     .modern-testimonials { margin-bottom: 60px; }
     .modern-testimonials-header { text-align: center; margin-bottom: 40px; }
@@ -936,20 +1017,9 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     
     .chips { display:flex; gap:8px; flex-wrap:wrap; }
 
-    /* NEWS GRID */
-    .news-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; }
-    .news-card { background:#fff; border:1px solid var(--border); border-radius:16px; overflow:hidden; transition:transform .2s; }
-    .news-card:hover { transform:translateY(-3px); border-color:var(--accent); }
-    .news-card img { width:100%; height:160px; object-fit:cover; }
-    .news-body { padding:16px; }
-    .news-title { margin:0 0 6px; font-size:16px; font-weight:600; line-height:1.4; }
-    .news-date { font-size:12px; color:var(--muted); margin-bottom:8px; display:block; }
-    .news-excerpt { font-size:13px; color:#4b5563; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
-        .news-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
@@ -961,7 +1031,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .support-band .pill { display: none !important; }
     }
     @media (max-width: 600px) {
-        .news-grid { grid-template-columns: 1fr; }
+        .modern-news-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
         .promo-grid-seamless { grid-template-columns: 1fr; }
         a.promo-card-seamless:not(:last-child)::after { display: none; }
@@ -1182,31 +1252,38 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell modern-testimonials">
-      <div class="modern-testimonials-header">
-        <h2>Atsiliepimai</h2>
+    <section class="section-shell modern-news-section" id="naujienos">
+      <div class="modern-news-header">
+        <h2>NAUJIENOS</h2>
+        <a class="pill" href="/news.php">Visos naujienos →</a>
       </div>
-      <div class="modern-testimonial-grid">
-        <?php foreach ($testimonials as $t): ?>
-        <?php 
-            $initial = mb_substr(trim($t['name']), 0, 1);
-            if (!$initial) $initial = 'C';
-        ?>
-        <div class="modern-t-card">
-            <div class="modern-t-stars">
-                <?php for($i=0; $i<5; $i++): ?>
-                <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                <?php endfor; ?>
+      <div class="modern-news-grid">
+        <?php foreach ($featuredNews as $news): ?>
+          <?php
+            // SEO URL Naujienoms
+            $newsUrl = '/naujiena/' . slugify($news['title']) . '-' . (int)$news['id'];
+          ?>
+          <a href="<?php echo htmlspecialchars($newsUrl); ?>" class="modern-news-card">
+            <div class="modern-news-image">
+              <span class="modern-news-date"><?php echo date('Y-m-d', strtotime($news['created_at'])); ?></span>
+              <img src="<?php echo htmlspecialchars($news['image_url']); ?>" alt="<?php echo htmlspecialchars($news['title']); ?>" loading="lazy">
             </div>
-            <div class="modern-t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
-            <div class="modern-t-author">
-                <div class="modern-t-avatar"><?php echo htmlspecialchars(mb_strtoupper($initial)); ?></div>
-                <div class="modern-t-meta">
-                    <span class="modern-t-name"><?php echo htmlspecialchars($t['name']); ?></span>
-                    <span class="modern-t-role"><?php echo htmlspecialchars($t['role']); ?></span>
-                </div>
+            <div class="modern-news-content">
+              <h3 class="modern-news-title"><?php echo htmlspecialchars($news['title']); ?></h3>
+              <?php
+                $excerpt = trim($news['summary'] ?? '');
+                if (!$excerpt) $excerpt = strip_tags($news['body']);
+                if (mb_strlen($excerpt) > 100) $excerpt = mb_substr($excerpt, 0, 100) . '...';
+              ?>
+              <p class="modern-news-excerpt"><?php echo htmlspecialchars($excerpt); ?></p>
+              <div class="modern-news-readmore">
+                Skaityti daugiau
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </div>
             </div>
-        </div>
+          </a>
         <?php endforeach; ?>
       </div>
     </section>
@@ -1240,30 +1317,31 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </section>
     <?php endif; ?>
 
-    <section class="section-shell news-block" id="naujienos">
-      <div class="section-head">
-        <h2>NAUJIENOS</h2>
-        <a class="pill" href="/news.php">Visos naujienos →</a>
+    <section class="section-shell modern-testimonials">
+      <div class="modern-testimonials-header">
+        <h2>Atsiliepimai</h2>
       </div>
-      <div class="news-grid">
-        <?php foreach ($featuredNews as $news): ?>
-          <?php
-            // SEO URL Naujienoms
-            $newsUrl = '/naujiena/' . slugify($news['title']) . '-' . (int)$news['id'];
-          ?>
-          <a href="<?php echo htmlspecialchars($newsUrl); ?>" class="news-card">
-            <img src="<?php echo htmlspecialchars($news['image_url']); ?>" alt="<?php echo htmlspecialchars($news['title']); ?>">
-            <div class="news-body">
-              <span class="news-date"><?php echo date('Y-m-d', strtotime($news['created_at'])); ?></span>
-              <h3 class="news-title"><?php echo htmlspecialchars($news['title']); ?></h3>
-              <?php
-                $excerpt = trim($news['summary'] ?? '');
-                if (!$excerpt) $excerpt = strip_tags($news['body']);
-                if (mb_strlen($excerpt) > 100) $excerpt = mb_substr($excerpt, 0, 100) . '...';
-              ?>
-              <p class="news-excerpt"><?php echo htmlspecialchars($excerpt); ?></p>
+      <div class="modern-testimonial-grid">
+        <?php foreach ($testimonials as $t): ?>
+        <?php 
+            $initial = mb_substr(trim($t['name']), 0, 1);
+            if (!$initial) $initial = 'C';
+        ?>
+        <div class="modern-t-card">
+            <div class="modern-t-stars">
+                <?php for($i=0; $i<5; $i++): ?>
+                <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <?php endfor; ?>
             </div>
-          </a>
+            <div class="modern-t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+            <div class="modern-t-author">
+                <div class="modern-t-avatar"><?php echo htmlspecialchars(mb_strtoupper($initial)); ?></div>
+                <div class="modern-t-meta">
+                    <span class="modern-t-name"><?php echo htmlspecialchars($t['name']); ?></span>
+                    <span class="modern-t-role"><?php echo htmlspecialchars($t['role']); ?></span>
+                </div>
+            </div>
+        </div>
         <?php endforeach; ?>
       </div>
     </section>
