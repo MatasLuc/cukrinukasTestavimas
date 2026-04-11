@@ -957,48 +957,65 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-t-name { font-weight: 700; color: #0f172a; font-size: 16px; margin-bottom: 2px; }
     .modern-t-role { font-size: 13px; color: var(--muted); font-weight: 500; }
 
-    /* MODERN FREE SHIPPING BLOCK */
-    .free-shipping-section { margin-bottom: 60px; }
-    .fs-modern-wrapper {
+    /* MODERN FREE SHIPPING BLOCK (FULLSCREEN LIKE COMMUNITY-BLOCK) */
+    .free-shipping-block {
+        width: 100%;
+        background: 
+            linear-gradient(to bottom, var(--bg) 0%, transparent 15%, transparent 85%, var(--bg) 100%),
+            linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
+        padding: 40px 20px 80px; /* Sumažintas viršutinis padding (nuo 80px iki 40px) */
         position: relative;
-        background: linear-gradient(135deg, var(--accent) 0%, #1e3a8a 100%);
-        border-radius: 32px;
-        padding: 48px 32px;
         overflow: hidden;
-        color: #fff;
-        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.15);
+        margin-bottom: 60px;
+        display: flex;
+        justify-content: center;
+    }
+    .free-shipping-block::before {
+        content: '';
+        position: absolute;
+        top: -50px; right: -50px;
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.6);
+        border-radius: 50%;
+        filter: blur(40px);
+        pointer-events: none;
+    }
+    .free-shipping-block::after {
+        content: '';
+        position: absolute;
+        bottom: -50px; left: 5%;
+        width: 350px; height: 350px;
+        background: rgba(255,255,255,0.4);
+        border-radius: 50%;
+        filter: blur(60px);
+        pointer-events: none;
+    }
+    .fs-modern-wrapper {
+        width: 100%;
+        max-width: 1200px;
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
-    }
-    .fs-modern-wrapper::before {
-        content: ''; position: absolute; top: -100px; left: -100px;
-        width: 300px; height: 300px; background: rgba(255,255,255,0.15);
-        border-radius: 50%; filter: blur(40px); pointer-events: none;
-    }
-    .fs-modern-wrapper::after {
-        content: ''; position: absolute; bottom: -100px; right: -50px;
-        width: 400px; height: 400px; background: rgba(255,255,255,0.1);
-        border-radius: 50%; filter: blur(50px); pointer-events: none;
+        position: relative;
+        z-index: 2;
     }
     .fs-modern-header {
-        position: relative; z-index: 2; margin-bottom: 40px;
+        margin-bottom: 40px;
     }
     .fs-modern-icon {
         display: inline-flex; align-items: center; justify-content: center;
-        width: 80px; height: 80px; background: rgba(255,255,255,0.15);
-        border-radius: 50%; margin-bottom: 20px; backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        color: #fff; border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        width: 80px; height: 80px; background: #fff;
+        border-radius: 50%; margin-bottom: 20px;
+        color: var(--accent);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
     }
     .fs-modern-title {
         font-size: clamp(28px, 5vw, 40px); font-weight: 800; margin: 0 0 12px;
-        letter-spacing: -0.02em; text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        letter-spacing: -0.02em; color: #0f172a;
     }
     .fs-modern-subtitle {
-        font-size: 16px; color: #e0f2fe; max-width: 540px; margin: 0 auto; line-height: 1.6;
+        font-size: 16px; color: #475467; max-width: 540px; margin: 0 auto; line-height: 1.6;
     }
     .fs-modern-grid {
         display: flex; flex-wrap: wrap; justify-content: center; gap: 24px;
@@ -1011,11 +1028,12 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         display: flex; flex-direction: column; align-items: center; text-align: center;
         position: relative;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        border: 1px solid rgba(255,255,255,0.8);
     }
     .fs-modern-card:hover {
         transform: translateY(-10px);
-        box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.15);
     }
     .fs-modern-card-img-wrap {
         width: 100%; aspect-ratio: 1; margin-bottom: 16px;
@@ -1074,7 +1092,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
-        .fs-modern-wrapper { padding: 40px 20px; border-radius: 24px; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
         .lifestyle-block { padding: 0 20px 60px; }
@@ -1343,7 +1360,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     </section>
 
     <?php if ($freeShippingOffers): ?>
-      <section class="section-shell free-shipping-section">
+      <section class="free-shipping-block">
         <div class="fs-modern-wrapper">
           <div class="fs-modern-header">
             <div class="fs-modern-icon">
