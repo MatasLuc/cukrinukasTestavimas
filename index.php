@@ -519,7 +519,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         padding: 80px 20px;
         position: relative;
         overflow: hidden;
-        margin-bottom: 40px;
+        margin-bottom: 0;
         display: flex;
         justify-content: center;
     }
@@ -646,11 +646,9 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .lifestyle-block {
         width: 100%;
         background: #f7f7fb;
-        padding: 80px 20px;
+        padding: 0 20px 80px;
         position: relative;
-        margin-bottom: 40px;
-        border-top: 1px solid var(--border);
-        border-bottom: 1px solid var(--border);
+        margin-bottom: 0;
         display: flex;
         justify-content: center;
         overflow: hidden;
@@ -884,7 +882,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .fs-grid { grid-template-columns: 1fr; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
-        .lifestyle-block { padding: 60px 20px; }
+        .lifestyle-block { padding: 0 20px 60px; }
         .lifestyle-all-card { left: 10px; right: 10px; bottom: -20px; justify-content: center; }
     }
     @media (max-width: 768px) {
