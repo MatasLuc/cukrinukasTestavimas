@@ -346,17 +346,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-product-image-wrapper {
         position: relative;
         background: #f8fafc;
-        padding: 16px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        height: 220px;
+        display: block;
         overflow: hidden;
+        border-bottom: 1px solid var(--border);
     }
     .modern-product-image-wrapper img {
-        max-height: 100%;
-        max-width: 100%;
-        object-fit: contain;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         transition: transform 0.5s ease;
     }
     .modern-product-card:hover .modern-product-image-wrapper img {
