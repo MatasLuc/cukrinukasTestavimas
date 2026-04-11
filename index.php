@@ -158,6 +158,16 @@ $freeShippingOffers = getFreeShippingProducts($pdo);
 
 // Styles variables
 $heroClass = $heroMedia['type'] === 'color' ? 'hero hero--color' : 'hero hero--media';
+$heroSectionStyle = ($heroMedia['type'] === 'color'
+    ? 'background:' . htmlspecialchars($heroMedia['color']) . ';'
+    : 'background:#2563eb;') . ' --hero-overlay-strong:' . $heroOverlayStrong . '; --hero-overlay-soft:' . $heroOverlaySoft . ';';
+$heroMediaStyle = 'background:' . htmlspecialchars($heroMedia['color']) . ';';
+if ($heroMedia['type'] === 'image') {
+    $heroMediaStyle = 'background-image:url(' . htmlspecialchars($heroMedia['src']) . '); background-size:cover; background-position:center;';
+} elseif ($heroMedia['type'] === 'video') {
+    $heroMediaStyle = 'background:#000;';
+}
+
 $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='60' fill='black'%3EC%3C/text%3E%3C/svg%3E";
 ?>
 <!doctype html>
@@ -172,268 +182,306 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
   
   <style>
     :root {
+      --bg: #f7f7fb;
+      --card: #ffffff;
+      --border: #e4e7ec;
       --text: #1f2937;
-      --text-dark: #0f172a;
-      --muted: #64748b;
+      --muted: #52606d;
       --accent: #2563eb;
       --accent-hover: #1d4ed8;
-      --accent-light: rgba(37, 99, 235, 0.1);
-      /* Naujos modernios proporcijos erdvėms */
-      --gap-lg: 40px;
-      --gap-md: 24px;
-      --gap-sm: 16px;
+      --accent-light: #eff6ff;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
     }
     * { box-sizing: border-box; }
-    
-    body { 
-        margin: 0; 
-        color: var(--text); 
-        font-family: 'Inter', system-ui, sans-serif; 
-        /* Premium Mesh Gradient Fonas */
-        background-color: #f7f9fc;
-        background-image: 
-            radial-gradient(at 0% 0%, #e0f2fe 0px, transparent 50%),
-            radial-gradient(at 100% 0%, #f3e8ff 0px, transparent 50%),
-            radial-gradient(at 100% 100%, #e0f2fe 0px, transparent 50%),
-            radial-gradient(at 0% 100%, #f3e8ff 0px, transparent 50%);
-        background-attachment: fixed;
-    }
-    
-    a { text-decoration: none; color: inherit; transition: color .3s ease; }
-    img { max-width: 100%; display: block; }
+    body { margin:0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+    a { text-decoration:none; color:inherit; transition: color .2s; }
+    img { max-width:100%; display:block; }
 
     /* PAGRINDINIS KONTEINERIS VISIEMS */
-    .page-shell { 
-        display: flex; flex-direction: column; align-items: center; 
-        width: 100%; overflow-x: hidden; padding-top: 40px;
-    }
-    
-    /* Padidinta erdvė tarp sekcijų */
-    .section-shell { 
-        width: 100%; max-width: 1240px; margin: 0 auto 80px; padding: 0 24px; 
+    .page-shell { display:flex; flex-direction:column; align-items:center; width:100%; overflow-x:hidden; }
+    .section-shell {
+        width: 100%; max-width: 1200px; margin: 0 auto 40px; padding: 0 20px;
     }
 
-    /* BENDRI ELEMENTAI & GLASSMORPHISM KLASĖS */
-    .glass-panel {
-        background: rgba(255, 255, 255, 0.45);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
-        border-radius: 20px;
+    /* BENDRI ELEMENTAI */
+    .btn {
+        display:inline-flex; align-items:center; justify-content:center; gap:8px;
+        padding: 10px 20px; border-radius:12px; font-weight:600; font-size:15px;
+        background:#0b0b0b; color:#fff; border:1px solid #0b0b0b; cursor:pointer;
+        transition: all .2s;
     }
+    .btn:hover { opacity:0.9; transform:translateY(-1px); }
+    .btn.secondary { background:#fff; color:#0b0b0b; border-color:var(--border); }
     
-    /* Vidinės, šiek tiek baltesnės stiklo kortelės akcentams */
-    .glass-panel-inner {
-        background: rgba(255, 255, 255, 0.65);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        border-radius: 16px;
-    }
-
-    .btn, .glass-btn { 
-        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        padding: 14px 28px; border-radius: 16px; font-weight: 700; font-size: 16px;
-        transition: all .3s ease; cursor: pointer; text-align: center;
-    }
-    
-    .glass-btn {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(10px);
-        color: var(--accent);
-        border: 1px solid rgba(255, 255, 255, 0.9);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    }
-    .glass-btn:hover {
-        background: #fff;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(37, 99, 235, 0.15);
-    }
-    
-    .btn-dark {
-        background: var(--text-dark); color: #fff; border: 1px solid var(--text-dark);
-    }
-    .btn-dark:hover {
-        background: #000; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    }
-
+    /* PILLS - PAKEISTAS DIZAINAS (Kaip action-btn) */
     .pill {
-        display: inline-flex; align-items: center; padding: 8px 18px; 
-        border-radius: 999px; font-size: 14px; font-weight: 600;
-        background: rgba(255, 255, 255, 0.6); 
-        color: var(--text-dark);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        transition: all .3s ease;
-        backdrop-filter: blur(8px);
+        display:inline-flex; align-items:center; padding:6px 14px;
+        border-radius:999px; font-size:13px; font-weight:600;
+        background:#fff;
+        color:#1f2937; /* Tamsus tekstas */
+        border:1px solid var(--border);
+        transition: all .2s;
+        text-decoration: none;
     }
-    .pill:hover { 
-        background: #fff; color: var(--accent); 
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    .pill:hover {
+        border-color:var(--accent);
+        color:var(--accent);
+        background:#f0f9ff; /* Šviesiai mėlynas */
     }
 
-    .section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-sm); margin-bottom: 32px; flex-wrap: wrap; }
-    .section-head h2 { margin: 0; font-size: 32px; font-weight: 800; color: var(--text-dark); letter-spacing: -0.02em; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; flex-wrap: wrap; }
+    .section-head h2 { margin:0; font-size:26px; color:#0f172a; letter-spacing:-0.01em; }
 
-    /* MODERNUS SPLIT-SCREEN HERO */
-    .hero-split {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 60px;
-        align-items: center;
-        margin-bottom: 100px;
-    }
-    .hero-left {
-        display: flex; flex-direction: column; gap: 24px;
-        position: relative; z-index: 2;
-    }
-    .hero-left h1 {
-        margin: 0; font-size: clamp(40px, 5vw, 64px); 
-        font-weight: 800; line-height: 1.1; 
-        color: var(--text-dark); letter-spacing: -0.03em;
-    }
-    .hero-left p {
-        margin: 0; font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 500px;
-    }
-    .hero-actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    /* HERO */
+    .hero { width:100%; margin-bottom:0; position:relative; background:var(--accent); color:#fff; overflow:hidden; }
+    .hero::after { content:""; position:absolute; inset:0; background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2), transparent 45%), linear-gradient(120deg, rgba(37,99,235,0.4), rgba(15,23,42,0.6)); z-index:1; }
+    .hero-media { position:absolute; inset:0; z-index:0; }
+    .media-embed { width:100%; height:100%; background:var(--accent); }
+    .media-embed img { width:100%; height:100%; object-fit:cover; }
     
-    .hero-right {
+    .hero__content { position:relative; z-index:2; max-width:1200px; margin:0 auto; padding: 50px 20px 40px; display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:32px; align-items:center; }
+    .hero__copy h1 { margin:0 0 12px; font-size:clamp(32px, 5vw, 42px); line-height:1.2; color:#fff; }
+    .hero__copy p { margin:0 0 24px; font-size:18px; line-height:1.6; color:#e0f2fe; max-width:540px; }
+    
+    /* GLASS CARD FIX */
+    .glass-card { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:16px; padding:20px; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,0.1); color:#fff; }
+    .glass-card h3 { margin:0 0 8px; font-size:18px; color:#fff; }
+    .glass-card p { margin:0 0 12px; font-size:14px; color:#e0f2fe; line-height:1.5; }
+    .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
+
+    /* SVETAINĖS AKCENTAI - MODERN FULLSCREEN REDESIGN */
+    .promo-fullscreen {
+        width: 100%;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        padding: 80px 20px;
+        margin-bottom: 48px;
+        display: flex;
+        justify-content: center;
+        color: #fff;
         position: relative;
-        border-radius: 30px;
         overflow: hidden;
-        box-shadow: 0 24px 48px rgba(37, 99, 235, 0.12);
-        aspect-ratio: 4/5; /* Graži portretinė proporcija */
     }
-    .hero-right img, .hero-right video {
-        width: 100%; height: 100%; object-fit: cover;
+    .promo-fullscreen::before {
+        content: "";
+        position: absolute;
+        top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 60%);
+        pointer-events: none;
+        z-index: 1;
+    }
+    .promo-fullscreen-inner {
+        width: 100%;
+        max-width: 1200px;
+        position: relative;
+        z-index: 2;
+    }
+    .center-head {
+        justify-content: center !important;
+        margin-bottom: 48px !important;
+    }
+    .center-head h2 {
+        color: #fff !important;
+        font-size: 32px !important;
+        letter-spacing: 2px !important;
+    }
+    .promo-grid-modern {
+        display: flex;
+        gap: 30px;
+        width: 100%;
+    }
+    a.promo-card-modern {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 40px 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        text-decoration: none;
+        color: #fff;
+        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    a.promo-card-modern::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 0; width: 100%; height: 4px;
+        background: var(--accent);
+        transform: scaleX(0);
+        transition: transform 0.4s ease;
+        transform-origin: left;
+    }
+    a.promo-card-modern:hover {
+        transform: translateY(-10px);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(37,99,235,0.4);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    a.promo-card-modern:hover::after {
+        transform: scaleX(1);
+    }
+    .promo-icon-modern {
+        font-size: 40px;
+        width: 80px; height: 80px;
+        border-radius: 20px;
+        background: rgba(37,99,235,0.2);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 24px;
+        transition: all 0.4s ease;
+        box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
+    }
+    a.promo-card-modern:hover .promo-icon-modern {
+        transform: scale(1.1) rotate(5deg);
+        background: var(--accent);
+    }
+    .promo-content-modern h3 {
+        margin: 0 0 12px;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .promo-content-modern p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #94a3b8;
     }
 
-    /* PROMO CARDS */
-    .promo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap-md); }
-    a.promo-card { 
-        padding: 24px; display: flex; gap: 20px; align-items: flex-start; 
-        transition: transform .3s ease, box-shadow .3s ease; 
+    /* STORYBAND - BALTAS FONAS */
+    .storyband-box {
+        background: #fff;
+        border:1px solid var(--border); border-radius:20px; padding:32px;
+        display:grid; grid-template-columns: 1fr 300px; gap:40px; align-items:center;
     }
-    a.promo-card:hover { 
-        transform: translateY(-5px); 
-        box-shadow: 0 15px 35px rgba(31, 38, 135, 0.1); 
+    /* METRICS PAKEISTAS Į MYGTUKĄ */
+    .metrics { margin-top:20px; }
+    .btn-recipes {
+        display: inline-flex; align-items: center; justify-content: center; width: 100%;
+        padding: 14px; background: #fff; border: 1px solid var(--border);
+        border-radius: 12px; font-weight: 700; color: #1f2937;
+        text-decoration: none; transition: all .2s;
+        box-shadow: var(--shadow-sm);
     }
-    .promo-icon { 
-        width: 54px; height: 54px; border-radius: 16px; 
-        background: rgba(255,255,255,0.8); color: var(--accent); 
-        display: flex; align-items: center; justify-content: center; 
-        font-size: 24px; flex-shrink: 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    .btn-recipes:hover {
+        background: var(--accent-light); color: var(--accent); border-color: var(--accent);
     }
-    .promo-card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: var(--text-dark); }
-    .promo-card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+    
+    .story-card-inner { background:#fff; border-radius:14px; padding:20px; box-shadow:var(--shadow-md); border:1px solid #e0e7ff; }
 
-    /* STORYBAND */
-    .storyband-box { 
-        padding: 40px; display: grid; grid-template-columns: 1fr 340px; gap: 60px; align-items: center;
+    /* STORE GRID - 3 EILĖJE */
+    .store-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; }
+    .product-card {
+        background:#fff; border:1px solid var(--border); border-radius:16px;
+        overflow:hidden; display:flex; flex-direction:column; transition: all .2s;
     }
-    .storyband-text { color: var(--muted); line-height: 1.7; font-size: 18px; margin: 0 0 24px; }
-    .story-card-inner { padding: 32px; display: flex; flex-direction: column; justify-content: center; }
-    .story-card-inner h3 { margin: 0 0 12px; color: var(--text-dark); font-size: 22px; font-weight: 800; }
-    .story-card-inner p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.6; }
-
-    /* STORE GRID & PRODUCTS */
-    .store-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-lg); }
-    .product-card { 
-        display: flex; flex-direction: column; overflow: hidden; 
-        transition: transform .3s ease, box-shadow .3s ease; 
-    }
-    .product-card:hover { 
-        transform: translateY(-5px); 
-        box-shadow: 0 15px 40px rgba(31, 38, 135, 0.1); 
-    }
-    .product-image-wrap { position: relative; padding: 24px; }
-    .product-card img { width: 100%; height: 220px; object-fit: contain; mix-blend-mode: multiply; }
+    .product-card:hover { border-color:var(--accent); transform:translateY(-3px); box-shadow:var(--shadow-md); }
+    .product-card img { width:100%; height:190px; object-fit:contain; padding:16px; background:#fff; }
+    .product-card__body { padding:14px; display:flex; flex-direction:column; gap:6px; flex:1; border-top:1px solid #f9fafb; }
+    .badge { font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; }
+    .product-card__title { margin:0; font-size:15px; line-height:1.4; font-weight:600; }
+    .product-card__price-row { margin-top:auto; display:flex; align-items:center; justify-content:space-between; padding-top:8px; }
+    .price { font-weight:700; color:#111827; font-size:17px; }
+    .price-old { font-size:12px; text-decoration:line-through; color:#9ca3af; margin-right:4px; }
     
-    .product-card__body { padding: 24px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-    .badge { font-size: 12px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
-    .product-card__title { margin: 0; font-size: 17px; line-height: 1.4; font-weight: 700; color: var(--text-dark); }
-    
-    .product-card__price-row { margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
-    .price { font-weight: 800; color: var(--text-dark); font-size: 20px; }
-    .price-old { font-size: 14px; text-decoration: line-through; color: #9ca3af; margin-right: 6px; }
-    
-    /* GLASS BUBBLES - Visiškai apvalūs mygtukai */
-    .glass-bubble { 
-        width: 44px; height: 44px; border-radius: 50%; 
-        background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(8px);
-        border: 1px solid rgba(255, 255, 255, 0.9);
-        display: flex; align-items: center; justify-content: center; 
-        color: var(--text-dark); cursor: pointer; transition: all .3s ease;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-    .glass-bubble:hover { 
-        background: rgba(255, 255, 255, 1); color: var(--accent);
-        transform: translateY(-3px) scale(1.05);
-        box-shadow: 0 8px 16px rgba(37, 99, 235, 0.15); 
-    }
-
-    /* HIGHLIGHT & SUPPORT BAND */
-    .highlight-box, .support-box { 
-        padding: 48px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 60px; align-items: center;
-    }
-    .highlight-content h2, .support-content h2 { margin: 0 0 16px; font-size: 32px; font-weight: 800; color: var(--text-dark); }
-    .highlight-content p, .support-content p { color: var(--muted); line-height: 1.7; font-size: 18px; margin-bottom: 24px; }
-    
-    .highlight-card, .support-card { padding: 32px; display: flex; flex-direction: column; gap: 16px; }
-    .highlight-card .btn, .support-card .btn { width: 100%; }
-    .chips { display: flex; gap: 12px; flex-wrap: wrap; }
+    .action-btn { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:#fff; color:#374151; cursor:pointer; transition:all .2s; }
+    .action-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
 
     /* FREE SHIPPING */
-    .fs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.5); padding-bottom: 20px; }
-    .fs-title { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 800; color: var(--text-dark); }
-    .fs-subtitle { font-size: 15px; color: var(--muted); margin-top: 4px; }
-    
-    .fs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-md); }
-    .fs-card { 
-        padding: 16px; display: flex; align-items: center; gap: 16px; 
-        transition: transform .3s ease; text-decoration: none; color: inherit;
+    .free-shipping-box {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        border:1px solid #bae6fd; border-radius:20px; padding:24px;
     }
-    .fs-card:hover { transform: translateX(5px); }
-    .fs-card img { width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; }
-    .fs-card h4 { margin: 0 0 4px; font-size: 15px; font-weight: 700; line-height: 1.3; color: var(--text-dark); }
-    .fs-price { font-size: 16px; font-weight: 800; color: var(--accent); }
+    .fs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #e0f2fe; padding-bottom:16px; }
+    /* Pakeista spalva į juodą */
+    .fs-title { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:700; color:#0f172a; }
+    .fs-icon { font-size:24px; color: #0f172a; }
+    .fs-subtitle { font-size:14px; color:#0c4a6e; }
+    
+    .fs-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+    .fs-card {
+        background:#fff; border:1px solid #e0f2fe; border-radius:12px; padding:12px;
+        display:flex; align-items:center; gap:12px; transition: all .2s;
+        text-decoration: none; color: inherit;
+    }
+    .fs-card:hover { border-color:#7dd3fc; transform:translateX(2px); }
+    .fs-card img { width:50px; height:50px; object-fit:contain; border-radius:6px; border:1px solid #f1f5f9; }
+    .fs-card h4 { margin:0 0 2px; font-size:13px; font-weight:600; line-height:1.3; }
+    .fs-price { font-size:14px; font-weight:700; color:#0284c7; }
+
+    /* HIGHLIGHT & SUPPORT BAND (IDENTIŠKI) */
+    .support-box, .highlight-box {
+        background:#fff; border:1px solid var(--border); border-radius:20px; padding:32px;
+        display:grid; grid-template-columns: 1.2fr 1fr; gap:40px; box-shadow:var(--shadow-sm);
+    }
+    .support-content h2, .highlight-content h2 { margin:0 0 12px; font-size:24px; color:#0f172a; }
+    .support-content p, .highlight-content p { color:#475467; line-height:1.6; margin-bottom:20px; }
+    
+    .support-card, .highlight-card {
+        background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:20px;
+    }
+    
+    .support-card .btn, .highlight-card .btn {
+        width:100%;
+        background: #fff;
+        color: #1f2937;
+        border: 1px solid var(--border);
+        font-weight: 600;
+        border-radius: 999px;
+    }
+    .support-card .btn:hover, .highlight-card .btn:hover {
+        border-color: var(--accent); color: var(--accent); background: #f0f9ff;
+    }
+    
+    .chips { display:flex; gap:8px; flex-wrap:wrap; }
 
     /* TESTIMONIALS */
-    .testimonial-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-md); }
-    .testimonial { padding: 32px; display: flex; flex-direction: column; height: 100%; transition: transform .3s ease; }
-    .testimonial:hover { transform: translateY(-3px); }
-    .t-name { font-weight: 800; font-size: 17px; color: var(--text-dark); margin-bottom: 4px; }
-    .t-role { font-size: 13px; color: var(--accent); margin-bottom: 16px; font-weight: 600; text-transform: uppercase; }
-    .t-text { font-size: 15px; line-height: 1.7; color: var(--muted); flex: 1; font-style: italic; }
+    .testimonials-box {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        border:1px solid var(--border); border-radius:20px; padding:32px;
+    }
+    .testimonial-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:24px; }
+    .testimonial { background:#fff; border-radius:14px; padding:20px; border:1px solid #e2e8f0; box-shadow:var(--shadow-sm); height:100%; display:flex; flex-direction:column; }
+    .t-name { font-weight:700; margin-bottom:2px; font-size:15px; }
+    .t-role { font-size:12px; color:var(--muted); margin-bottom:10px; }
+    .t-text { font-size:14px; line-height:1.6; color:#475467; flex:1; }
 
     /* NEWS GRID */
-    .news-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-md); }
-    .news-card { overflow: hidden; transition: transform .3s ease, box-shadow .3s ease; display: flex; flex-direction: column; }
-    .news-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(31, 38, 135, 0.1); }
-    .news-card img { width: 100%; height: 180px; object-fit: cover; }
-    .news-body { padding: 24px; display: flex; flex-direction: column; flex: 1; }
-    .news-date { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; }
-    .news-title { margin: 0 0 10px; font-size: 18px; font-weight: 800; line-height: 1.4; color: var(--text-dark); }
-    .news-excerpt { font-size: 15px; color: var(--muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0; }
+    .news-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; }
+    .news-card { background:#fff; border:1px solid var(--border); border-radius:16px; overflow:hidden; transition:transform .2s; }
+    .news-card:hover { transform:translateY(-3px); border-color:var(--accent); }
+    .news-card img { width:100%; height:160px; object-fit:cover; }
+    .news-body { padding:16px; }
+    .news-title { margin:0 0 6px; font-size:16px; font-weight:600; line-height:1.4; }
+    .news-date { font-size:12px; color:var(--muted); margin-bottom:8px; display:block; }
+    .news-excerpt { font-size:13px; color:#4b5563; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 
     /* MEDIA QUERIES */
-    @media (max-width: 1024px) {
-        .hero-split { gap: 40px; }
-        .store-grid { grid-template-columns: repeat(2, 1fr); }
-        .news-grid { grid-template-columns: repeat(2, 1fr); }
-    }
     @media (max-width: 900px) {
-        .hero-split { grid-template-columns: 1fr; }
-        .hero-right { order: -1; max-height: 400px; aspect-ratio: auto; }
-        .storyband-box, .highlight-box, .support-box { grid-template-columns: 1fr; gap: 40px; padding: 32px; }
-        .testimonial-grid { grid-template-columns: 1fr 1fr; }
+        .storyband-box, .highlight-box, .support-box { grid-template-columns: 1fr; gap:24px; }
+        .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
+        .promo-grid-modern { flex-direction: column; }
+    }
+    @media (max-width: 768px) {
+        /* Mobile hiding rules */
+        .glass-card.support-mini,
+        .story-card-inner {
+            display: none !important;
+        }
+        .highlight-section .pill,
+        .support-band .pill {
+            display: none !important;
+        }
     }
     @media (max-width: 600px) {
-        .store-grid, .testimonial-grid, .news-grid { grid-template-columns: 1fr; }
-        .hero-left h1 { font-size: 36px; }
-        .section-shell { padding: 0 16px; margin-bottom: 50px; }
+        .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr; }
+        .hero__content { padding: 40px 20px; }
     }
   </style>
 </head>
@@ -442,46 +490,50 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
   <main class="page-shell">
     
-    <section class="section-shell hero-split <?php echo $heroClass; ?>">
-      <div class="hero-left">
-        <h1><?php echo htmlspecialchars($heroTitle); ?></h1>
-        <p><?php echo htmlspecialchars($heroBody); ?></p>
-        <div class="hero-actions">
-          <a class="glass-btn" href="<?php echo htmlspecialchars($heroCtaUrl); ?>">
-            <?php echo htmlspecialchars($heroCtaLabel); ?>
-          </a>
-        </div>
-        
-        <div class="glass-panel-inner" style="padding: 20px; margin-top: 20px; max-width: 400px;">
-            <h3 style="margin:0 0 8px; font-size:16px; font-weight:800; color:var(--text-dark);"><?php echo htmlspecialchars($supportBand['card_title']); ?></h3>
-            <p style="font-size:14px; margin:0 0 12px; line-height:1.5; color:var(--muted);"><?php echo htmlspecialchars($supportBand['card_body']); ?></p>
-            <a style="font-weight:700; color:var(--accent); text-decoration:none;" href="<?php echo htmlspecialchars($supportBand['card_cta_url']); ?>"><?php echo htmlspecialchars($supportBand['card_cta_label']); ?> →</a>
-        </div>
-      </div>
-      
-      <div class="hero-right">
-        <?php if ($heroMedia['type'] === 'video'): ?>
-          <video src="<?php echo htmlspecialchars($heroMedia['src']); ?>" poster="<?php echo htmlspecialchars($heroMedia['poster']); ?>" autoplay muted loop playsinline controls></video>
-        <?php else: ?>
-          <img src="<?php echo htmlspecialchars($heroMedia['src']); ?>" alt="<?php echo htmlspecialchars($heroMedia['alt']); ?>">
+    <section class="<?php echo $heroClass; ?>" style="<?php echo $heroSectionStyle; ?>">
+      <div class="hero-media" style="<?php echo $heroMediaStyle; ?>">
+        <?php if ($heroMedia['type'] === 'video' || $heroMedia['type'] === 'image'): ?>
+          <div class="media-embed">
+            <?php if ($heroMedia['type'] === 'video'): ?>
+              <video src="<?php echo htmlspecialchars($heroMedia['src']); ?>" poster="<?php echo htmlspecialchars($heroMedia['poster']); ?>" autoplay muted loop playsinline controls></video>
+            <?php else: ?>
+              <img src="<?php echo htmlspecialchars($heroMedia['src']); ?>" alt="<?php echo htmlspecialchars($heroMedia['alt']); ?>">
+            <?php endif; ?>
+          </div>
         <?php endif; ?>
+      </div>
+      <div class="hero__content">
+        <div class="hero__copy">
+          <h1><?php echo htmlspecialchars($heroTitle); ?></h1>
+          <p><?php echo htmlspecialchars($heroBody); ?></p>
+          <div class="hero__actions">
+            <a class="btn" style="background:#fff; color:#1d4ed8; border-color:#fff;" href="<?php echo htmlspecialchars($heroCtaUrl); ?>"><?php echo htmlspecialchars($heroCtaLabel); ?></a>
+          </div>
+        </div>
+        <div class="glass-card support-mini">
+            <h3 style="margin:0 0 8px; font-size:18px;"><?php echo htmlspecialchars($supportBand['card_title']); ?></h3>
+            <p style="font-size:14px; margin-bottom:12px; line-height:1.5;"><?php echo htmlspecialchars($supportBand['card_body']); ?></p>
+            <a href="<?php echo htmlspecialchars($supportBand['card_cta_url']); ?>"><?php echo htmlspecialchars($supportBand['card_cta_label']); ?> →</a>
+        </div>
       </div>
     </section>
 
-    <section class="section-shell promo-section">
-      <div class="section-head">
-        <h2>SVETAINĖS AKCENTAI</h2>
-      </div>
-      <div class="promo-grid">
-        <?php foreach ($promoCards as $card): ?>
-          <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card glass-panel">
-            <div class="promo-icon"><?php echo htmlspecialchars($card['icon']); ?></div>
-            <div>
-              <h3><?php echo htmlspecialchars($card['title']); ?></h3>
-              <p><?php echo htmlspecialchars($card['body']); ?></p>
-            </div>
-          </a>
-        <?php endforeach; ?>
+    <section class="promo-fullscreen">
+      <div class="promo-fullscreen-inner">
+          <div class="section-head center-head">
+            <h2>SVETAINĖS AKCENTAI</h2>
+          </div>
+          <div class="promo-grid-modern">
+            <?php foreach ($promoCards as $card): ?>
+              <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card-modern">
+                <div class="promo-icon-modern"><?php echo htmlspecialchars($card['icon']); ?></div>
+                <div class="promo-content-modern">
+                  <h3><?php echo htmlspecialchars($card['title']); ?></h3>
+                  <p><?php echo htmlspecialchars($card['body']); ?></p>
+                </div>
+              </a>
+            <?php endforeach; ?>
+          </div>
       </div>
     </section>
 
@@ -490,18 +542,18 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         <h2><?php echo htmlspecialchars($storyband['title']); ?></h2>
         <a class="pill" href="<?php echo htmlspecialchars($storyband['cta_url']); ?>"><?php echo htmlspecialchars($storyband['cta_label']); ?> →</a>
       </div>
-      <div class="storyband-box glass-panel">
+      <div class="storyband-box">
         <div>
-          <p class="storyband-text"><?php echo htmlspecialchars($storyband['body']); ?></p>
+          <p style="margin:0 0 16px; color:#475467; line-height:1.7; font-size:16px;"><?php echo htmlspecialchars($storyband['body']); ?></p>
           <div class="metrics">
-            <a href="/recipes.php" class="glass-btn">
+            <a href="/recipes.php" class="btn-recipes">
                 Peržiūrėk visus mūsų receptus
             </a>
           </div>
         </div>
-        <div class="story-card-inner glass-panel-inner">
-          <h3><?php echo htmlspecialchars($storyband['card_title']); ?></h3>
-          <p><?php echo htmlspecialchars($storyband['card_body']); ?></p>
+        <div class="story-card-inner">
+          <h3 style="margin:0 0 8px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($storyband['card_title']); ?></h3>
+          <p style="margin:0; color:#4b5563; font-size:14px; line-height:1.5;"><?php echo htmlspecialchars($storyband['card_body']); ?></p>
         </div>
       </div>
     </section>
@@ -514,14 +566,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
       <div class="store-grid">
         <?php foreach ($featuredProducts as $product): ?>
-          <?php 
-            $priceDisplay = buildPriceDisplay($product, $globalDiscount, $categoryDiscounts); 
+          <?php
+            $priceDisplay = buildPriceDisplay($product, $globalDiscount, $categoryDiscounts);
+            // SEO URL
             $productUrl = '/produktas/' . slugify($product['title']) . '-' . (int)$product['id'];
           ?>
-          <article class="product-card glass-panel">
-            <div class="product-image-wrap">
+          <article class="product-card">
+            <div style="position:relative;">
                 <?php if (!empty($product['ribbon_text'])): ?>
-                    <div style="position:absolute; top:16px; left:16px; background:var(--accent); color:#fff; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:800; z-index:2; box-shadow:0 4px 12px rgba(37,99,235,0.3);"><?php echo htmlspecialchars($product['ribbon_text']); ?></div>
+                    <div style="position:absolute; top:12px; left:12px; background:var(--accent); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; z-index:2;"><?php echo htmlspecialchars($product['ribbon_text']); ?></div>
                 <?php endif; ?>
                 <a href="<?php echo htmlspecialchars($productUrl); ?>">
                   <img src="<?php echo htmlspecialchars($product['primary_image'] ?: $product['image_url']); ?>" alt="<?php echo htmlspecialchars($product['title']); ?>">
@@ -540,15 +593,13 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
                   <span class="price"><?php echo number_format($priceDisplay['current'], 2); ?> €</span>
                 </div>
                 
-                <form method="post" style="display:flex; gap:10px;">
+                <form method="post" style="display:flex; gap:6px;">
                     <?php echo csrfField(); ?>
                     <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
-                    <button class="glass-bubble" type="submit" name="quantity" value="1" title="Į krepšelį">
-                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                    <button class="action-btn" type="submit" name="quantity" value="1" title="Į krepšelį">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                     </button>
-                    <button class="glass-bubble" name="action" value="wishlist" type="submit" title="Į norų sąrašą">
-                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                    </button>
+                    <button class="action-btn" name="action" value="wishlist" type="submit" title="Į norų sąrašą">♥</button>
                 </form>
               </div>
             </div>
@@ -558,7 +609,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     </section>
 
     <section class="section-shell highlight-section">
-      <div class="highlight-box glass-panel">
+      <div class="highlight-box">
         <div class="highlight-content">
             <h2><?php echo htmlspecialchars($storyRow['title']); ?></h2>
             <p><?php echo htmlspecialchars($storyRow['body']); ?></p>
@@ -568,18 +619,18 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               <?php endforeach; ?>
             </div>
         </div>
-        <div class="highlight-card glass-panel-inner">
-            <p style="margin:0; font-size:12px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px;"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></p>
-            <strong style="display:block; margin:4px 0 12px; color:var(--text-dark); font-size:20px; font-weight:800;"><?php echo htmlspecialchars($storyRow['bubble_title']); ?></strong>
-            <p style="margin:0 0 24px; font-size:15px; color:var(--muted); line-height:1.6;"><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
-            <a class="glass-btn" href="/products.php" style="width: 100%;">Peržiūrėti prekes</a>
+        <div class="highlight-card">
+            <p class="muted" style="margin:0 0 4px; font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase;"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></p>
+            <strong style="display:block; margin:0 0 10px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($storyRow['bubble_title']); ?></strong>
+            <p style="margin:0 0 16px; font-size:14px; color:#4b5563; line-height:1.5;"><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
+            <a class="btn" href="/products.php">Peržiūrėti prekes</a>
         </div>
       </div>
     </section>
 
     <?php if ($freeShippingOffers): ?>
       <section class="section-shell free-shipping">
-        <div class="glass-panel" style="padding: 32px;">
+        <div class="free-shipping-box">
             <div class="fs-header">
                 <div>
                     <div class="fs-title"><span class="fs-icon">🚚</span> Nemokamas pristatymas</div>
@@ -588,11 +639,12 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
             </div>
             <div class="fs-grid">
               <?php foreach ($freeShippingOffers as $offer): ?>
-                <?php 
-                    $priceDisplay = buildPriceDisplay($offer, $globalDiscount, $categoryDiscounts); 
+                <?php
+                    $priceDisplay = buildPriceDisplay($offer, $globalDiscount, $categoryDiscounts);
+                    // SEO URL
                     $offerUrl = '/produktas/' . slugify($offer['title']) . '-' . (int)$offer['product_id'];
                 ?>
-                <a href="<?php echo htmlspecialchars($offerUrl); ?>" class="fs-card glass-panel-inner">
+                <a href="<?php echo htmlspecialchars($offerUrl); ?>" class="fs-card">
                     <img src="<?php echo htmlspecialchars($offer['primary_image'] ?: $offer['image_url']); ?>" alt="">
                     <div>
                         <h4><?php echo htmlspecialchars($offer['title']); ?></h4>
@@ -609,14 +661,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       <div class="section-head">
         <h2>ATSILIEPIMAI</h2>
       </div>
-      <div class="testimonial-grid">
-          <?php foreach ($testimonials as $t): ?>
-          <div class="testimonial glass-panel">
-              <div class="t-name"><?php echo htmlspecialchars($t['name']); ?></div>
-              <div class="t-role"><?php echo htmlspecialchars($t['role']); ?></div>
-              <div class="t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
-          </div>
-          <?php endforeach; ?>
+      <div class="testimonials-box">
+        <div class="testimonial-grid">
+            <?php foreach ($testimonials as $t): ?>
+            <div class="testimonial">
+                <div class="t-name"><?php echo htmlspecialchars($t['name']); ?></div>
+                <div class="t-role"><?php echo htmlspecialchars($t['role']); ?></div>
+                <div class="t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+            </div>
+            <?php endforeach; ?>
+        </div>
       </div>
     </section>
 
@@ -628,14 +682,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       <div class="news-grid">
         <?php foreach ($featuredNews as $news): ?>
           <?php
+            // SEO URL Naujienoms
             $newsUrl = '/naujiena/' . slugify($news['title']) . '-' . (int)$news['id'];
           ?>
-          <a href="<?php echo htmlspecialchars($newsUrl); ?>" class="news-card glass-panel">
+          <a href="<?php echo htmlspecialchars($newsUrl); ?>" class="news-card">
             <img src="<?php echo htmlspecialchars($news['image_url']); ?>" alt="<?php echo htmlspecialchars($news['title']); ?>">
             <div class="news-body">
               <span class="news-date"><?php echo date('Y-m-d', strtotime($news['created_at'])); ?></span>
               <h3 class="news-title"><?php echo htmlspecialchars($news['title']); ?></h3>
-              <?php 
+              <?php
                 $excerpt = trim($news['summary'] ?? '');
                 if (!$excerpt) $excerpt = strip_tags($news['body']);
                 if (mb_strlen($excerpt) > 100) $excerpt = mb_substr($excerpt, 0, 100) . '...';
@@ -648,7 +703,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     </section>
 
     <section class="section-shell support-band">
-      <div class="support-box glass-panel">
+      <div class="support-box">
         <div class="support-content">
             <h2><?php echo htmlspecialchars($supportBand['title']); ?></h2>
             <p><?php echo htmlspecialchars($supportBand['body']); ?></p>
@@ -658,10 +713,10 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               <?php endforeach; ?>
             </div>
         </div>
-        <div class="support-card glass-panel-inner">
-            <strong style="display:block; margin:0 0 8px; color:var(--text-dark); font-size:20px; font-weight:800;"><?php echo htmlspecialchars($supportBand['card_title']); ?></strong>
-            <p style="margin:0 0 24px; font-size:15px; color:var(--muted); line-height:1.6;"><?php echo htmlspecialchars($supportBand['card_body']); ?></p>
-            <a class="glass-btn" href="<?php echo htmlspecialchars($supportBand['card_cta_url']); ?>"><?php echo htmlspecialchars($supportBand['card_cta_label']); ?></a>
+        <div class="support-card">
+            <strong style="display:block; margin:0 0 10px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($supportBand['card_title']); ?></strong>
+            <p style="margin:0 0 16px; font-size:14px; color:#4b5563; line-height:1.5;"><?php echo htmlspecialchars($supportBand['card_body']); ?></p>
+            <a class="btn" href="<?php echo htmlspecialchars($supportBand['card_cta_url']); ?>"><?php echo htmlspecialchars($supportBand['card_cta_label']); ?></a>
         </div>
       </div>
     </section>
