@@ -55,7 +55,7 @@ $variations = $variationsStmt->fetchAll();
 // Variacijų grupavimas ir bendros būsenos nustatymas
 $groupedVariations = [];
 $variationMap = [];
-$hasAnyStock = false; // Ar bent viena variacija prieinama?
+$hasAnyStock = false;
 
 if (!empty($variations)) {
     foreach ($variations as $var) {
@@ -63,16 +63,11 @@ if (!empty($variations)) {
         $groupedVariations[$group][] = $var;
         $variationMap[(int)$var['id']] = $var;
         
-        // Logika: Jei NESEKA likučio (track_stock=0) ARBA likutis > 0, vadinasi prekė prieinama.
         if ((int)$var['track_stock'] === 0 || (int)$var['quantity'] > 0) {
             $hasAnyStock = true;
         }
     }
 } else {
-    // Jei nėra variacijų, žiūrime pagrindinį produkto likutį
-    // Paprastoms prekėms dažniausiai tiesiog žiūrimas quantity > 0
-    // Jei norite, kad ir paprastos prekės būtų "neribotos", reikėtų papildomo stulpelio products lentelėje,
-    // bet pagal setup.php products lentelė neturi track_stock, tad kliaujamės quantity.
     $hasAnyStock = ($product['quantity'] > 0);
 }
 
@@ -87,7 +82,6 @@ $isFreeShippingGift = in_array($id, $freeShippingIds, true);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     
-    // Norų sąrašas
     if (($_POST['action'] ?? '') === 'wishlist') {
         if (empty($_SESSION['user_id'])) {
             header('Location: /login.php');
@@ -103,14 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cartVariations = [];
     $canAddToCart = true;
     
-    // Jei senas formatas
     if (isset($_POST['variation_id']) && !empty($_POST['variation_id'])) {
         $postedVariations['default'] = $_POST['variation_id'];
     }
 
-    // 1. Variacijų TIKRINIMAS (Backend Validation)
     if (!empty($groupedVariations)) {
-        // Tikriname ar visos privalomos grupės pasirinktos
         foreach ($groupedVariations as $grpName => $vars) {
             if (empty($postedVariations[$grpName])) {
                 $error = "Pasirinkite: " . htmlspecialchars($grpName);
@@ -124,10 +115,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $varId = (int)$varId;
                 if ($varId && isset($variationMap[$varId])) {
                     $sel = $variationMap[$varId];
-                    
-                    // LIKUČIO TIKRINIMAS
-                    // Jei track_stock == 1, privalome tikrinti kiekį.
-                    // Jei track_stock == 0, leidžiame pirkti bet kiek.
                     if ((int)$sel['track_stock'] === 1 && (int)$sel['quantity'] < $qty) {
                         $error = "Atsiprašome, pasirinkimo '" . htmlspecialchars($sel['name']) . "' šiuo metu neturime pakankamai.";
                         $canAddToCart = false;
@@ -144,7 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } else {
-        // Paprasta prekė (be variacijų)
         if ((int)$product['quantity'] < $qty) {
             $error = "Atsiprašome, prekė išparduota arba neturime pageidaujamo kiekio.";
             $canAddToCart = false;
@@ -179,11 +165,16 @@ if (!empty($product['category_id'])) {
 }
 $priceDisplay = buildPriceDisplay($product, $globalDiscount, $categoryDiscounts);
 
-// SEO
+// SEO Optimizacija
+$cleanDescription = trim(preg_replace('/\s+/', ' ', strip_tags($product['description'])));
+$canonicalUrl = 'https://cukrinukas.lt/produktas/' . slugify($product['title']) . '-' . $id;
+
 $meta = [
     'title' => $product['title'] . ' | Cukrinukas',
-    'description' => mb_substr(strip_tags($product['description']), 0, 160),
-    'image' => 'https://cukrinukas.lt' . $product['image_url']
+    'description' => mb_substr($cleanDescription, 0, 160),
+    'image' => 'https://cukrinukas.lt' . $product['image_url'],
+    'keywords' => $product['meta_tags'] ?? '',
+    'url' => $canonicalUrl
 ];
 ?>
 <!doctype html>
@@ -192,158 +183,81 @@ $meta = [
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <?php echo headerStyles(); ?>
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": "<?php echo htmlspecialchars($product['title']); ?>",
+    "image": [
+      "https://cukrinukas.lt<?php echo htmlspecialchars($product['image_url']); ?>"
+    ],
+    "description": "<?php echo htmlspecialchars($cleanDescription); ?>",
+    "sku": "<?php echo $id; ?>",
+    "offers": {
+      "@type": "Offer",
+      "url": "<?php echo $canonicalUrl; ?>",
+      "priceCurrency": "EUR",
+      "price": "<?php echo number_format($priceDisplay['current'], 2, '.', ''); ?>",
+      "availability": "<?php echo $hasAnyStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'; ?>"
+    }
+  }
+  </script>
+
   <style>
     :root {
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --border: #e2e8f0;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --accent-light: #eff6ff;
-      --success: #059669;
-      --danger: #ef4444;
+      --bg: #f8fafc; --card-bg: #ffffff; --border: #e2e8f0; --text-main: #0f172a;
+      --text-muted: #64748b; --accent: #2563eb; --accent-hover: #1d4ed8;
+      --accent-light: #eff6ff; --success: #059669; --danger: #ef4444;
     }
-    
     * { box-sizing: border-box; }
     body { margin:0; background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; }
     a { color:inherit; text-decoration:none; transition: color 0.2s; }
-    
     .page-container { max-width: 1200px; margin: 0 auto; padding: 0 20px 60px; }
-
-    /* Hero */
-    .hero {
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #bfdbfe;
-        border-radius: 20px;
-        padding: 32px;
-        margin-top: 24px;
-        margin-bottom: 32px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
+    .hero { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 20px; padding: 32px; margin-top: 24px; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
     .breadcrumbs { display:flex; align-items:center; gap:8px; font-weight:500; font-size: 13px; color: #3b82f6; flex-wrap: wrap; }
     .breadcrumbs a:hover { text-decoration: underline; }
     .breadcrumbs span { color: #93c5fd; }
-    
     .hero h1 { margin: 0; font-size: 32px; color: #1e3a8a; letter-spacing: -0.02em; line-height: 1.2; }
-
-    /* Layout */
     .product-grid { display: grid; grid-template-columns: 1fr 400px; gap: 32px; align-items: start; }
     .left-col { display: flex; flex-direction: column; gap: 24px; }
-    
-    /* Gallery */
     .gallery-section { display: flex; flex-direction: column; gap: 16px; }
-    .main-image-wrap { 
-        position: relative; border-radius: 16px; overflow: hidden; 
-        background: #fff; border: 1px solid var(--border);
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }
+    .main-image-wrap { position: relative; border-radius: 16px; overflow: hidden; background: #fff; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     .main-image-wrap img { width: 100%; height: auto; display: block; object-fit: contain; max-height: 600px; }
-    .ribbon { 
-        position: absolute; top: 16px; left: 16px; 
-        background: var(--accent); color: #fff; 
-        padding: 6px 12px; border-radius: 8px; 
-        font-weight: 700; font-size: 13px; 
-        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-    }
+    .ribbon { position: absolute; top: 16px; left: 16px; background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 13px; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3); }
     .thumbs { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-    .thumb { 
-        width: 70px; height: 70px; flex-shrink: 0; border-radius: 8px; 
-        border: 2px solid transparent; cursor: pointer; object-fit: cover; 
-        background: #fff; transition: all 0.2s;
-    }
+    .thumb { width: 70px; height: 70px; flex-shrink: 0; border-radius: 8px; border: 2px solid transparent; cursor: pointer; object-fit: cover; background: #fff; transition: all 0.2s; }
     .thumb:hover { transform: translateY(-2px); }
     .thumb.active { border-color: var(--accent); }
-
-    /* Cards */
-    .content-card {
-        background: var(--card-bg); border: 1px solid var(--border);
-        border-radius: 16px; padding: 24px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
+    .content-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .content-card h3 { margin: 0 0 16px 0; font-size: 18px; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 12px; }
     .description { color: var(--text-muted); line-height: 1.7; font-size: 15px; }
     .description img { max-width: 100%; height: auto; border-radius: 8px; }
-
     .specs-list { display: flex; flex-direction: column; }
-    .spec-item { 
-        padding: 12px 0; 
-        border-bottom: 1px solid var(--border); 
-        font-size: 14px; 
-        line-height: 1.6;
-        color: var(--text-muted);
-    }
+    .spec-item { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; line-height: 1.6; color: var(--text-muted); }
     .spec-item:last-child { border-bottom: none; }
     .spec-value { text-align: left; width: 100%; color: var(--text-muted); }
-
-    /* Buy Box */
-    .buy-box {
-        background: var(--card-bg); border: 1px solid var(--border);
-        border-radius: 16px; padding: 24px;
-        position: sticky; top: 24px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-        display: flex; flex-direction: column; gap: 20px;
-    }
-    
+    .buy-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 24px; position: sticky; top: 24px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; gap: 20px; }
     .price-area { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
     .price-current { font-size: 36px; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
     .price-old { font-size: 18px; color: #94a3b8; text-decoration: line-through; }
-    
-    /* Variations */
     .var-group { margin-bottom: 16px; }
     .var-label { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.03em; }
     .var-options { display: flex; flex-wrap: wrap; gap: 8px; }
-    
-    .var-chip {
-        border: 1px solid var(--border);
-        background: #fff;
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex; align-items: center; gap: 6px;
-        position: relative;
-    }
+    .var-chip { border: 1px solid var(--border); background: #fff; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; position: relative; }
     .var-chip:hover { border-color: #cbd5e1; background: #f8fafc; }
-    .var-chip.active {
-        border-color: var(--accent);
-        background: var(--accent-light);
-        color: var(--accent);
-        box-shadow: 0 0 0 1px var(--accent);
-    }
-    
-    /* Stilius išparduotoms variacijoms */
-    .var-chip.out-of-stock {
-        opacity: 0.6;
-        background: #f1f5f9;
-        border-style: dashed;
-        cursor: not-allowed;
-        color: #94a3b8;
-    }
-    .var-chip.out-of-stock:hover {
-        border-color: var(--border);
-        background: #f1f5f9;
-    }
+    .var-chip.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .var-chip.out-of-stock { opacity: 0.6; background: #f1f5f9; border-style: dashed; cursor: not-allowed; color: #94a3b8; }
+    .var-chip.out-of-stock:hover { border-color: var(--border); background: #f1f5f9; }
     .var-price { font-size: 11px; opacity: 0.8; font-weight: 400; }
-
-    /* Actions */
     .action-row { display: grid; grid-template-columns: 80px 1fr; gap: 12px; margin-top: 8px; }
     .qty-input { width: 100%; height: 48px; text-align: center; font-size: 18px; font-weight: 600; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
     .btn-add { width: 100%; height: 48px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn-add:hover { background: var(--accent-hover); }
     .btn-add:disabled { background: #cbd5e1; cursor: not-allowed; }
-
     .error-msg { background: #fef2f2; color: #991b1b; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; border: 1px solid #fecaca; }
-
     .info-list { display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--text-muted); margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
     .info-item { display: flex; align-items: center; gap: 8px; }
-
-    /* Related */
     .related-section { margin-top: 60px; }
     .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-top: 20px; }
     .rel-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px; transition: transform 0.2s; }
@@ -351,13 +265,7 @@ $meta = [
     .rel-img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; margin-bottom: 10px; }
     .rel-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--text-main); }
     .rel-price { font-weight: 700; color: var(--text-main); }
-
-    @media (max-width: 900px) {
-        .product-grid { display: flex; flex-direction: column; gap: 24px; }
-        .left-col { display: contents; }
-        .content-card { width: 100%; }
-        .buy-box { width: 100%; }
-    }
+    @media (max-width: 900px) { .product-grid { display: flex; flex-direction: column; gap: 24px; } .left-col { display: contents; } .content-card { width: 100%; } .buy-box { width: 100%; } }
   </style>
 </head>
 <body>
@@ -396,8 +304,8 @@ $meta = [
                 
                 <?php if (count($images) > 0): ?>
                     <div class="thumbs">
-                        <?php foreach ($images as $img): ?>
-                            <img src="<?php echo htmlspecialchars($img['path']); ?>" class="thumb <?php echo ($img['path'] === $mainImage) ? 'active' : ''; ?>" onclick="changeImage(this)">
+                        <?php foreach ($images as $index => $img): ?>
+                            <img src="<?php echo htmlspecialchars($img['path']); ?>" alt="<?php echo htmlspecialchars($product['title'] . ' nuotrauka ' . ($index+1)); ?>" class="thumb <?php echo ($img['path'] === $mainImage) ? 'active' : ''; ?>" onclick="changeImage(this)">
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -409,6 +317,21 @@ $meta = [
                     <div class="description">
                         <?php echo $product['description']; ?>
                     </div>
+                    
+                    <?php if (!empty($product['meta_tags'])): ?>
+                        <div style="margin-top: 15px; font-size: 13px; color: var(--text-muted);">
+                            <strong>Gairės:</strong> 
+                            <?php 
+                                $tags = explode(',', $product['meta_tags']);
+                                foreach($tags as $tag) {
+                                    $tag = trim($tag);
+                                    if($tag) {
+                                        echo '<a href="/products.php?query=' . urlencode($tag) . '" style="color: var(--accent); text-decoration: underline; margin-right: 8px;">#' . htmlspecialchars($tag) . '</a>';
+                                    }
+                                }
+                            ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
@@ -434,7 +357,7 @@ $meta = [
             <?php endif; ?>
 
             <?php if (!empty($_SESSION['is_admin'])): ?>
-                <a href="/admin.php?view=products&edit=<?php echo $product['id']; ?>" style="font-size:12px; text-decoration:underline; color:red; text-align:right;">[Redaguoti prekę]</a>
+                <a href="/admin/products.php?edit=<?php echo $product['id']; ?>" style="font-size:12px; text-decoration:underline; color:red; text-align:right;">[Redaguoti prekę]</a>
             <?php endif; ?>
 
             <div>
@@ -466,8 +389,6 @@ $meta = [
                                     $trackStock = (int)$var['track_stock'];
                                     $varQty = (int)$var['quantity'];
                                     
-                                    // Jei sekam likutį IR kiekis <= 0 -> išparduota.
-                                    // Jei track_stock = 0 -> laikome, kad yra.
                                     $isVarOutOfStock = ($trackStock === 1 && $varQty <= 0);
                                 ?>
                                     <div class="var-chip <?php echo $isVarOutOfStock ? 'out-of-stock' : ''; ?>" 
@@ -522,14 +443,14 @@ $meta = [
 
     <?php if ($related): ?>
         <div class="related-section">
-            <h3 style="font-size:24px; color:var(--text-main);">Taip pat gali patikti</h3>
+            <h2 style="font-size:24px; color:var(--text-main); margin-bottom: 20px;">Taip pat gali patikti</h2>
             <div class="related-grid">
                 <?php foreach ($related as $rel): 
                     $relDisplay = buildPriceDisplay($rel, $globalDiscount, $categoryDiscounts);
                     $relUrl = '/produktas/' . slugify($rel['title']) . '-' . (int)$rel['related_product_id'];
                 ?>
                     <a href="<?php echo htmlspecialchars($relUrl); ?>" class="rel-card">
-                        <img src="<?php echo htmlspecialchars($rel['image_url']); ?>" class="rel-img">
+                        <img src="<?php echo htmlspecialchars($rel['image_url']); ?>" class="rel-img" alt="<?php echo htmlspecialchars($rel['title']); ?>">
                         <div class="rel-title"><?php echo htmlspecialchars($rel['title']); ?></div>
                         <div class="rel-price">
                             <?php if($relDisplay['has_discount']): ?>
@@ -557,7 +478,6 @@ $meta = [
     const baseOriginal = parseFloat('<?php echo (float)($product['price'] ?? 0); ?>');
     const baseSale = <?php echo $product['sale_price'] !== null ? 'parseFloat(' . json_encode((float)$product['sale_price']) . ')' : 'null'; ?>;
     
-    // Čia tik pradinė reikšmė (jei nėra variacijų)
     const initialHasStock = <?php echo json_encode($hasAnyStock); ?>;
     
     const globalDiscount = {
@@ -607,8 +527,7 @@ $meta = [
         const delta = parseFloat(el.dataset.delta || 0);
         const imageSrc = el.dataset.image;
         
-        // Nauji duomenys
-        const trackStock = parseInt(el.dataset.trackStock || 0); // 0 arba 1
+        const trackStock = parseInt(el.dataset.trackStock || 0); 
         const stockQty = parseInt(el.dataset.quantity || 0);
 
         document.querySelectorAll(`.var-chip[data-group="${groupHash}"]`).forEach(c => c.classList.remove('active'));
@@ -622,8 +541,6 @@ $meta = [
         }
 
         updatePrice();
-        
-        // Atnaujinam mygtuką ir statusą
         updateStockUI(trackStock, stockQty);
     }
 
@@ -631,10 +548,6 @@ $meta = [
         const statusDiv = document.getElementById('stock-status');
         const btn = document.getElementById('addToCartBtn');
         const qtyInput = document.getElementById('qtyInput');
-
-        // Logika:
-        // Jei trackStock === 0, tai yra neribota ("Turime sandėlyje")
-        // Jei trackStock === 1, tikriname ar qty > 0
         
         const isUnlimited = (trackStock === 0);
         const inStock = isUnlimited || (qty > 0);
@@ -645,7 +558,6 @@ $meta = [
             btn.textContent = 'Į krepšelį';
             btn.style.cursor = 'pointer';
             
-            // Jei neribota, leidžiam daug, jei ribota - max = likutis
             if (isUnlimited) {
                 qtyInput.removeAttribute('max');
             } else {
@@ -659,7 +571,7 @@ $meta = [
             btn.disabled = true;
             btn.textContent = 'Išparduota';
             btn.style.cursor = 'not-allowed';
-            qtyInput.max = 0; // Kad negalėtų didinti
+            qtyInput.max = 0; 
         }
     }
   </script>
