@@ -249,19 +249,29 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .glass-card p { margin:0 0 12px; font-size:14px; color:#e0f2fe; line-height:1.5; }
     .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
 
-    /* SVETAINĖS AKCENTAI - MODERN LIGHT COMPACT */
+    /* SVETAINĖS AKCENTAI - SEAMLESS COMPACT */
     .promo-section { margin-bottom: 48px; }
-    .promo-grid-modern {
+    .promo-grid-seamless {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 24px;
+        gap: 20px;
         width: 100%;
+        position: relative;
     }
-    a.promo-card-modern {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 24px 20px;
+    .promo-grid-seamless::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+    .promo-grid-seamless::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 0; width: 100%; height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+    a.promo-card-seamless {
+        padding: 30px 10px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -270,52 +280,42 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         color: var(--text);
         transition: all 0.3s ease;
         position: relative;
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
     }
-    a.promo-card-modern::after {
-        content: '';
-        position: absolute;
-        bottom: 0; left: 0; width: 100%; height: 3px;
-        background: var(--accent);
-        transform: scaleX(0);
+    /* Vertikalūs skirtukai tarp elementų (išskyrus paskutinį) */
+    @media (min-width: 601px) {
+        a.promo-card-seamless:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -10px; top: 20%; height: 60%; width: 1px;
+            background: linear-gradient(to bottom, transparent, var(--border), transparent);
+        }
+    }
+    a.promo-card-seamless:hover {
+        transform: translateY(-3px);
+    }
+    .promo-icon-seamless {
+        font-size: 32px;
+        margin-bottom: 12px;
         transition: transform 0.3s ease;
-        transform-origin: center;
+        display: inline-block;
     }
-    a.promo-card-modern:hover {
-        transform: translateY(-5px);
-        border-color: var(--accent);
-        box-shadow: var(--shadow-md);
+    a.promo-card-seamless:hover .promo-icon-seamless {
+        transform: scale(1.1);
     }
-    a.promo-card-modern:hover::after {
-        transform: scaleX(1);
-    }
-    .promo-icon-modern {
-        font-size: 28px;
-        width: 60px; height: 60px;
-        border-radius: 16px;
-        background: var(--accent-light);
-        color: var(--accent);
-        display: flex; align-items: center; justify-content: center;
-        margin-bottom: 16px;
-        transition: all 0.3s ease;
-    }
-    a.promo-card-modern:hover .promo-icon-modern {
-        transform: scale(1.1) rotate(5deg);
-        background: var(--accent);
-        color: #fff;
-    }
-    .promo-content-modern h3 {
-        margin: 0 0 8px;
-        font-size: 17px;
-        font-weight: 600;
+    .promo-content-seamless h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        font-weight: 700;
         color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
-    .promo-content-modern p {
+    .promo-content-seamless p {
         margin: 0;
         font-size: 14px;
         line-height: 1.5;
         color: var(--muted);
+        max-width: 250px;
     }
 
     /* STORYBAND - BALTAS FONAS */
@@ -443,7 +443,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     @media (max-width: 600px) {
         .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
-        .promo-grid-modern { grid-template-columns: 1fr; }
+        .promo-grid-seamless { grid-template-columns: 1fr; }
+        a.promo-card-seamless:not(:last-child)::after {
+            display: none;
+        }
+        a.promo-card-seamless {
+             border-bottom: 1px solid var(--border);
+        }
+        a.promo-card-seamless:last-child {
+             border-bottom: none;
+        }
     }
   </style>
 </head>
@@ -481,14 +490,11 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     </section>
 
     <section class="section-shell promo-section">
-      <div class="section-head">
-        <h2>SVETAINĖS AKCENTAI</h2>
-      </div>
-      <div class="promo-grid-modern">
+      <div class="promo-grid-seamless">
         <?php foreach ($promoCards as $card): ?>
-          <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card-modern">
-            <div class="promo-icon-modern"><?php echo htmlspecialchars($card['icon']); ?></div>
-            <div class="promo-content-modern">
+          <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card-seamless">
+            <div class="promo-icon-seamless"><?php echo htmlspecialchars($card['icon']); ?></div>
+            <div class="promo-content-seamless">
               <h3><?php echo htmlspecialchars($card['title']); ?></h3>
               <p><?php echo htmlspecialchars($card['body']); ?></p>
             </div>
