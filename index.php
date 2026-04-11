@@ -518,11 +518,13 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transform: translateX(8px);
     }
 
-    /* FULLSCREEN BENDRUOMENĖS BLOKAS */
+    /* FULLSCREEN BENDRUOMENĖS BLOKAS SU ŠVELNIU IŠBLUKIMU */
     .community-block {
         width: 100%;
-        background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
-        padding: 60px 20px;
+        background: 
+            linear-gradient(to bottom, var(--bg) 0%, transparent 15%, transparent 85%, var(--bg) 100%),
+            linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
+        padding: 80px 20px;
         position: relative;
         overflow: hidden;
         margin-bottom: 40px;
@@ -744,7 +746,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         a.promo-card-seamless:last-child {
              border-bottom: none;
         }
-        .community-block { padding: 40px 20px; }
+        .community-block { padding: 60px 20px; }
     }
   </style>
 </head>
