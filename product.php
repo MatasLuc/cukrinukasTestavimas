@@ -320,7 +320,7 @@ $meta = [
                     
                     <?php if (!empty($product['meta_tags'])): ?>
                         <div style="margin-top: 15px; font-size: 13px; color: var(--text-muted);">
-                            <strong>Gairės:</strong> 
+                            <strong>Žymės:</strong> 
                             <?php 
                                 $tags = explode(',', $product['meta_tags']);
                                 foreach($tags as $tag) {
