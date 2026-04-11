@@ -821,58 +821,63 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     }
 
     .modern-news-card {
-        background: var(--card);
         border-radius: 16px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        justify-content: flex-end;
         position: relative;
         box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-        border: 1px solid rgba(0,0,0,0.04);
         transition: all 0.3s ease;
         text-decoration: none;
-        color: var(--text);
-        min-height: 260px;
+        color: #fff;
+        min-height: 280px;
     }
     .modern-news-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
-        border-color: rgba(37, 99, 235, 0.2);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.2);
     }
     
-    .modern-news-image { position: relative; height: 140px; overflow: hidden; flex-shrink: 0; }
+    .modern-news-image { position: absolute; inset: 0; z-index: 1; }
     .modern-news-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
     .modern-news-card:hover .modern-news-image img { transform: scale(1.05); }
-    .modern-news-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.2), transparent 50%); opacity: 0; transition: opacity 0.3s ease; }
-    .modern-news-card:hover .modern-news-image::after { opacity: 1; }
+    .modern-news-image::after { 
+        content: ''; position: absolute; inset: 0; 
+        background: linear-gradient(to top, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.4) 50%, transparent 100%); 
+        transition: opacity 0.3s ease; 
+    }
+    .modern-news-card:hover .modern-news-image::after { background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.5) 60%, transparent 100%); }
 
     .modern-news-date {
-        position: absolute; top: 12px; left: 12px;
-        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); color: #0f172a;
-        padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1); z-index: 2;
+        position: absolute; top: 16px; left: 16px;
+        background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 6px 12px; border-radius: 99px; font-size: 11px; font-weight: 700;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 3;
+        letter-spacing: 0.05em;
     }
 
     .modern-news-content {
-        padding: 16px; display: flex; flex-direction: column; flex-grow: 1; position: relative; z-index: 2;
+        padding: 20px; display: flex; flex-direction: column; position: relative; z-index: 2;
     }
     
     .modern-news-title {
-        margin: 0 0 8px; font-size: 15px; font-weight: 800; line-height: 1.4; color: #0f172a;
+        margin: 0 0 8px; font-size: 16px; font-weight: 800; line-height: 1.4; color: #fff;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     
     .modern-news-excerpt {
-        font-size: 13px; color: #475467; line-height: 1.5; margin: 0 0 16px;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex-grow: 1;
+        font-size: 13px; color: #cbd5e1; line-height: 1.5; margin: 0 0 16px;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
 
     .modern-news-readmore {
         display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
-        color: var(--accent); margin-top: auto; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s;
+        color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s;
     }
     .modern-news-readmore svg { width: 14px; height: 14px; transition: transform 0.3s ease; stroke-width: 2.5; }
-    .modern-news-card:hover .modern-news-readmore { color: var(--accent-hover); }
+    .modern-news-card:hover .modern-news-readmore { color: #fff; }
     .modern-news-card:hover .modern-news-readmore svg { transform: translateX(4px); }
 
     /* MODERN TESTIMONIALS */
