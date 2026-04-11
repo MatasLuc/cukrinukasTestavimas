@@ -807,81 +807,73 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
-    /* MODERN NEWS BLOCK (IMAGE OVERLAY) */
+    /* MODERN NEWS BLOCK (COMPACT) */
     .modern-news-section { margin-bottom: 40px; }
     .modern-news-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px; }
     .modern-news-header h2 { font-size: clamp(22px, 4vw, 28px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; text-transform: uppercase; }
     .modern-news-header .pill { border-radius: 99px; font-weight: 600; padding: 8px 16px; background: var(--accent-light); color: var(--accent); border: none; font-size: 13px; }
     .modern-news-header .pill:hover { background: var(--accent); color: #fff; }
 
-    .modern-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+    .modern-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 
     @media (min-width: 900px) {
         .modern-news-grid { grid-template-columns: repeat(4, 1fr); }
     }
 
     .modern-news-card {
-        border-radius: 20px;
+        background: var(--card);
+        border-radius: 16px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
         position: relative;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        transition: all 0.4s ease;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.04);
+        transition: all 0.3s ease;
         text-decoration: none;
-        min-height: 320px;
+        color: var(--text);
+        min-height: 260px;
     }
     .modern-news-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 15px 30px rgba(37, 99, 235, 0.2);
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
+        border-color: rgba(37, 99, 235, 0.2);
     }
     
-    .modern-news-image { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
-    .modern-news-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s ease; }
-    .modern-news-card:hover .modern-news-image img { transform: scale(1.08); }
-    
-    /* Darkening gradient for text readability */
-    .modern-news-image::after { 
-        content: ''; 
-        position: absolute; 
-        inset: 0; 
-        background: linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.6) 50%, rgba(15,23,42,0.1) 100%); 
-        transition: background 0.4s ease; 
-    }
-    .modern-news-card:hover .modern-news-image::after {
-        background: linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.7) 60%, rgba(15,23,42,0.2) 100%);
-    }
+    .modern-news-image { position: relative; height: 140px; overflow: hidden; flex-shrink: 0; }
+    .modern-news-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+    .modern-news-card:hover .modern-news-image img { transform: scale(1.05); }
+    .modern-news-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.2), transparent 50%); opacity: 0; transition: opacity 0.3s ease; }
+    .modern-news-card:hover .modern-news-image::after { opacity: 1; }
 
     .modern-news-date {
-        position: absolute; top: 16px; left: 16px;
-        background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); color: #fff;
-        padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 700;
-        letter-spacing: 0.05em; z-index: 2; border: 1px solid rgba(255,255,255,0.3);
+        position: absolute; top: 12px; left: 12px;
+        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); color: #0f172a;
+        padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1); z-index: 2;
     }
 
     .modern-news-content {
-        padding: 24px 20px 20px; display: flex; flex-direction: column; position: relative; z-index: 2;
+        padding: 16px; display: flex; flex-direction: column; flex-grow: 1; position: relative; z-index: 2;
     }
     
     .modern-news-title {
-        margin: 0 0 8px; font-size: 16px; font-weight: 800; line-height: 1.4; color: #fff;
+        margin: 0 0 8px; font-size: 15px; font-weight: 800; line-height: 1.4; color: #0f172a;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
     
     .modern-news-excerpt {
-        font-size: 13px; color: #cbd5e1; line-height: 1.5; margin: 0 0 16px;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        font-size: 13px; color: #475467; line-height: 1.5; margin: 0 0 16px;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex-grow: 1;
     }
 
     .modern-news-readmore {
         display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
-        color: #60a5fa; margin-top: auto; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s;
+        color: var(--accent); margin-top: auto; text-transform: uppercase; letter-spacing: 0.05em; transition: color 0.3s;
     }
     .modern-news-readmore svg { width: 14px; height: 14px; transition: transform 0.3s ease; stroke-width: 2.5; }
-    .modern-news-card:hover .modern-news-readmore { color: #93c5fd; }
+    .modern-news-card:hover .modern-news-readmore { color: var(--accent-hover); }
     .modern-news-card:hover .modern-news-readmore svg { transform: translateX(4px); }
-
 
     /* MODERN TESTIMONIALS */
     .modern-testimonials { margin-bottom: 60px; }
@@ -1154,7 +1146,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       <div class="community-block-inner">
         <div class="community-content">
           <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
-          <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite ir parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
+          <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
           <div class="community-actions">
             <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
           </div>
@@ -1340,26 +1332,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         <?php endforeach; ?>
       </div>
     </section>
-
-    <section class="section-shell support-band">
-      <div class="support-box">
-        <div class="support-content">
-            <h2><?php echo htmlspecialchars($supportBand['title']); ?></h2>
-            <p><?php echo htmlspecialchars($supportBand['body']); ?></p>
-            <div class="chips">
-              <?php foreach ($supportBand['chips'] as $chip): ?>
-                <span class="pill"><?php echo htmlspecialchars($chip); ?></span>
-              <?php endforeach; ?>
-            </div>
-        </div>
-        <div class="support-card">
-            <strong style="display:block; margin:0 0 10px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($supportBand['card_title']); ?></strong>
-            <p style="margin:0 0 16px; font-size:14px; color:#4b5563; line-height:1.5;"><?php echo htmlspecialchars($supportBand['card_body']); ?></p>
-            <a class="btn" href="<?php echo htmlspecialchars($supportBand['card_cta_url']); ?>"><?php echo htmlspecialchars($supportBand['card_cta_label']); ?></a>
-        </div>
-      </div>
-    </section>
-
   </main>
 
   <?php renderFooter($pdo); ?>
