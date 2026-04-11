@@ -957,26 +957,93 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-t-name { font-weight: 700; color: #0f172a; font-size: 16px; margin-bottom: 2px; }
     .modern-t-role { font-size: 13px; color: var(--muted); font-weight: 500; }
 
-    /* FREE SHIPPING */
-    .free-shipping-box {
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        border:1px solid #bae6fd; border-radius:20px; padding:24px;
+    /* MODERN FREE SHIPPING BLOCK */
+    .free-shipping-section { margin-bottom: 60px; }
+    .fs-modern-wrapper {
+        position: relative;
+        background: linear-gradient(135deg, var(--accent) 0%, #1e3a8a 100%);
+        border-radius: 32px;
+        padding: 48px 32px;
+        overflow: hidden;
+        color: #fff;
+        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.15);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
     }
-    .fs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #e0f2fe; padding-bottom:16px; }
-    .fs-title { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:700; color:#0f172a; }
-    .fs-icon { font-size:24px; color: #0f172a; }
-    .fs-subtitle { font-size:14px; color:#0c4a6e; }
-    
-    .fs-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
-    .fs-card {
-        background:#fff; border:1px solid #e0f2fe; border-radius:12px; padding:12px;
-        display:flex; align-items:center; gap:12px; transition: all .2s;
-        text-decoration: none; color: inherit;
+    .fs-modern-wrapper::before {
+        content: ''; position: absolute; top: -100px; left: -100px;
+        width: 300px; height: 300px; background: rgba(255,255,255,0.15);
+        border-radius: 50%; filter: blur(40px); pointer-events: none;
     }
-    .fs-card:hover { border-color:#7dd3fc; transform:translateX(2px); }
-    .fs-card img { width:50px; height:50px; object-fit:contain; border-radius:6px; border:1px solid #f1f5f9; }
-    .fs-card h4 { margin:0 0 2px; font-size:13px; font-weight:600; line-height:1.3; }
-    .fs-price { font-size:14px; font-weight:700; color:#0284c7; }
+    .fs-modern-wrapper::after {
+        content: ''; position: absolute; bottom: -100px; right: -50px;
+        width: 400px; height: 400px; background: rgba(255,255,255,0.1);
+        border-radius: 50%; filter: blur(50px); pointer-events: none;
+    }
+    .fs-modern-header {
+        position: relative; z-index: 2; margin-bottom: 40px;
+    }
+    .fs-modern-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 80px; height: 80px; background: rgba(255,255,255,0.15);
+        border-radius: 50%; margin-bottom: 20px; backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: #fff; border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .fs-modern-title {
+        font-size: clamp(28px, 5vw, 40px); font-weight: 800; margin: 0 0 12px;
+        letter-spacing: -0.02em; text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .fs-modern-subtitle {
+        font-size: 16px; color: #e0f2fe; max-width: 540px; margin: 0 auto; line-height: 1.6;
+    }
+    .fs-modern-grid {
+        display: flex; flex-wrap: wrap; justify-content: center; gap: 24px;
+        width: 100%; max-width: 1000px; position: relative; z-index: 2;
+    }
+    .fs-modern-card {
+        flex: 1 1 200px; max-width: 240px;
+        background: #ffffff; border-radius: 20px;
+        padding: 24px 20px; text-decoration: none; color: #0f172a;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex; flex-direction: column; align-items: center; text-align: center;
+        position: relative;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    .fs-modern-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    }
+    .fs-modern-card-img-wrap {
+        width: 100%; aspect-ratio: 1; margin-bottom: 16px;
+        display: flex; align-items: center; justify-content: center;
+        background: #f8fafc; border-radius: 12px; overflow: hidden;
+        position: relative;
+    }
+    .fs-modern-card-img-wrap img {
+        width: 80%; height: 80%; object-fit: contain;
+        transition: transform 0.5s ease;
+    }
+    .fs-modern-card:hover .fs-modern-card-img-wrap img {
+        transform: scale(1.15) rotate(2deg);
+    }
+    .fs-modern-card h4 {
+        margin: 0 0 10px; font-size: 15px; font-weight: 700; line-height: 1.4;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .fs-modern-price {
+        font-size: 20px; font-weight: 800; color: var(--accent); margin-top: auto;
+    }
+    .fs-modern-badge {
+        position: absolute; top: -12px; right: -12px;
+        background: #10b981; color: #fff; font-size: 12px; font-weight: 800;
+        padding: 6px 14px; border-radius: 99px; text-transform: uppercase;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); border: 2px solid #fff;
+        z-index: 3;
+    }
 
     /* SUPPORT BAND */
     .support-box {
@@ -1007,7 +1074,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
-        .fs-grid { grid-template-columns: 1fr; }
+        .fs-modern-wrapper { padding: 40px 20px; border-radius: 24px; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
         .lifestyle-block { padding: 0 20px 60px; }
@@ -1077,7 +1144,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     <section class="section-shell modern-store-section" id="parduotuve">
       <div class="modern-store-header">
-        <h2>Rekomenduojamos prekės</h2>
+        <h2>Rekomenduojame!</h2>
       </div>
 
       <div class="modern-store-grid">
@@ -1276,30 +1343,35 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     </section>
 
     <?php if ($freeShippingOffers): ?>
-      <section class="section-shell free-shipping">
-        <div class="free-shipping-box">
-            <div class="fs-header">
-                <div>
-                    <div class="fs-title"><span class="fs-icon">🚚</span> Nemokamas pristatymas</div>
-                    <div class="fs-subtitle">Perkant bent vieną iš šių prekių, pristatymas visam krepšeliui – 0 €.</div>
+      <section class="section-shell free-shipping-section">
+        <div class="fs-modern-wrapper">
+          <div class="fs-modern-header">
+            <div class="fs-modern-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width: 40px; height: 40px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+              </svg>
+            </div>
+            <h2 class="fs-modern-title">Nemokamas pristatymas</h2>
+            <p class="fs-modern-subtitle">Pridėkite bent vieną iš šių prekių į savo krepšelį ir mes pristatysime <strong>visą užsakymą</strong> visiškai nemokamai!</p>
+          </div>
+          
+          <div class="fs-modern-grid">
+            <?php foreach ($freeShippingOffers as $offer): ?>
+              <?php
+                $priceDisplay = buildPriceDisplay($offer, $globalDiscount, $categoryDiscounts);
+                // SEO URL
+                $offerUrl = '/produktas/' . slugify($offer['title']) . '-' . (int)$offer['product_id'];
+              ?>
+              <a href="<?php echo htmlspecialchars($offerUrl); ?>" class="fs-modern-card">
+                <div class="fs-modern-badge">NEMOKAMAI</div>
+                <div class="fs-modern-card-img-wrap">
+                    <img src="<?php echo htmlspecialchars($offer['primary_image'] ?: $offer['image_url']); ?>" alt="<?php echo htmlspecialchars($offer['title']); ?>">
                 </div>
-            </div>
-            <div class="fs-grid">
-              <?php foreach ($freeShippingOffers as $offer): ?>
-                <?php
-                    $priceDisplay = buildPriceDisplay($offer, $globalDiscount, $categoryDiscounts);
-                    // SEO URL
-                    $offerUrl = '/produktas/' . slugify($offer['title']) . '-' . (int)$offer['product_id'];
-                ?>
-                <a href="<?php echo htmlspecialchars($offerUrl); ?>" class="fs-card">
-                    <img src="<?php echo htmlspecialchars($offer['primary_image'] ?: $offer['image_url']); ?>" alt="">
-                    <div>
-                        <h4><?php echo htmlspecialchars($offer['title']); ?></h4>
-                        <div class="fs-price"><?php echo number_format($priceDisplay['current'], 2); ?> €</div>
-                    </div>
-                </a>
-              <?php endforeach; ?>
-            </div>
+                <h4><?php echo htmlspecialchars($offer['title']); ?></h4>
+                <div class="fs-modern-price"><?php echo number_format($priceDisplay['current'], 2); ?> €</div>
+              </a>
+            <?php endforeach; ?>
+          </div>
         </div>
       </section>
     <?php endif; ?>
