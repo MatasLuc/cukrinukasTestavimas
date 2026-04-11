@@ -313,7 +313,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
        ---------------------------------------------------- */
     .modern-store-section { margin-bottom: 40px; }
     
-    /* Pakeista antraštė: išcentruota, be papildomo teksto */
     .modern-store-header { 
         display: flex; 
         align-items: center; 
@@ -350,8 +349,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-product-image-wrapper {
         position: relative;
         background: #f8fafc;
-        padding: 16px; /* Sumažintas padding */
-        height: 140px; /* Sumažintas aukštis */
+        padding: 16px;
+        height: 140px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -478,8 +477,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         width: 20px;
         height: 20px;
     }
-
-    /* NAUJA: Visos prekės kortelė tinklelio gale */
     .view-all-card {
         display: flex;
         align-items: center;
@@ -491,7 +488,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         text-decoration: none;
         color: var(--accent);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        min-height: 240px; /* Sumažintas, kad derėtų prie prekių kortelių aukščio */
+        min-height: 240px;
     }
     .view-all-card:hover {
         transform: translateY(-8px);
@@ -650,6 +647,151 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         line-height: 1.5;
     }
 
+    /* SKANIAM IR PATOGIAM GYVENIMUI (Fullscreen) */
+    .lifestyle-block {
+        width: 100%;
+        background: #ffffff;
+        padding: 80px 20px;
+        position: relative;
+        margin-bottom: 40px;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .lifestyle-inner {
+        width: 100%;
+        max-width: 1200px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: center;
+    }
+    .lifestyle-content h2 {
+        font-size: clamp(32px, 5vw, 42px);
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.15;
+        margin: 0 0 20px;
+        letter-spacing: -0.02em;
+    }
+    .lifestyle-content p.lead {
+        font-size: 16px;
+        color: #475467;
+        line-height: 1.7;
+        margin: 0 0 32px;
+    }
+    .lifestyle-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 40px;
+    }
+    .lifestyle-chip {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+        padding: 8px 16px;
+        border-radius: 99px;
+        font-weight: 600;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+    }
+    .lifestyle-chip:hover {
+        background: var(--accent-light);
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+    .lifestyle-visual {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .lifestyle-image-wrapper {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        width: 100%;
+        aspect-ratio: 4/3;
+    }
+    .lifestyle-image-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.7s ease;
+    }
+    .lifestyle-visual:hover .lifestyle-image-wrapper img {
+        transform: scale(1.05);
+    }
+    .lifestyle-card {
+        position: absolute;
+        bottom: -20px;
+        left: -20px;
+        background: #fff;
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        max-width: 280px;
+        border: 1px solid rgba(0,0,0,0.05);
+        z-index: 2;
+    }
+    .lifestyle-card-meta {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
+    .lifestyle-card strong {
+        display: block;
+        font-size: 18px;
+        color: #0f172a;
+        margin-bottom: 8px;
+    }
+    .lifestyle-card p {
+        font-size: 14px;
+        color: #475467;
+        margin: 0 0 16px;
+        line-height: 1.5;
+    }
+    .lifestyle-floating {
+        position: absolute;
+        top: 30px;
+        right: -20px;
+        background: #1f2937;
+        color: #fff;
+        padding: 16px 20px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        z-index: 2;
+        animation: float 5s ease-in-out infinite;
+    }
+    .lifestyle-floating-meta {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #9ca3af;
+        display: block;
+        margin-bottom: 4px;
+    }
+    .lifestyle-floating strong {
+        font-size: 15px;
+        display: block;
+    }
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
+        100% { transform: translateY(0px); }
+    }
+
     /* FREE SHIPPING */
     .free-shipping-box {
         background: linear-gradient(135deg, #eff6ff, #dbeafe);
@@ -671,19 +813,19 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .fs-card h4 { margin:0 0 2px; font-size:13px; font-weight:600; line-height:1.3; }
     .fs-price { font-size:14px; font-weight:700; color:#0284c7; }
 
-    /* HIGHLIGHT & SUPPORT BAND */
-    .support-box, .highlight-box {
+    /* SUPPORT BAND */
+    .support-box {
         background:#fff; border:1px solid var(--border); border-radius:20px; padding:32px;
         display:grid; grid-template-columns: 1.2fr 1fr; gap:40px; box-shadow:var(--shadow-sm);
     }
-    .support-content h2, .highlight-content h2 { margin:0 0 12px; font-size:24px; color:#0f172a; }
-    .support-content p, .highlight-content p { color:#475467; line-height:1.6; margin-bottom:20px; }
+    .support-content h2 { margin:0 0 12px; font-size:24px; color:#0f172a; }
+    .support-content p { color:#475467; line-height:1.6; margin-bottom:20px; }
     
-    .support-card, .highlight-card {
+    .support-card {
         background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:20px;
     }
     
-    .support-card .btn, .highlight-card .btn {
+    .support-card .btn {
         width:100%;
         background: #fff;
         color: #1f2937;
@@ -691,7 +833,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 600;
         border-radius: 999px;
     }
-    .support-card .btn:hover, .highlight-card .btn:hover {
+    .support-card .btn:hover {
         border-color: var(--accent); color: var(--accent); background: #f0f9ff;
     }
     
@@ -720,15 +862,18 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
-        .community-block-inner, .highlight-box, .support-box { grid-template-columns: 1fr; gap:32px; }
+        .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
         .testimonial-grid, .news-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
+        .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
+        .lifestyle-card { bottom: -20px; left: 10px; right: 10px; max-width: none; }
+        .lifestyle-floating { top: -20px; right: 10px; }
+        .lifestyle-block { padding: 60px 20px; }
     }
     @media (max-width: 768px) {
         .glass-card.support-mini {
             display: none !important;
         }
-        .highlight-section .pill,
         .support-band .pill {
             display: none !important;
         }
@@ -892,7 +1037,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               </svg>
             </div>
             <div class="c-feature-text">
-              <h4>Bendruomenės Turgelis</h4>
+              <h4>Bendruomenės turgelis</h4>
               <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
             </div>
           </a>
@@ -900,26 +1045,45 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell highlight-section">
-      <div class="highlight-box">
-        <div class="highlight-content">
+    <section class="lifestyle-block">
+      <div class="lifestyle-inner">
+        <div class="lifestyle-content">
             <h2><?php echo htmlspecialchars($storyRow['title']); ?></h2>
-            <p><?php echo htmlspecialchars($storyRow['body']); ?></p>
-            <div class="chips">
+            <p class="lead"><?php echo htmlspecialchars($storyRow['body']); ?></p>
+            
+            <div class="lifestyle-chips">
               <?php foreach ($storyRow['pills'] as $pill): ?>
-                <span class="pill"><?php echo htmlspecialchars($pill); ?></span>
+                <span class="lifestyle-chip">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                    <?php echo htmlspecialchars($pill); ?>
+                </span>
               <?php endforeach; ?>
             </div>
+            
+            <a class="btn" href="/recipes.php" style="background: var(--accent); color: #fff; padding: 14px 28px; border: none; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">Atrasti receptus ir patarimus →</a>
         </div>
-        <div class="highlight-card">
-            <p class="muted" style="margin:0 0 4px; font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase;"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></p>
-            <strong style="display:block; margin:0 0 10px; color:#0f172a; font-size:18px;"><?php echo htmlspecialchars($storyRow['bubble_title']); ?></strong>
-            <p style="margin:0 0 16px; font-size:14px; color:#4b5563; line-height:1.5;"><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
-            <a class="btn" href="/products.php">Peržiūrėti prekes</a>
+        
+        <div class="lifestyle-visual">
+            <div class="lifestyle-image-wrapper">
+                <img src="https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Skanus ir patogus gyvenimas" loading="lazy">
+            </div>
+            
+            <div class="lifestyle-card">
+                <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
+                <strong><?php echo htmlspecialchars($storyRow['bubble_title']); ?></strong>
+                <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
+                <a href="/products.php" style="font-size: 14px; font-weight: 700; color: var(--accent); text-decoration: none;">Peržiūrėti prekes →</a>
+            </div>
+            
+            <?php if (!empty($storyRow['floating_title'])): ?>
+            <div class="lifestyle-floating">
+                <span class="lifestyle-floating-meta"><?php echo htmlspecialchars($storyRow['floating_meta']); ?></span>
+                <strong><?php echo htmlspecialchars($storyRow['floating_title']); ?></strong>
+            </div>
+            <?php endif; ?>
         </div>
       </div>
     </section>
-
     <?php if ($freeShippingOffers): ?>
       <section class="section-shell free-shipping">
         <div class="free-shipping-box">
