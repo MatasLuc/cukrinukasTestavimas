@@ -214,12 +214,12 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .btn:hover { opacity:0.9; transform:translateY(-1px); }
     .btn.secondary { background:#fff; color:#0b0b0b; border-color:var(--border); }
     
-    /* PILLS - PAKEISTAS DIZAINAS (Kaip action-btn) */
+    /* PILLS */
     .pill {
         display:inline-flex; align-items:center; padding:6px 14px;
         border-radius:999px; font-size:13px; font-weight:600;
         background:#fff;
-        color:#1f2937; /* Tamsus tekstas */
+        color:#1f2937;
         border:1px solid var(--border);
         transition: all .2s;
         text-decoration: none;
@@ -227,14 +227,14 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .pill:hover {
         border-color:var(--accent);
         color:var(--accent);
-        background:#f0f9ff; /* Šviesiai mėlynas */
+        background:#f0f9ff;
     }
 
     .section-head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; flex-wrap: wrap; }
     .section-head h2 { margin:0; font-size:26px; color:#0f172a; letter-spacing:-0.01em; }
 
     /* HERO */
-    .hero { width:100%; margin-bottom:0; position:relative; background:var(--accent); color:#fff; overflow:hidden; }
+    .hero { width:100%; margin-bottom:48px; position:relative; background:var(--accent); color:#fff; overflow:hidden; }
     .hero::after { content:""; position:absolute; inset:0; background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2), transparent 45%), linear-gradient(120deg, rgba(37,99,235,0.4), rgba(15,23,42,0.6)); z-index:1; }
     .hero-media { position:absolute; inset:0; z-index:0; }
     .media-embed { width:100%; height:100%; background:var(--accent); }
@@ -244,113 +244,78 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .hero__copy h1 { margin:0 0 12px; font-size:clamp(32px, 5vw, 42px); line-height:1.2; color:#fff; }
     .hero__copy p { margin:0 0 24px; font-size:18px; line-height:1.6; color:#e0f2fe; max-width:540px; }
     
-    /* GLASS CARD FIX */
     .glass-card { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:16px; padding:20px; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,0.1); color:#fff; }
     .glass-card h3 { margin:0 0 8px; font-size:18px; color:#fff; }
     .glass-card p { margin:0 0 12px; font-size:14px; color:#e0f2fe; line-height:1.5; }
     .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
 
-    /* SVETAINĖS AKCENTAI - MODERN FULLSCREEN REDESIGN */
-    .promo-fullscreen {
-        width: 100%;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        padding: 80px 20px;
-        margin-bottom: 48px;
-        display: flex;
-        justify-content: center;
-        color: #fff;
-        position: relative;
-        overflow: hidden;
-    }
-    .promo-fullscreen::before {
-        content: "";
-        position: absolute;
-        top: -50%; left: -50%; width: 200%; height: 200%;
-        background: radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 60%);
-        pointer-events: none;
-        z-index: 1;
-    }
-    .promo-fullscreen-inner {
-        width: 100%;
-        max-width: 1200px;
-        position: relative;
-        z-index: 2;
-    }
-    .center-head {
-        justify-content: center !important;
-        margin-bottom: 48px !important;
-    }
-    .center-head h2 {
-        color: #fff !important;
-        font-size: 32px !important;
-        letter-spacing: 2px !important;
-    }
+    /* SVETAINĖS AKCENTAI - MODERN LIGHT COMPACT */
+    .promo-section { margin-bottom: 48px; }
     .promo-grid-modern {
-        display: flex;
-        gap: 30px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
         width: 100%;
     }
     a.promo-card-modern {
-        flex: 1;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(12px);
-        border-radius: 24px;
-        padding: 40px 30px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 24px 20px;
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
         text-decoration: none;
-        color: #fff;
-        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        color: var(--text);
+        transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-sm);
     }
     a.promo-card-modern::after {
         content: '';
         position: absolute;
-        bottom: 0; left: 0; width: 100%; height: 4px;
+        bottom: 0; left: 0; width: 100%; height: 3px;
         background: var(--accent);
         transform: scaleX(0);
-        transition: transform 0.4s ease;
-        transform-origin: left;
+        transition: transform 0.3s ease;
+        transform-origin: center;
     }
     a.promo-card-modern:hover {
-        transform: translateY(-10px);
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(37,99,235,0.4);
-        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        transform: translateY(-5px);
+        border-color: var(--accent);
+        box-shadow: var(--shadow-md);
     }
     a.promo-card-modern:hover::after {
         transform: scaleX(1);
     }
     .promo-icon-modern {
-        font-size: 40px;
-        width: 80px; height: 80px;
-        border-radius: 20px;
-        background: rgba(37,99,235,0.2);
+        font-size: 28px;
+        width: 60px; height: 60px;
+        border-radius: 16px;
+        background: var(--accent-light);
+        color: var(--accent);
         display: flex; align-items: center; justify-content: center;
-        margin-bottom: 24px;
-        transition: all 0.4s ease;
-        box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
+        margin-bottom: 16px;
+        transition: all 0.3s ease;
     }
     a.promo-card-modern:hover .promo-icon-modern {
         transform: scale(1.1) rotate(5deg);
         background: var(--accent);
+        color: #fff;
     }
     .promo-content-modern h3 {
-        margin: 0 0 12px;
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
+        margin: 0 0 8px;
+        font-size: 17px;
+        font-weight: 600;
+        color: #0f172a;
     }
     .promo-content-modern p {
         margin: 0;
-        font-size: 15px;
-        line-height: 1.6;
-        color: #94a3b8;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--muted);
     }
 
     /* STORYBAND - BALTAS FONAS */
@@ -359,7 +324,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         border:1px solid var(--border); border-radius:20px; padding:32px;
         display:grid; grid-template-columns: 1fr 300px; gap:40px; align-items:center;
     }
-    /* METRICS PAKEISTAS Į MYGTUKĄ */
     .metrics { margin-top:20px; }
     .btn-recipes {
         display: inline-flex; align-items: center; justify-content: center; width: 100%;
@@ -398,7 +362,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         border:1px solid #bae6fd; border-radius:20px; padding:24px;
     }
     .fs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #e0f2fe; padding-bottom:16px; }
-    /* Pakeista spalva į juodą */
     .fs-title { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:700; color:#0f172a; }
     .fs-icon { font-size:24px; color: #0f172a; }
     .fs-subtitle { font-size:14px; color:#0c4a6e; }
@@ -466,10 +429,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .storyband-box, .highlight-box, .support-box { grid-template-columns: 1fr; gap:24px; }
         .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
-        .promo-grid-modern { flex-direction: column; }
     }
     @media (max-width: 768px) {
-        /* Mobile hiding rules */
         .glass-card.support-mini,
         .story-card-inner {
             display: none !important;
@@ -482,6 +443,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     @media (max-width: 600px) {
         .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
+        .promo-grid-modern { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -518,22 +480,20 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="promo-fullscreen">
-      <div class="promo-fullscreen-inner">
-          <div class="section-head center-head">
-            <h2>SVETAINĖS AKCENTAI</h2>
-          </div>
-          <div class="promo-grid-modern">
-            <?php foreach ($promoCards as $card): ?>
-              <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card-modern">
-                <div class="promo-icon-modern"><?php echo htmlspecialchars($card['icon']); ?></div>
-                <div class="promo-content-modern">
-                  <h3><?php echo htmlspecialchars($card['title']); ?></h3>
-                  <p><?php echo htmlspecialchars($card['body']); ?></p>
-                </div>
-              </a>
-            <?php endforeach; ?>
-          </div>
+    <section class="section-shell promo-section">
+      <div class="section-head">
+        <h2>SVETAINĖS AKCENTAI</h2>
+      </div>
+      <div class="promo-grid-modern">
+        <?php foreach ($promoCards as $card): ?>
+          <a href="<?php echo htmlspecialchars($card['url']); ?>" class="promo-card-modern">
+            <div class="promo-icon-modern"><?php echo htmlspecialchars($card['icon']); ?></div>
+            <div class="promo-content-modern">
+              <h3><?php echo htmlspecialchars($card['title']); ?></h3>
+              <p><?php echo htmlspecialchars($card['body']); ?></p>
+            </div>
+          </a>
+        <?php endforeach; ?>
       </div>
     </section>
 
