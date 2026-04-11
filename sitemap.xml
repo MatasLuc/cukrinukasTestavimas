@@ -17,6 +17,10 @@ $staticPages = [
     '/news.php',
     '/recipes.php',
     '/community.php',
+    '/community_market.php',      // Nauja: Turgelis
+    '/community_discussions.php', // Nauja: Forumas
+    '/delivery.php',              // Nauja: Pristatymas
+    '/returns.php',               // Nauja: Grąžinimas
     '/contact.php',
     '/faq.php',
     '/about.php'
@@ -30,7 +34,7 @@ foreach ($staticPages as $page) {
     echo '</url>' . PHP_EOL;
 }
 
-// 2. Produktai (Pridėtas title selektinimas SEO URL formavimui)
+// 2. Produktai
 $stmt = $pdo->query("SELECT id, title, created_at FROM products WHERE quantity > 0 ORDER BY created_at DESC");
 while ($row = $stmt->fetch()) {
     // Generuojame SEO draugišką URL: /produktas/pavadinimas-ID
@@ -72,6 +76,36 @@ while ($row = $stmt->fetch()) {
     echo '  <loc>' . $url . '</loc>' . PHP_EOL;
     echo '  <lastmod>' . $date . '</lastmod>' . PHP_EOL;
     echo '  <priority>0.6</priority>' . PHP_EOL;
+    echo '</url>' . PHP_EOL;
+}
+
+// 5. Bendruomenės Turgelis (Skelbimai)
+$stmt = $pdo->query("SELECT id, created_at FROM community_listings WHERE status IN ('active', 'sold') ORDER BY created_at DESC");
+while ($row = $stmt->fetch()) {
+    // Turgelio URL formatas pagal community_market.php
+    $url = $baseUrl . '/community_listing.php?id=' . $row['id'];
+    
+    $date = date('c', strtotime($row['created_at']));
+    echo '<url>' . PHP_EOL;
+    echo '  <loc>' . $url . '</loc>' . PHP_EOL;
+    echo '  <lastmod>' . $date . '</lastmod>' . PHP_EOL;
+    echo '  <changefreq>daily</changefreq>' . PHP_EOL;
+    echo '  <priority>0.7</priority>' . PHP_EOL;
+    echo '</url>' . PHP_EOL;
+}
+
+// 6. Bendruomenės Forumas (Diskusijos)
+$stmt = $pdo->query("SELECT id, created_at FROM community_threads ORDER BY created_at DESC");
+while ($row = $stmt->fetch()) {
+    // Forumo URL formatas pagal community_discussions.php
+    $url = $baseUrl . '/community_thread.php?id=' . $row['id'];
+    
+    $date = date('c', strtotime($row['created_at']));
+    echo '<url>' . PHP_EOL;
+    echo '  <loc>' . $url . '</loc>' . PHP_EOL;
+    echo '  <lastmod>' . $date . '</lastmod>' . PHP_EOL;
+    echo '  <changefreq>daily</changefreq>' . PHP_EOL;
+    echo '  <priority>0.7</priority>' . PHP_EOL;
     echo '</url>' . PHP_EOL;
 }
 
