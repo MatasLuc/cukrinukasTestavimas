@@ -241,7 +241,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
 
     /* SVETAINĖS AKCENTAI - SEAMLESS COMPACT */
-    .promo-section { margin-bottom: 12px; } /* Sumažintas tarpas iki bendruomenės bloko */
+    .promo-section { margin-bottom: 20px; }
     .promo-grid-seamless {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -306,6 +306,163 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         line-height: 1.5;
         color: var(--muted);
         max-width: 250px;
+    }
+
+    /* ----------------------------------------------------
+       NAUJOVIŠKA STORE SEKCIA (REKOMENDUOJAMOS PREKĖS)
+       ---------------------------------------------------- */
+    .modern-store-section { margin-bottom: 40px; }
+    .modern-store-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
+    .modern-store-header h2 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; }
+    .modern-store-header p { color: var(--muted); margin: 8px 0 0 0; font-size: 16px; }
+    .modern-store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
+    
+    .modern-product-card {
+        background: #ffffff;
+        border-radius: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        border: 1px solid rgba(0,0,0,0.02);
+    }
+    .modern-product-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.08);
+        border-color: rgba(37, 99, 235, 0.2);
+    }
+    .modern-product-image-wrapper {
+        position: relative;
+        background: #f8fafc;
+        padding: 30px;
+        height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .modern-product-image-wrapper img {
+        max-height: 100%;
+        max-width: 100%;
+        object-fit: contain;
+        transition: transform 0.5s ease;
+    }
+    .modern-product-card:hover .modern-product-image-wrapper img {
+        transform: scale(1.08);
+    }
+    .modern-product-badge {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        background: var(--accent);
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        z-index: 2;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+    }
+    .modern-product-wishlist {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: #fff;
+        border: none;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+        z-index: 2;
+    }
+    .modern-product-wishlist:hover {
+        color: #ef4444;
+        transform: scale(1.1);
+    }
+    .modern-product-info {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+    .modern-product-category {
+        font-size: 12px;
+        color: var(--accent);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+    }
+    .modern-product-title {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.4;
+        color: #0f172a;
+    }
+    .modern-product-title a {
+        text-decoration: none;
+        color: inherit;
+    }
+    .modern-product-title a::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+    }
+    .modern-product-bottom {
+        margin-top: auto;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+    }
+    .modern-product-prices {
+        display: flex;
+        flex-direction: column;
+    }
+    .modern-price-old {
+        font-size: 13px;
+        text-decoration: line-through;
+        color: #94a3b8;
+        margin-bottom: 2px;
+    }
+    .modern-price-current {
+        font-size: 22px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .modern-add-to-cart {
+        background: #0f172a;
+        color: #fff;
+        border: none;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        z-index: 2;
+    }
+    .modern-add-to-cart:hover {
+        background: var(--accent);
+        transform: scale(1.05) rotate(-3deg);
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+    }
+    .modern-add-to-cart svg {
+        width: 20px;
+        height: 20px;
     }
 
     /* FULLSCREEN BENDRUOMENĖS BLOKAS */
@@ -438,24 +595,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         line-height: 1.5;
     }
 
-    /* STORE GRID - 3 EILĖJE */
-    .store-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; }
-    .product-card {
-        background:#fff; border:1px solid var(--border); border-radius:16px;
-        overflow:hidden; display:flex; flex-direction:column; transition: all .2s;
-    }
-    .product-card:hover { border-color:var(--accent); transform:translateY(-3px); box-shadow:var(--shadow-md); }
-    .product-card img { width:100%; height:190px; object-fit:contain; padding:16px; background:#fff; }
-    .product-card__body { padding:14px; display:flex; flex-direction:column; gap:6px; flex:1; border-top:1px solid #f9fafb; }
-    .badge { font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; }
-    .product-card__title { margin:0; font-size:15px; line-height:1.4; font-weight:600; }
-    .product-card__price-row { margin-top:auto; display:flex; align-items:center; justify-content:space-between; padding-top:8px; }
-    .price { font-weight:700; color:#111827; font-size:17px; }
-    .price-old { font-size:12px; text-decoration:line-through; color:#9ca3af; margin-right:4px; }
-    
-    .action-btn { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:#fff; color:#374151; cursor:pointer; transition:all .2s; }
-    .action-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
-
     /* FREE SHIPPING */
     .free-shipping-box {
         background: linear-gradient(135deg, #eff6ff, #dbeafe);
@@ -527,7 +666,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .highlight-box, .support-box { grid-template-columns: 1fr; gap:32px; }
-        .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr 1fr; }
+        .testimonial-grid, .news-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
@@ -540,7 +679,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         }
     }
     @media (max-width: 600px) {
-        .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr; }
+        .testimonial-grid, .news-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
         .promo-grid-seamless { grid-template-columns: 1fr; }
         a.promo-card-seamless:not(:last-child)::after {
@@ -603,6 +742,68 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
+    <section class="section-shell modern-store-section" id="parduotuve">
+      <div class="modern-store-header">
+        <div>
+          <h2>Rekomenduojamos prekės</h2>
+          <p>Atrinktos ir geriausiai vertinamos bendruomenės priemonės</p>
+        </div>
+        <a class="pill" href="/products.php" style="position:relative; z-index:2;">Visos prekės →</a>
+      </div>
+
+      <div class="modern-store-grid">
+        <?php foreach ($featuredProducts as $product): ?>
+          <?php
+            $priceDisplay = buildPriceDisplay($product, $globalDiscount, $categoryDiscounts);
+            $productUrl = '/produktas/' . slugify($product['title']) . '-' . (int)$product['id'];
+          ?>
+          <article class="modern-product-card">
+            <div class="modern-product-image-wrapper">
+              <?php if (!empty($product['ribbon_text'])): ?>
+                <div class="modern-product-badge"><?php echo htmlspecialchars($product['ribbon_text']); ?></div>
+              <?php endif; ?>
+              
+              <form method="post" style="margin:0; padding:0;">
+                <?php echo csrfField(); ?>
+                <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
+                <button class="modern-product-wishlist" name="action" value="wishlist" type="submit" title="Į norų sąrašą">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                </button>
+              </form>
+
+              <a href="<?php echo htmlspecialchars($productUrl); ?>" style="display:contents;">
+                <img src="<?php echo htmlspecialchars($product['primary_image'] ?: $product['image_url']); ?>" alt="<?php echo htmlspecialchars($product['title']); ?>" loading="lazy">
+              </a>
+            </div>
+            
+            <div class="modern-product-info">
+              <div class="modern-product-category"><?php echo htmlspecialchars($product['category_name'] ?? 'Priedai'); ?></div>
+              <h3 class="modern-product-title">
+                <a href="<?php echo htmlspecialchars($productUrl); ?>"><?php echo htmlspecialchars($product['title']); ?></a>
+              </h3>
+              
+              <div class="modern-product-bottom">
+                <div class="modern-product-prices">
+                  <?php if ($priceDisplay['has_discount']): ?>
+                    <span class="modern-price-old"><?php echo number_format($priceDisplay['original'], 2); ?> €</span>
+                  <?php endif; ?>
+                  <span class="modern-price-current"><?php echo number_format($priceDisplay['current'], 2); ?> €</span>
+                </div>
+                
+                <form method="post" style="margin:0; padding:0;">
+                  <?php echo csrfField(); ?>
+                  <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
+                  <button class="modern-add-to-cart" type="submit" name="quantity" value="1" title="Į krepšelį">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+    </section>
+
     <section class="community-block" id="bendruomene">
       <div class="community-block-inner">
         <div class="community-content">
@@ -636,56 +837,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
             </div>
           </a>
         </div>
-      </div>
-    </section>
-
-    <section class="section-shell store-section" id="parduotuve">
-      <div class="section-head">
-        <h2>REKOMENDUOJAMOS PREKĖS</h2>
-        <a class="pill" href="/products.php">Visos prekės →</a>
-      </div>
-
-      <div class="store-grid">
-        <?php foreach ($featuredProducts as $product): ?>
-          <?php
-            $priceDisplay = buildPriceDisplay($product, $globalDiscount, $categoryDiscounts);
-            // SEO URL
-            $productUrl = '/produktas/' . slugify($product['title']) . '-' . (int)$product['id'];
-          ?>
-          <article class="product-card">
-            <div style="position:relative;">
-                <?php if (!empty($product['ribbon_text'])): ?>
-                    <div style="position:absolute; top:12px; left:12px; background:var(--accent); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; z-index:2;"><?php echo htmlspecialchars($product['ribbon_text']); ?></div>
-                <?php endif; ?>
-                <a href="<?php echo htmlspecialchars($productUrl); ?>">
-                  <img src="<?php echo htmlspecialchars($product['primary_image'] ?: $product['image_url']); ?>" alt="<?php echo htmlspecialchars($product['title']); ?>">
-                </a>
-            </div>
-            
-            <div class="product-card__body">
-              <div class="badge"><?php echo htmlspecialchars($product['category_name'] ?? ''); ?></div>
-              <h3 class="product-card__title"><a href="<?php echo htmlspecialchars($productUrl); ?>"><?php echo htmlspecialchars($product['title']); ?></a></h3>
-              
-              <div class="product-card__price-row">
-                <div>
-                  <?php if ($priceDisplay['has_discount']): ?>
-                    <span class="price-old"><?php echo number_format($priceDisplay['original'], 2); ?> €</span>
-                  <?php endif; ?>
-                  <span class="price"><?php echo number_format($priceDisplay['current'], 2); ?> €</span>
-                </div>
-                
-                <form method="post" style="display:flex; gap:6px;">
-                    <?php echo csrfField(); ?>
-                    <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
-                    <button class="action-btn" type="submit" name="quantity" value="1" title="Į krepšelį">
-                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                    </button>
-                    <button class="action-btn" name="action" value="wishlist" type="submit" title="Į norų sąrašą">♥</button>
-                </form>
-              </div>
-            </div>
-          </article>
-        <?php endforeach; ?>
       </div>
     </section>
 
