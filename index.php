@@ -105,13 +105,7 @@ $storyRow = [
         $siteContent['storyrow_pill_1'] ?? 'Gliukozės matavimai',
         $siteContent['storyrow_pill_2'] ?? 'Subalansuotos užkandžių dėžutės',
         $siteContent['storyrow_pill_3'] ?? 'Kelionėms paruošti rinkiniai',
-    ],
-    'bubble_meta' => $siteContent['storyrow_bubble_meta'] ?? 'Rekomendacija',
-    'bubble_title' => $siteContent['storyrow_bubble_title'] ?? '„Cukrinukas“ specialistai',
-    'bubble_body' => $siteContent['storyrow_bubble_body'] ?? 'Suderiname atsargas pagal jūsų dienos režimą.',
-    'floating_meta' => $siteContent['storyrow_floating_meta'] ?? 'Greitas pristatymas',
-    'floating_title' => $siteContent['storyrow_floating_title'] ?? '1-2 d.d.',
-    'floating_body' => $siteContent['storyrow_floating_body'] ?? 'Visoje Lietuvoje nuo 2.50 €',
+    ]
 ];
 
 $supportBand = [
@@ -146,6 +140,9 @@ if ($featuredIds) {
 }
 $categories = $pdo->query('SELECT id, name, slug FROM categories ORDER BY name ASC')->fetchAll();
 $freeShippingOffers = getFreeShippingProducts($pdo);
+
+// Nauja: Gauname 2 naujausius receptus lifestyle sekcijai
+$lifestyleRecipes = $pdo->query('SELECT id, title, image_url FROM recipes ORDER BY created_at DESC LIMIT 2')->fetchAll();
 
 // Styles variables
 $heroClass = $heroMedia['type'] === 'color' ? 'hero hero--color' : 'hero hero--media';
@@ -308,9 +305,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         max-width: 250px;
     }
 
-    /* ----------------------------------------------------
-       NAUJOVIŠKA STORE SEKCIA (REKOMENDUOJAMOS PREKĖS)
-       ---------------------------------------------------- */
+    /* NAUJOVIŠKA STORE SEKCIA (REKOMENDUOJAMOS PREKĖS) */
     .modern-store-section { margin-bottom: 40px; }
     
     .modern-store-header { 
@@ -650,7 +645,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* SKANIAM IR PATOGIAM GYVENIMUI (Fullscreen) */
     .lifestyle-block {
         width: 100%;
-        background: #ffffff;
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
         padding: 80px 20px;
         position: relative;
         margin-bottom: 40px;
@@ -689,7 +684,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         margin-bottom: 40px;
     }
     .lifestyle-chip {
-        background: #f8fafc;
+        background: #ffffff;
         border: 1px solid #e2e8f0;
         color: #0f172a;
         padding: 8px 16px;
@@ -726,7 +721,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         object-fit: cover;
         transition: transform 0.7s ease;
     }
-    .lifestyle-visual:hover .lifestyle-image-wrapper img {
+    .lifestyle-image-wrapper:hover img {
         transform: scale(1.05);
     }
     .lifestyle-card {
@@ -734,12 +729,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         bottom: -20px;
         left: -20px;
         background: #fff;
-        padding: 24px;
+        padding: 20px;
         border-radius: 20px;
         box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        max-width: 280px;
+        max-width: 300px;
         border: 1px solid rgba(0,0,0,0.05);
         z-index: 2;
+    }
+    .lifestyle-card:hover {
+        transform: translateY(-5px);
     }
     .lifestyle-card-meta {
         font-size: 12px;
@@ -747,49 +745,50 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         color: var(--accent);
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         display: block;
     }
-    .lifestyle-card strong {
-        display: block;
-        font-size: 18px;
-        color: #0f172a;
-        margin-bottom: 8px;
-    }
-    .lifestyle-card p {
-        font-size: 14px;
-        color: #475467;
-        margin: 0 0 16px;
-        line-height: 1.5;
-    }
-    .lifestyle-floating {
+    .lifestyle-all-card {
         position: absolute;
-        top: 30px;
-        right: -20px;
-        background: #1f2937;
-        color: #fff;
-        padding: 16px 20px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        bottom: 40px;
+        right: -30px;
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(10px);
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.08);
+        border: 1px solid #fff;
+        text-decoration: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         z-index: 2;
-        animation: float 5s ease-in-out infinite;
     }
-    .lifestyle-floating-meta {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #9ca3af;
-        display: block;
+    .lifestyle-all-card:hover {
+        transform: translateY(-8px);
+    }
+    .lifestyle-all-card .lac-icon {
+        background: #eff6ff;
+        color: var(--accent);
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    .lifestyle-all-card strong {
+        color: #0f172a;
+        font-size: 16px;
         margin-bottom: 4px;
-    }
-    .lifestyle-floating strong {
-        font-size: 15px;
         display: block;
     }
-    @keyframes float {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-8px); }
-        100% { transform: translateY(0px); }
+    .lifestyle-all-card span {
+        color: #475467;
+        font-size: 13px;
     }
 
     /* FREE SHIPPING */
@@ -867,30 +866,29 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .fs-grid { grid-template-columns: 1fr; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { bottom: -20px; left: 10px; right: 10px; max-width: none; }
-        .lifestyle-floating { top: -20px; right: 10px; }
         .lifestyle-block { padding: 60px 20px; }
+        .lifestyle-all-card { 
+            bottom: auto; 
+            top: -30px; 
+            right: 10px; 
+            padding: 16px; 
+            flex-direction: row; 
+            gap: 12px; 
+        }
+        .lifestyle-all-card .lac-icon { width: 40px; height: 40px; margin-bottom: 0; }
+        .lifestyle-all-card span { display: none; }
     }
     @media (max-width: 768px) {
-        .glass-card.support-mini {
-            display: none !important;
-        }
-        .support-band .pill {
-            display: none !important;
-        }
+        .glass-card.support-mini { display: none !important; }
+        .support-band .pill { display: none !important; }
     }
     @media (max-width: 600px) {
         .testimonial-grid, .news-grid { grid-template-columns: 1fr; }
         .hero__content { padding: 40px 20px; }
         .promo-grid-seamless { grid-template-columns: 1fr; }
-        a.promo-card-seamless:not(:last-child)::after {
-            display: none;
-        }
-        a.promo-card-seamless {
-             border-bottom: 1px solid var(--border);
-        }
-        a.promo-card-seamless:last-child {
-             border-bottom: none;
-        }
+        a.promo-card-seamless:not(:last-child)::after { display: none; }
+        a.promo-card-seamless { border-bottom: 1px solid var(--border); }
+        a.promo-card-seamless:last-child { border-bottom: none; }
         .community-block { padding: 60px 20px; }
     }
   </style>
@@ -1060,27 +1058,48 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               <?php endforeach; ?>
             </div>
             
-            <a class="btn" href="/recipes.php" style="background: var(--accent); color: #fff; padding: 14px 28px; border: none; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">Atrasti receptus ir patarimus →</a>
+            <a class="btn" href="/recipes.php" style="background: var(--accent); color: #fff; padding: 14px 28px; border: none; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">Atrasti visus receptus →</a>
         </div>
         
         <div class="lifestyle-visual">
-            <div class="lifestyle-image-wrapper">
-                <img src="https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Skanus ir patogus gyvenimas" loading="lazy">
-            </div>
-            
-            <div class="lifestyle-card">
-                <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
-                <strong><?php echo htmlspecialchars($storyRow['bubble_title']); ?></strong>
-                <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
-                <a href="/products.php" style="font-size: 14px; font-weight: 700; color: var(--accent); text-decoration: none;">Peržiūrėti prekes →</a>
-            </div>
-            
-            <?php if (!empty($storyRow['floating_title'])): ?>
-            <div class="lifestyle-floating">
-                <span class="lifestyle-floating-meta"><?php echo htmlspecialchars($storyRow['floating_meta']); ?></span>
-                <strong><?php echo htmlspecialchars($storyRow['floating_title']); ?></strong>
-            </div>
+            <?php 
+            $recipe1 = $lifestyleRecipes[0] ?? null;
+            $recipe2 = $lifestyleRecipes[1] ?? null;
+            ?>
+
+            <?php if ($recipe1): ?>
+            <a href="/receptas/<?php echo slugify($recipe1['title']) . '-' . $recipe1['id']; ?>" class="lifestyle-image-wrapper" style="display:block; text-decoration:none;">
+                <img src="<?php echo htmlspecialchars($recipe1['image_url']); ?>" alt="<?php echo htmlspecialchars($recipe1['title']); ?>" loading="lazy">
+                
+                <div style="position:absolute; bottom:0; left:0; right:0; padding:40px 24px 24px; background:linear-gradient(transparent, rgba(0,0,0,0.85)); color:#fff; display:flex; flex-direction:column; align-items:flex-start;">
+                    <span style="background:var(--accent); color:#fff; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:8px; display:inline-block; letter-spacing:0.05em;">Naujas receptas</span>
+                    <h3 style="margin:0; font-size:22px; font-weight:700; line-height:1.3; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"><?php echo htmlspecialchars($recipe1['title']); ?></h3>
+                </div>
+            </a>
             <?php endif; ?>
+            
+            <?php if ($recipe2): ?>
+            <a href="/receptas/<?php echo slugify($recipe2['title']) . '-' . $recipe2['id']; ?>" class="lifestyle-card" style="text-decoration:none; display:flex; flex-direction:column; gap:12px; transition:transform 0.3s;">
+                <span class="lifestyle-card-meta">Verta pabandyti</span>
+                <div style="display:flex; gap:16px; align-items:center;">
+                    <img src="<?php echo htmlspecialchars($recipe2['image_url']); ?>" style="width:72px; height:72px; border-radius:14px; object-fit:cover; flex-shrink:0;">
+                    <div>
+                        <strong style="font-size:16px; margin-bottom:4px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;"><?php echo htmlspecialchars($recipe2['title']); ?></strong>
+                        <span style="font-size:13px; color:var(--accent); font-weight:600;">Skaityti receptą →</span>
+                    </div>
+                </div>
+            </a>
+            <?php endif; ?>
+            
+            <a href="/recipes.php" class="lifestyle-all-card">
+                <div class="lac-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <strong>Visi receptai</strong>
+                <span>Atrasti daugiau</span>
+            </a>
         </div>
       </div>
     </section>
