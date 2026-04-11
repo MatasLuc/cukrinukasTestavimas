@@ -227,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Primary Image change
             if (isset($_POST['primary_image_id']) && function_exists('setPrimaryImage')) {
-                setPrimaryImage($pdo, $productId, (int)$$_POST['primary_image_id']);
+                setPrimaryImage($pdo, $productId, (int)$_POST['primary_image_id']);
             }
 
             // Delete images
