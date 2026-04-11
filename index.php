@@ -992,41 +992,43 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="community-block" id="bendruomene">
-      <div class="community-block-inner">
-        <div class="community-content">
-          <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
-          <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
-          <div class="community-actions">
-            <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
-          </div>
-        </div>
-        <div class="community-features">
-          <a href="/community_discussions.php" class="c-feature-card">
-            <div class="c-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-              </svg>
-            </div>
-            <div class="c-feature-text">
-              <h4>Pokalbiai ir patarimai</h4>
-              <p>Klauskite, diskutuokite ir dalinkitės kasdiene diabeto patirtimi su tais, kurie jus supranta geriausiai.</p>
-            </div>
-          </a>
-          <a href="/community_market.php" class="c-feature-card">
-            <div class="c-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-            <div class="c-feature-text">
-              <h4>Bendruomenės turgelis</h4>
-              <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
-            </div>
-          </a>
-        </div>
-      </div>
-    </section>
+   <section class="community-block" id="bendruomene">
+  <div class="community-block-inner">
+  <div class="community-content">
+  <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
+  <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
+  <div class="community-actions">
+  <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
+  </div>
+  </div>
+  <div class="community-features">
+  <a href="/community_discussions.php" class="c-feature-card">
+  <div class="c-icon-wrapper">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+  </svg>
+  </div>
+  <div class="c-feature-text">
+  <h4>Pokalbiai ir patarimai</h4>
+  <p>Klauskite, diskutuokite ir dalinkitės kasdiene diabeto patirtimi su tais, kurie jus supranta geriausiai.</p>
+  </div>
+  </a>
+  <a href="/community_market.php" class="c-feature-card">
+  <div class="c-icon-wrapper">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+  </svg>
+  </div>
+  <div class="c-feature-text">
+  <h4>Bendruomenės turgelis</h4>
+  <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
+  </div>
+  </a>
+  </div>
+  </div>
+</section>
+
+
 
     <section class="lifestyle-block">
       <div class="lifestyle-inner">
