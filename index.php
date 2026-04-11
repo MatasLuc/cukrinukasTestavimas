@@ -241,7 +241,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
 
     /* SVETAINĖS AKCENTAI - SEAMLESS COMPACT */
-    .promo-section { margin-bottom: 48px; }
+    .promo-section { margin-bottom: 12px; } /* Sumažintas tarpas iki bendruomenės bloko */
     .promo-grid-seamless {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -308,41 +308,47 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         max-width: 250px;
     }
 
-    /* MODERNUS BENDRUOMENĖS BLOKAS (Vieta senam receptų blokui) */
+    /* FULLSCREEN BENDRUOMENĖS BLOKAS */
     .community-block {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-        border-radius: 24px;
-        padding: 48px;
-        color: #fff;
-        display: grid;
-        grid-template-columns: 1.1fr 1fr;
-        gap: 48px;
+        width: 100%;
+        background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
+        padding: 60px 20px;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.3);
-        margin-top: 20px;
+        margin-bottom: 40px;
+        display: flex;
+        justify-content: center;
     }
     .community-block::before {
         content: '';
         position: absolute;
         top: -50px; right: -50px;
-        width: 250px; height: 250px;
-        background: rgba(255,255,255,0.1);
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.6);
         border-radius: 50%;
         filter: blur(40px);
+        pointer-events: none;
     }
     .community-block::after {
         content: '';
         position: absolute;
-        bottom: -50px; left: 10%;
-        width: 300px; height: 300px;
-        background: rgba(255,255,255,0.05);
+        bottom: -50px; left: 5%;
+        width: 350px; height: 350px;
+        background: rgba(255,255,255,0.4);
         border-radius: 50%;
         filter: blur(60px);
+        pointer-events: none;
     }
-    .community-content {
+    .community-block-inner {
+        width: 100%;
+        max-width: 1200px;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 48px;
         position: relative;
         z-index: 2;
+    }
+    .community-content {
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -353,41 +359,41 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         margin: 0 0 16px;
         letter-spacing: -0.02em;
         line-height: 1.2;
+        color: #0f172a;
     }
     .community-content p {
         font-size: 16px;
         line-height: 1.6;
-        color: #dbeafe;
+        color: #475467;
         margin: 0 0 32px;
         max-width: 450px;
     }
     .btn-community-main {
         align-self: flex-start;
-        background: #fff;
-        color: #1e3a8a;
+        background: var(--accent);
+        color: #fff;
         padding: 14px 32px;
         border-radius: 99px;
         font-weight: 700;
         font-size: 15px;
         text-decoration: none;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
     }
     .btn-community-main:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-        color: var(--accent);
+        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
+        background: var(--accent-hover);
+        color: #fff;
     }
     .community-features {
         display: flex;
         flex-direction: column;
         gap: 16px;
-        position: relative;
-        z-index: 2;
     }
     .c-feature-card {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.8);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border-radius: 16px;
@@ -397,15 +403,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         gap: 20px;
         transition: all 0.3s ease;
         text-decoration: none;
-        color: #fff;
+        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.05);
     }
     .c-feature-card:hover {
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.9);
         transform: translateX(-6px);
-        border-color: rgba(255, 255, 255, 0.4);
+        border-color: #fff;
+        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
     }
     .c-icon-wrapper {
-        background: rgba(255,255,255,0.2);
+        background: #fff;
         width: 54px;
         height: 54px;
         border-radius: 14px;
@@ -413,20 +420,21 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        box-shadow: var(--shadow-sm);
     }
     .c-icon-wrapper svg {
-        width: 26px; height: 26px; stroke: #fff;
+        width: 26px; height: 26px; stroke: var(--accent);
     }
     .c-feature-text h4 {
         margin: 0 0 6px;
         font-size: 18px;
         font-weight: 700;
-        color: #fff;
+        color: #0f172a;
     }
     .c-feature-text p {
         margin: 0;
         font-size: 14px;
-        color: #bfdbfe;
+        color: #475467;
         line-height: 1.5;
     }
 
@@ -518,7 +526,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
-        .community-block, .highlight-box, .support-box { grid-template-columns: 1fr; gap:32px; padding: 32px; }
+        .community-block-inner, .highlight-box, .support-box { grid-template-columns: 1fr; gap:32px; }
         .testimonial-grid, .news-grid, .store-grid { grid-template-columns: 1fr 1fr; }
         .fs-grid { grid-template-columns: 1fr; }
     }
@@ -544,7 +552,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         a.promo-card-seamless:last-child {
              border-bottom: none;
         }
-        .community-block { padding: 24px; border-radius: 20px; }
+        .community-block { padding: 40px 20px; }
     }
   </style>
 </head>
@@ -595,8 +603,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell" id="bendruomene">
-      <div class="community-block">
+    <section class="community-block" id="bendruomene">
+      <div class="community-block-inner">
         <div class="community-content">
           <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
           <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
