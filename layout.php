@@ -579,7 +579,7 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
     $metaTitle = $meta['title'] ?? 'Cukrinukas.lt – diabeto priemonės ir žinios';
     $metaDescRaw = strip_tags($meta['description'] ?? 'Gliukometrai, sensoriai, juostelės, mažo GI užkandžiai ir patarimai gyvenimui su diabetu.');
     $metaImage = $meta['image'] ?? 'https://cukrinukas.lt/uploads/default_social.jpg';
-    $metaUrl = "https://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+    $metaUrl = $meta['url'] ?? "https://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 
     // SEO: Sutvarkytas aprašymo kirpimas
     $metaDesc = $metaDescRaw;
@@ -693,6 +693,11 @@ function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
       <title><?php echo htmlspecialchars($metaTitle); ?></title>
       <meta name="description" content="<?php echo htmlspecialchars($metaDesc); ?>">
       <link rel="canonical" href="<?php echo htmlspecialchars($metaUrl); ?>">
+      
+      <?php if (!empty($meta['keywords'])): ?>
+      <meta name="keywords" content="<?php echo htmlspecialchars($meta['keywords']); ?>">
+      <?php endif; ?>
+
       <meta property="og:type" content="website">
       <meta property="og:url" content="<?php echo htmlspecialchars($metaUrl); ?>">
       <meta property="og:title" content="<?php echo htmlspecialchars($metaTitle); ?>">

@@ -111,13 +111,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
 
 $isAdmin = !empty($_SESSION['is_admin']);
 $totalProductsCount = count($products);
+
+// --- Pakeitimas: Dinaminis SEO Katalogo puslapiui ---
+$catNameForMeta = 'Visos prekės';
+if ($selectedSlug && isset($catId) && isset($catsById[$catId])) {
+    $catNameForMeta = $catsById[$catId]['name'];
+    $canonicalUrl = 'https://cukrinukas.lt/kategorija/' . $selectedSlug;
+} else {
+    $canonicalUrl = 'https://cukrinukas.lt/parduotuve';
+}
+
+$meta = [
+    'title' => $catNameForMeta . ' | Parduotuvė | Cukrinukas',
+    'description' => 'Atraskite geriausius ' . mb_strtolower($catNameForMeta) . ' pasiūlymus, saldėsius ir dovanų rinkinius.',
+    'url' => $canonicalUrl
+];
+// ----------------------------------------------------
 ?>
 <!doctype html>
 <html lang="lt">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parduotuvė | Cukrinukas</title>
+  <title><?php echo htmlspecialchars($meta['title']); ?></title>
   <?php echo headerStyles(); ?>
   <style>
     :root {
@@ -292,7 +308,7 @@ $totalProductsCount = count($products);
   </style>
 </head>
 <body>
-  <?php renderHeader($pdo, 'products'); ?>
+  <?php renderHeader($pdo, 'products', $meta); ?>
 
   <div class="page">
     <section class="hero">
