@@ -172,7 +172,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
   
   <style>
     :root {
-      --bg: #f8fafc; /* Suvienodinta su testinomials/community bloku */
+      --bg: #f7f7fb;
       --card: #ffffff;
       --border: #e4e7ec;
       --text: #1f2937;
@@ -512,15 +512,50 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transform: translateX(8px);
     }
 
-    /* FULLSCREEN BENDRUOMENĖS BLOKAS */
-    .community-block {
+    /* -----------------------------------------------------------
+       VIENTISAS APATINIS BLOKAS (BENDruomene + Lifestyle + Testimonials) 
+       ----------------------------------------------------------- */
+    .bottom-gradient-wrapper {
         width: 100%;
-        background: var(--bg);
-        padding: 40px 20px 0; /* Sumažintas atstumas, suderintas su kitais blokais */
+        background: 
+            linear-gradient(to bottom, var(--bg) 0%, transparent 10%, transparent 90%, var(--bg) 100%),
+            linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
         position: relative;
         overflow: hidden;
+        padding: 80px 0 40px; /* Sukuria erdvės viršuje ir apačioje */
+        margin-bottom: 40px;
+    }
+    /* Papildomi dekoratyviniai burbulai */
+    .bottom-gradient-wrapper::before {
+        content: '';
+        position: absolute;
+        top: -50px; right: -50px;
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.6);
+        border-radius: 50%;
+        filter: blur(40px);
+        pointer-events: none;
+    }
+    .bottom-gradient-wrapper::after {
+        content: '';
+        position: absolute;
+        bottom: 100px; left: 5%;
+        width: 350px; height: 350px;
+        background: rgba(255,255,255,0.4);
+        border-radius: 50%;
+        filter: blur(60px);
+        pointer-events: none;
+    }
+
+    /* COMMUNITY SEKCIJA */
+    .community-block {
+        width: 100%;
+        background: transparent;
+        padding: 0 20px 80px; 
         display: flex;
         justify-content: center;
+        position: relative;
+        z-index: 2;
     }
     .community-block-inner {
         width: 100%;
@@ -528,8 +563,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         display: grid;
         grid-template-columns: 1.1fr 1fr;
         gap: 48px;
-        position: relative;
-        z-index: 2;
     }
     .community-content {
         display: flex;
@@ -575,8 +608,10 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         gap: 16px;
     }
     .c-feature-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border-radius: 16px;
         padding: 24px;
         display: flex;
@@ -584,15 +619,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         gap: 20px;
         transition: all 0.3s ease;
         text-decoration: none;
-        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.03);
+        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.05);
     }
     .c-feature-card:hover {
+        background: rgba(255, 255, 255, 0.9);
         transform: translateX(-6px);
-        border-color: #cbd5e1;
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
+        border-color: #fff;
+        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
     }
     .c-icon-wrapper {
-        background: #eff6ff;
+        background: #fff;
         width: 54px;
         height: 54px;
         border-radius: 14px;
@@ -600,6 +636,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        box-shadow: var(--shadow-sm);
     }
     .c-icon-wrapper svg {
         width: 26px; height: 26px; stroke: var(--accent);
@@ -617,15 +654,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         line-height: 1.5;
     }
 
-    /* SKANIAM IR PATOGIAM GYVENIMUI (Fullscreen) */
+    /* LIFESTYLE SEKCIJA (RECEPTAI) */
     .lifestyle-block {
         width: 100%;
-        background: var(--bg);
-        padding: 60px 20px;
-        position: relative;
+        background: transparent;
+        padding: 0 20px 80px;
         display: flex;
         justify-content: center;
-        overflow: hidden;
+        position: relative;
+        z-index: 2;
     }
     .lifestyle-inner {
         width: 100%;
@@ -653,11 +690,11 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
-        margin-bottom: 20px;
     }
     .lifestyle-chip {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: rgba(255,255,255,0.7);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255,255,255,0.9);
         color: #0f172a;
         padding: 8px 16px;
         border-radius: 99px;
@@ -669,7 +706,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transition: all 0.3s;
     }
     .lifestyle-chip:hover {
-        background: var(--accent-light);
+        background: #fff;
         border-color: var(--accent);
         color: var(--accent);
     }
@@ -697,7 +734,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         transform: scale(1.05);
     }
     
-    /* Visi receptai ir informacinės kortelės išdėstymas */
     .lifestyle-card {
         position: absolute;
         top: 20px;
@@ -740,7 +776,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .lifestyle-all-card {
         position: absolute;
         bottom: -20px;
-        left: 20px;
+        left: -20px;
         background: rgba(255,255,255,0.95);
         backdrop-filter: blur(10px);
         padding: 16px 24px;
@@ -783,17 +819,22 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
-    /* TESTIMONIALS (Jau susilieja su var(--bg)) */
+    /* TESTIMONIALS SEKCIJA */
     .testimonials {
-        padding-top: 20px; /* Minimalus tarpas po lifestyle bloko */
+        padding: 0 20px;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 2;
     }
     .testimonials-box {
-        background: transparent; /* Nuimtas linear-gradient */
+        background: transparent; 
         border:none; 
         padding:0;
     }
     .testimonial-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:24px; }
-    .testimonial { background:#fff; border-radius:14px; padding:20px; border:1px solid #e2e8f0; box-shadow:var(--shadow-sm); height:100%; display:flex; flex-direction:column; }
+    .testimonial { background:rgba(255,255,255,0.8); backdrop-filter: blur(10px); border-radius:14px; padding:20px; border:1px solid #e2e8f0; box-shadow:var(--shadow-sm); height:100%; display:flex; flex-direction:column; }
     .t-name { font-weight:700; margin-bottom:2px; font-size:15px; }
     .t-role { font-size:12px; color:var(--muted); margin-bottom:10px; }
     .t-text { font-size:14px; line-height:1.6; color:#475467; flex:1; }
@@ -992,123 +1033,123 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-   <section class="community-block" id="bendruomene">
-  <div class="community-block-inner">
-  <div class="community-content">
-  <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
-  <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
-  <div class="community-actions">
-  <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
-  </div>
-  </div>
-  <div class="community-features">
-  <a href="/community_discussions.php" class="c-feature-card">
-  <div class="c-icon-wrapper">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-  </svg>
-  </div>
-  <div class="c-feature-text">
-  <h4>Pokalbiai ir patarimai</h4>
-  <p>Klauskite, diskutuokite ir dalinkitės kasdiene diabeto patirtimi su tais, kurie jus supranta geriausiai.</p>
-  </div>
-  </a>
-  <a href="/community_market.php" class="c-feature-card">
-  <div class="c-icon-wrapper">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-  </svg>
-  </div>
-  <div class="c-feature-text">
-  <h4>Bendruomenės turgelis</h4>
-  <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
-  </div>
-  </a>
-  </div>
-  </div>
-</section>
-
-
-
-    <section class="lifestyle-block">
-      <div class="lifestyle-inner">
-        <div class="lifestyle-content">
-            <h2><?php echo htmlspecialchars($storyRow['title']); ?></h2>
-            <p class="lead"><?php echo htmlspecialchars($storyRow['body']); ?></p>
-            
-            <div class="lifestyle-chips">
-              <?php foreach ($storyRow['pills'] as $pill): ?>
-                <span class="lifestyle-chip">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                    <?php echo htmlspecialchars($pill); ?>
-                </span>
-              <?php endforeach; ?>
-            </div>
-        </div>
+    <div class="bottom-gradient-wrapper">
         
-        <div class="lifestyle-visual">
-            <?php 
-            $recipe1 = $latestRecipe; // Paskutinis receptas
-            ?>
-
-            <?php if ($recipe1): ?>
-                <?php $recipeUrl = '/receptas/' . slugify($recipe1['title']) . '-' . $recipe1['id']; ?>
-                <a href="<?php echo htmlspecialchars($recipeUrl); ?>" class="lifestyle-image-wrapper" style="display:block; text-decoration:none;">
-                    <img src="<?php echo htmlspecialchars($recipe1['image_url']); ?>" alt="<?php echo htmlspecialchars($recipe1['title']); ?>" loading="lazy">
-                </a>
-                
-                <a href="<?php echo htmlspecialchars($recipeUrl); ?>" class="lifestyle-card" style="text-decoration:none;">
-                    <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
-                    <strong><?php echo htmlspecialchars($recipe1['title']); ?></strong>
-                    <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
-                    <span style="font-size: 14px; font-weight: 700; color: var(--accent);">Žiūrėti receptą →</span>
-                </a>
-            <?php else: ?>
-                <div class="lifestyle-image-wrapper">
-                    <img src="https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Skanus ir patogus gyvenimas" loading="lazy">
-                </div>
-                
-                <div class="lifestyle-card">
-                    <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
-                    <strong>Pusryčių dubenėlis su uogomis</strong>
-                    <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
-                    <a href="/recipes.php" style="font-size: 14px; font-weight: 700; color: var(--accent); text-decoration: none;">Visi receptai →</a>
-                </div>
-            <?php endif; ?>
-            
-            <a href="/recipes.php" class="lifestyle-all-card">
-                <div class="lac-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                    </svg>
-                </div>
-                <div class="lac-text">
-                    <strong>Visi receptai</strong>
-                    <span>Atrasti daugiau skonių</span>
-                </div>
-            </a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section-shell testimonials">
-      <div class="section-head">
-        <h2>ATSILIEPIMAI</h2>
-      </div>
-      <div class="testimonials-box">
-        <div class="testimonial-grid">
-            <?php foreach ($testimonials as $t): ?>
-            <div class="testimonial">
-                <div class="t-name"><?php echo htmlspecialchars($t['name']); ?></div>
-                <div class="t-role"><?php echo htmlspecialchars($t['role']); ?></div>
-                <div class="t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+        <section class="community-block" id="bendruomene">
+          <div class="community-block-inner">
+            <div class="community-content">
+              <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
+              <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
+              <div class="community-actions">
+                <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
+              </div>
             </div>
-            <?php endforeach; ?>
-        </div>
-      </div>
-    </section>
+            <div class="community-features">
+              <a href="/community_discussions.php" class="c-feature-card">
+                <div class="c-icon-wrapper">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                  </svg>
+                </div>
+                <div class="c-feature-text">
+                  <h4>Pokalbiai ir patarimai</h4>
+                  <p>Klauskite, diskutuokite ir dalinkitės kasdiene diabeto patirtimi su tais, kurie jus supranta geriausiai.</p>
+                </div>
+              </a>
+              <a href="/community_market.php" class="c-feature-card">
+                <div class="c-icon-wrapper">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+                <div class="c-feature-text">
+                  <h4>Bendruomenės turgelis</h4>
+                  <p>Parduokite nereikalingas priemones arba ieškokite geriausių pasiūlymų iš kitų bendruomenės narių rankų.</p>
+                </div>
+              </a>
+            </div>
+          </div>
+        </section>
 
-    <?php if ($freeShippingOffers): ?>
+        <section class="lifestyle-block">
+          <div class="lifestyle-inner">
+            <div class="lifestyle-content">
+                <h2><?php echo htmlspecialchars($storyRow['title']); ?></h2>
+                <p class="lead"><?php echo htmlspecialchars($storyRow['body']); ?></p>
+                
+                <div class="lifestyle-chips">
+                  <?php foreach ($storyRow['pills'] as $pill): ?>
+                    <span class="lifestyle-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                        <?php echo htmlspecialchars($pill); ?>
+                    </span>
+                  <?php endforeach; ?>
+                </div>
+            </div>
+            
+            <div class="lifestyle-visual">
+                <?php 
+                $recipe1 = $latestRecipe; // Paskutinis receptas
+                ?>
+
+                <?php if ($recipe1): ?>
+                    <?php $recipeUrl = '/receptas/' . slugify($recipe1['title']) . '-' . $recipe1['id']; ?>
+                    <a href="<?php echo htmlspecialchars($recipeUrl); ?>" class="lifestyle-image-wrapper" style="display:block; text-decoration:none;">
+                        <img src="<?php echo htmlspecialchars($recipe1['image_url']); ?>" alt="<?php echo htmlspecialchars($recipe1['title']); ?>" loading="lazy">
+                    </a>
+                    
+                    <a href="<?php echo htmlspecialchars($recipeUrl); ?>" class="lifestyle-card" style="text-decoration:none;">
+                        <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
+                        <strong><?php echo htmlspecialchars($recipe1['title']); ?></strong>
+                        <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
+                        <span style="font-size: 14px; font-weight: 700; color: var(--accent);">Žiūrėti receptą →</span>
+                    </a>
+                <?php else: ?>
+                    <div class="lifestyle-image-wrapper">
+                        <img src="https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Skanus ir patogus gyvenimas" loading="lazy">
+                    </div>
+                    
+                    <div class="lifestyle-card">
+                        <span class="lifestyle-card-meta"><?php echo htmlspecialchars($storyRow['bubble_meta']); ?></span>
+                        <strong>Pusryčių dubenėlis su uogomis</strong>
+                        <p><?php echo htmlspecialchars($storyRow['bubble_body']); ?></p>
+                        <a href="/recipes.php" style="font-size: 14px; font-weight: 700; color: var(--accent); text-decoration: none;">Visi receptai →</a>
+                    </div>
+                <?php endif; ?>
+                
+                <a href="/recipes.php" class="lifestyle-all-card">
+                    <div class="lac-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                    </div>
+                    <div class="lac-text">
+                        <strong>Visi receptai</strong>
+                        <span>Atrasti daugiau skonių</span>
+                    </div>
+                </a>
+            </div>
+          </div>
+        </section>
+
+        <section class="testimonials">
+          <div class="section-head">
+            <h2>ATSILIEPIMAI</h2>
+          </div>
+          <div class="testimonials-box">
+            <div class="testimonial-grid">
+                <?php foreach ($testimonials as $t): ?>
+                <div class="testimonial">
+                    <div class="t-name"><?php echo htmlspecialchars($t['name']); ?></div>
+                    <div class="t-role"><?php echo htmlspecialchars($t['role']); ?></div>
+                    <div class="t-text">"<?php echo htmlspecialchars($t['text']); ?>"</div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+          </div>
+        </section>
+
+    </div> <?php if ($freeShippingOffers): ?>
       <section class="section-shell free-shipping">
         <div class="free-shipping-box">
             <div class="fs-header">
