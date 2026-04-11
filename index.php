@@ -312,9 +312,23 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
        NAUJOVIŠKA STORE SEKCIA (REKOMENDUOJAMOS PREKĖS)
        ---------------------------------------------------- */
     .modern-store-section { margin-bottom: 40px; }
-    .modern-store-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
-    .modern-store-header h2 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; }
-    .modern-store-header p { color: var(--muted); margin: 8px 0 0 0; font-size: 16px; }
+    
+    /* Pakeista antraštė: išcentruota, be papildomo teksto */
+    .modern-store-header { 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        margin-bottom: 36px; 
+        text-align: center;
+    }
+    .modern-store-header h2 { 
+        font-size: clamp(26px, 5vw, 36px); 
+        font-weight: 800; 
+        color: #0f172a; 
+        margin: 0; 
+        letter-spacing: -0.02em; 
+    }
+    
     .modern-store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
     
     .modern-product-card {
@@ -463,6 +477,45 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-add-to-cart svg {
         width: 20px;
         height: 20px;
+    }
+
+    /* NAUJA: Visos prekės kortelė tinklelio gale */
+    .view-all-card {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8fafc;
+        border-radius: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        border: 2px dashed #cbd5e1;
+        text-decoration: none;
+        color: var(--accent);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        min-height: 340px; /* Pritaikyta prie prekių kortelių maždaug aukščio */
+    }
+    .view-all-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.15);
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+    }
+    .view-all-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        font-size: 20px;
+        font-weight: 700;
+    }
+    .view-all-content svg {
+        width: 48px;
+        height: 48px;
+        stroke-width: 1.5;
+        transition: transform 0.3s ease;
+    }
+    .view-all-card:hover .view-all-content svg {
+        transform: translateX(8px);
     }
 
     /* FULLSCREEN BENDRUOMENĖS BLOKAS */
@@ -744,11 +797,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     <section class="section-shell modern-store-section" id="parduotuve">
       <div class="modern-store-header">
-        <div>
-          <h2>Rekomenduojamos prekės</h2>
-          <p>Atrinktos ir geriausiai vertinamos bendruomenės priemonės</p>
-        </div>
-        <a class="pill" href="/products.php" style="position:relative; z-index:2;">Visos prekės →</a>
+        <h2>Rekomenduojamos prekės</h2>
       </div>
 
       <div class="modern-store-grid">
@@ -801,6 +850,15 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
             </div>
           </article>
         <?php endforeach; ?>
+
+        <a href="/products.php" class="view-all-card">
+            <div class="view-all-content">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+                <span>Visos prekės</span>
+            </div>
+        </a>
       </div>
     </section>
 
