@@ -103,8 +103,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
         saveItemForUser($pdo, (int)$_SESSION['user_id'], 'product', $pid);
         header('Location: /saved.php'); exit;
     }
+    
     $qty = max(1, (int) ($_POST['quantity'] ?? 1));
-    $_SESSION['cart'][$pid] = ($_SESSION['cart'][$pid] ?? 0) + $qty;
+    
+    // Likučio patikra
+    $stmtStock = $pdo->prepare("SELECT quantity FROM products WHERE id = ?");
+    $stmtStock->execute([$pid]);
+    $stock = $stmtStock->fetchColumn();
+    
+    $currentInCart = $_SESSION['cart'][$pid] ?? 0;
+    if ($stock !== false && (int)$stock < ($currentInCart + $qty)) {
+        $_SESSION['cart_error'] = "Nepavyko įdėti į krepšelį: prekė išparduota arba neturime pageidaujamo kiekio sandėlyje.";
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+
+    $_SESSION['cart'][$pid] = $currentInCart + $qty;
     if (!empty($_SESSION['user_id'])) saveCartItem($pdo, (int)$_SESSION['user_id'], $pid, $qty);
     header('Location: /cart.php'); exit;
 }
@@ -311,6 +325,12 @@ $meta = [
   <?php renderHeader($pdo, 'products', $meta); ?>
 
   <div class="page">
+    <?php if (!empty($_SESSION['cart_error'])): ?>
+        <div style="width: 100%; margin-bottom: 20px; padding: 15px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; text-align: center; font-weight: 500;">
+            <?php echo htmlspecialchars($_SESSION['cart_error']); unset($_SESSION['cart_error']); ?>
+        </div>
+    <?php endif; ?>
+    
     <section class="hero">
       <div>
         <div class="pill">🛍️ Mūsų produktai</div>
