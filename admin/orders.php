@@ -231,7 +231,7 @@ if (isset($_POST['create_paysera_shipment'])) {
 
             $updateStmt = $pdo->prepare("
                 UPDATE orders 
-                SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'išsiųsta' 
+                SET paysera_shipment_id = ?, paysera_label_url = ?, tracking_number = ?, status = 'siunčiama' 
                 WHERE id = ?
             ");
             $updateStmt->execute([$payseraId, $labelUrl, $tracking, $orderId]);
@@ -375,7 +375,7 @@ try {
     .status-laukiama.apmokėjimo { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
     .status-apmokėta { background: #ecfdf5; color: #047857; border: 1px solid #d1fae5; }
     .status-apdorojama { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
-    .status-išsiųsta { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+    .status-siunčiama { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
     .status-įvykdyta { background: #ecfdf5; color: #047857; border: 1px solid #d1fae5; }
     .status-atšaukta { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
     .status-atmesta { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
@@ -649,7 +649,7 @@ try {
                             <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee;">
                                 <label style="font-size:12px; font-weight:700; color:#444; display:block; margin-bottom:4px;">Siuntos sekimo numeris:</label>
                                 <input type="text" name="tracking_number" id="m_trackingInput" class="form-control" placeholder="Įveskite kodą...">
-                                <div style="font-size:11px; color:#888; margin-top:2px;">Atnaujinus į "Išsiųsta", kodas bus išsiųstas klientui.</div>
+                                <div style="font-size:11px; color:#888; margin-top:2px;">Atnaujinus į "Siunčiama", kodas bus išsiųstas klientui.</div>
                             </div>
                         </div>
                     </div>
@@ -705,7 +705,7 @@ try {
                     <option value="laukiama apmokėjimo">Laukiama apmokėjimo</option>
                     <option value="apmokėta">Apmokėta</option>
                     <option value="apdorojama">Apdorojama</option>
-                    <option value="išsiųsta">Išsiųsta</option>
+                    <option value="siunčiama">Siunčiama</option>
                     <option value="įvykdyta">Įvykdyta</option>
                     <option value="atšaukta">Atšaukta</option>
                     <option value="atmesta">Atmesta</option>
