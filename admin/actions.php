@@ -340,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $trackingNumber = trim($_POST['tracking_number'] ?? ''); // PAIMAME TRACKING KODĄ
         
         // Išplečiame leidžiamų statusų sąrašą
-        $allowed = ["laukiama", "laukiama apmokėjimo", "apdorojama", "išsiųsta", "įvykdyta", "apmokėta", "atšaukta", "atmesta"];
+        $allowed = ["laukiama", "laukiama apmokėjimo", "apdorojama", "siunčiama", "įvykdyta", "apmokėta", "atšaukta", "atmesta"];
         
         if ($orderId && in_array($status, $allowed, true)) {
             
@@ -365,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute([$status, $trackingNumber, $orderId]);
 
                 // 2. Jei IŠSIŲSTA - siunčiame laišką klientui
-                if ($status === 'išsiųsta') {
+                if ($status === 'siunčiama') {
                     require_once __DIR__ . '/../order_functions.php';
                     if (function_exists('sendShippingConfirmationEmail')) {
                         sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo);
