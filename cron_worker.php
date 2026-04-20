@@ -469,7 +469,7 @@ foreach ($stmt24h->fetchAll() as $o) {
 // Padėka po 1 val. (Sėkmingi užsakymai)
 $stmtThx = $pdo->prepare("
     SELECT * FROM orders 
-    WHERE (status = 'patvirtinta' OR status = 'įvykdyta') 
+    WHERE status IN ('apmokėta', 'siunčiama', 'įvykdyta')
     AND created_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR) 
     AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) 
     AND email_thankyou = 0 
