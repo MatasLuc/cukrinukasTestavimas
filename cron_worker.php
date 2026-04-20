@@ -237,7 +237,6 @@ try {
 
 // =================================================================
 // 1. PREKĖS IŠSIUNTIMO PATVIRTINIMAS
-// (Statusas = 'išsiųsta', Dar nesiųsta)
 // =================================================================
 
 $stmtShipped = $pdo->prepare("
@@ -271,6 +270,7 @@ foreach ($ordersShipped as $order) {
     $html = getEmailTemplate("Siunta jau kelyje", $content, "https://cukrinukas.lt/account.php", "Mano užsakymai");
 
     if (sendEmail($order['customer_email'], $subject, $html)) {
+        sendEmail('labas@cukrinukas.lt', $subject, $html); // Kopija administratoriui
         $pdo->prepare("UPDATE orders SET email_shipped_sent = 1 WHERE id = ?")->execute([$order['id']]);
         $log[] = "[SHIPPED] Išsiųstas patvirtinimas užsakymui #{$order['id']}";
     }
@@ -278,7 +278,6 @@ foreach ($ordersShipped as $order) {
 
 // =================================================================
 // 2. ATSILIEPIMO PRAŠYMAS
-// (Statusas = 'įvykdyta', Praėjo 3 dienos nuo atnaujinimo)
 // =================================================================
 
 $stmtReview = $pdo->prepare("
@@ -332,6 +331,7 @@ foreach ($ordersReview as $order) {
         $html = getEmailTemplate("Jūsų nuomonė svarbi", $content);
 
         if (sendEmail($order['customer_email'], $subject, $html)) {
+            sendEmail('labas@cukrinukas.lt', $subject, $html); // Kopija administratoriui
             $pdo->prepare("UPDATE orders SET email_review_sent = 1 WHERE id = ?")->execute([$order['id']]);
             $log[] = "[REVIEW] Išsiųstas prašymas įvertinti užsakymui #{$order['id']}";
         }
@@ -340,7 +340,6 @@ foreach ($ordersReview as $order) {
 
 // =================================================================
 // 3. GIMTADIENIO STAIGMENA
-// (Yra gimimo data, šiandien gimtadienis, šiemet dar nesiųsta)
 // =================================================================
 
 $stmtBday = $pdo->prepare("
@@ -372,6 +371,7 @@ foreach ($usersBday as $user) {
     $html = getEmailTemplate("Šventinė dovana Jums", $content, "https://cukrinukas.lt/products.php", "Apsipirkti");
 
     if (sendEmail($user['email'], $subject, $html)) {
+        sendEmail('labas@cukrinukas.lt', $subject, $html); // Kopija administratoriui
         $pdo->prepare("UPDATE users SET last_birthday_promo = YEAR(NOW()) WHERE id = ?")->execute([$user['id']]);
         $log[] = "[BDAY] Išsiųstas sveikinimas vartotojui ID {$user['id']}";
     }
@@ -379,7 +379,6 @@ foreach ($usersBday as $user) {
 
 // =================================================================
 // 4. "WIN-BACK" (ILGESIO LAIŠKAS)
-// (Paskutinis užsakymas > 90 d., Paskutinis win-back > 180 d. arba niekada)
 // =================================================================
 
 $stmtWinback = $pdo->prepare("
@@ -411,6 +410,7 @@ foreach ($usersWinback as $user) {
     $html = getEmailTemplate("Laukiame sugrįžtant", $content, "https://cukrinukas.lt/products.php", "Peržiūrėti naujienas");
 
     if (sendEmail($user['email'], $subject, $html)) {
+        sendEmail('labas@cukrinukas.lt', $subject, $html); // Kopija administratoriui
         $pdo->prepare("UPDATE users SET last_winback_promo = NOW() WHERE id = ?")->execute([$user['id']]);
         $log[] = "[WINBACK] Išsiųstas kvietimas sugrįžti vartotojui ID {$user['id']}";
     }
@@ -438,6 +438,7 @@ foreach ($stmt1h->fetchAll() as $o) {
         "Tęsti"
     );
     if (sendEmail($o['customer_email'], "Nepavyko apmokėti?", $html)) {
+        sendEmail('labas@cukrinukas.lt', "Nepavyko apmokėti?", $html); // Kopija administratoriui
         $pdo->prepare("UPDATE orders SET email_rem_1h = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[1H] Priminimas užsakymui #{$o['id']}";
     }
@@ -461,6 +462,7 @@ foreach ($stmt24h->fetchAll() as $o) {
         "Susisiekti"
     );
     if (sendEmail($o['customer_email'], "Krepšelio priminimas", $html)) {
+        sendEmail('labas@cukrinukas.lt', "Krepšelio priminimas", $html); // Kopija administratoriui
         $pdo->prepare("UPDATE orders SET email_rem_24h = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[24H] Priminimas užsakymui #{$o['id']}";
     }
@@ -484,6 +486,7 @@ foreach ($stmtThx->fetchAll() as $o) {
     $html    = getEmailTemplate("Dovana Jums", $content, "https://cukrinukas.lt/products.php", "Panaudoti");
 
     if (sendEmail($o['customer_email'], "Ačiū už užsakymą! 🎁", $html)) {
+        sendEmail('labas@cukrinukas.lt', "Ačiū už užsakymą! 🎁", $html); // Kopija administratoriui
         $pdo->prepare("UPDATE orders SET email_thankyou = 1 WHERE id = ?")->execute([$o['id']]);
         $log[] = "[THANKYOU] Padėka užsakymui #{$o['id']}";
     }
