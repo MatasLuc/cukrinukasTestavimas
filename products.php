@@ -84,7 +84,8 @@ $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
 $stmt = $pdo->prepare(
     'SELECT p.*, c.name AS category_name, c.slug AS category_slug,
-        (SELECT path FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY id DESC LIMIT 1) AS primary_image
+        (SELECT path FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY id DESC LIMIT 1) AS primary_image,
+        (SELECT COUNT(*) FROM product_variations WHERE product_id = p.id) AS has_variations
      FROM products p
      LEFT JOIN categories c ON c.id = p.category_id
      ' . $where . '
@@ -396,13 +397,21 @@ $meta = [
                                 <?php echo number_format($priceDisplay['current'], 2); ?> €
                             </div>
                             
-                            <form method="post" style="display:flex; gap:8px; margin:0;">
+                            <form method="post" style="display:flex; gap:8px; margin:0; align-items:center;">
                                 <?php echo csrfField(); ?>
                                 <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
                                 
-                                <button class="action-btn" type="submit" aria-label="Į krepšelį" title="Į krepšelį">
-                                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                                </button>
+                                <?php if (!empty($product['has_variations'])): ?>
+                                    <a href="<?php echo htmlspecialchars($productUrl); ?>" class="action-btn" title="Pasirinkti variantą" style="text-decoration: none;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                                    </a>
+                                <?php elseif ((int)$product['quantity'] <= 0): ?>
+                                    <span style="color: #dc2626; font-weight: 700; font-size: 13px;">Išparduota</span>
+                                <?php else: ?>
+                                    <button class="action-btn" type="submit" aria-label="Į krepšelį" title="Į krepšelį">
+                                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                                    </button>
+                                <?php endif; ?>
                                 
                                 <button class="action-btn" name="action" value="wishlist" type="submit" aria-label="Į norų sąrašą" title="Į norų sąrašą">
                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
