@@ -505,67 +505,6 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
     }
 }
 
-/**
- * Siunčia laišką, kai užsakymo statusas pakeičiamas į "išsiųsta".
- */
-function sendShippingConfirmationEmail($orderId, $trackingNumber, $pdo) {
-    try {
-        $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
-        $stmt->execute([$orderId]);
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$order || empty($order['customer_email'])) return;
-
-        $trackingHtml = '';
-        if (!empty($trackingNumber)) {
-            $trackingHtml = "
-            <div style='background-color: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; margin: 32px 0; text-align: center;'>
-                <p style='margin: 0 0 12px 0; font-size: 14px; color: #64748b;'>Jūsų siuntos sekimo numeris:</p>
-                <span style='background-color: #ffffff; border: 2px dashed #2563eb; color: #2563eb; font-size: 20px; font-weight: 700; padding: 12px 24px; display: inline-block; border-radius: 8px; letter-spacing: 1px;'>$trackingNumber</span>
-            </div>";
-        }
-
-        $emailContent = "
-        <html>
-        <head>
-            <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap' rel='stylesheet'>
-        </head>
-        <body style='font-family: \"Inter\", Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;'>
-            <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);'>
-                
-                <div style='padding: 32px; text-align: center; border-bottom: 1px solid #f1f5f9;'>
-                    <h1 style='margin: 0; color: #0f172a; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;'>Jūsų užsakymas #$orderId išsiųstas! 📦</h1>
-                </div>
-
-                <div style='padding: 32px;'>
-                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 16px;'>Sveiki, <strong>" . htmlspecialchars($order['customer_name']) . "</strong>,</p>
-                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 16px;'>Džiugios naujienos! Jūsų užsakymas buvo supakuotas ir perduotas kurjerių tarnybai.</p>
-                    
-                    $trackingHtml
-
-                    <p style='color: #475467; font-size: 16px; line-height: 1.6; margin-bottom: 8px;'>Prekės jus turėtų pasiekti artimiausiu metu.</p>
-                    <p style='color: #475467; font-size: 16px; line-height: 1.6;'>Jei turite klausimų, galite atsakyti į šį laišką.</p>
-                    
-                    <div style='text-align: center; margin-top: 32px;'>
-                        <a href='https://cukrinukas.lt' style='background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 600; font-size: 15px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);'>Grįžti į parduotuvę</a>
-                    </div>
-                </div>
-
-                <div style='background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
-                    <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Cukrinukas © " . date('Y') . ". Ačiū, kad perkate!</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        ";
-
-        sendEmail($order['customer_email'], "Jūsų užsakymas #$orderId išsiųstas!", $emailContent);
-        logMailer("Išsiųstas 'Shipped' laiškas užsakymui #$orderId (Tracking: $trackingNumber)");
-
-    } catch (Exception $e) {
-        logMailer("Shipping Email Error: " . $e->getMessage());
-    }
-}
 
 function logMailer($msg) {
     $logFile = __DIR__ . '/mailer_log.txt';
