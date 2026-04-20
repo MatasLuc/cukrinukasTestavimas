@@ -43,7 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
     }
     
     $qty = max(1, (int) ($_POST['quantity'] ?? 1));
-    $_SESSION['cart'][$pid] = ($_SESSION['cart'][$pid] ?? 0) + $qty;
+    
+    // Likučio patikra
+    $stmtStock = $pdo->prepare("SELECT quantity FROM products WHERE id = ?");
+    $stmtStock->execute([$pid]);
+    $stock = $stmtStock->fetchColumn();
+    
+    $currentInCart = $_SESSION['cart'][$pid] ?? 0;
+    if ($stock !== false && (int)$stock < ($currentInCart + $qty)) {
+        $_SESSION['cart_error'] = "Nepavyko įdėti į krepšelį: prekė išparduota arba neturime pageidaujamo kiekio sandėlyje.";
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+
+    $_SESSION['cart'][$pid] = $currentInCart + $qty;
     if (!empty($_SESSION['user_id'])) saveCartItem($pdo, (int)$_SESSION['user_id'], $pid, $qty);
     header('Location: /cart.php'); exit;
 }
@@ -1121,6 +1134,11 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
   <?php renderHeader($pdo, 'home'); ?>
 
   <main class="page-shell">
+    <?php if (!empty($_SESSION['cart_error'])): ?>
+        <div style="width: 100%; max-width: 1200px; margin: 20px auto 0; padding: 15px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; text-align: center; font-weight: 500; z-index: 10; position: relative;">
+            <?php echo htmlspecialchars($_SESSION['cart_error']); unset($_SESSION['cart_error']); ?>
+        </div>
+    <?php endif; ?>
     
     <section class="<?php echo $heroClass; ?>" style="<?php echo $heroSectionStyle; ?>">
       <div class="hero-media" style="<?php echo $heroMediaStyle; ?>">
