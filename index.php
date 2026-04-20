@@ -145,7 +145,8 @@ $featuredProducts = [];
 if ($featuredIds) {
     $placeholders = implode(',', array_fill(0, count($featuredIds), '?'));
     $stmt = $pdo->prepare('SELECT p.*, c.name AS category_name,
-        (SELECT path FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY id DESC LIMIT 1) AS primary_image
+        (SELECT path FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY id DESC LIMIT 1) AS primary_image,
+        (SELECT COUNT(*) FROM product_variations WHERE product_id = p.id) AS has_variations
         FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE p.id IN (' . $placeholders . ')');
     $stmt->execute($featuredIds);
     $rows = $stmt->fetchAll();
@@ -1226,6 +1227,14 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
                   <span class="modern-price-current"><?php echo number_format($priceDisplay['current'], 2); ?> €</span>
                 </div>
                 
+                <div style="display: flex; align-items: center; gap: 8px;">
+                <?php if (!empty($product['has_variations'])): ?>
+                    <a href="<?php echo htmlspecialchars($productUrl); ?>" class="modern-add-to-cart" title="Pasirinkti variantą" style="text-decoration: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                    </a>
+                <?php elseif ((int)$product['quantity'] <= 0): ?>
+                    <span style="color: #dc2626; font-weight: 700; font-size: 14px; padding-left: 10px;">Išparduota</span>
+                <?php else: ?>
                 <form method="post" style="margin:0; padding:0;">
                   <?php echo csrfField(); ?>
                   <input type="hidden" name="product_id" value="<?php echo (int)$product['id']; ?>">
@@ -1233,6 +1242,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                   </button>
                 </form>
+                <?php endif; ?>
+                </div>
               </div>
             </div>
           </article>
