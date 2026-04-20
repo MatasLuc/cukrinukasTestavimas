@@ -246,32 +246,51 @@ $stmtShipped = $pdo->prepare("
     LIMIT 10
 ");
 $stmtShipped->execute();
-$ordersShipped = $stmtShipped->fetchAll();
+$ordersShipped = $stmtShipped->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($ordersShipped as $order) {
-    $details      = json_decode($order['delivery_details'] ?? '{}', true);
-    $trackingHtml = '';
-
-    if (!empty($details['tracking_code'])) {
-        $trackingHtml = "<p style='background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0; color: #166534;'>
-                            Jūsų siuntos sekimo numeris: <strong>{$details['tracking_code']}</strong>
-                         </p>";
-    } elseif (!empty($details['method']) && $details['method'] === 'locker') {
-        $locTitle     = $details['title'] ?? 'Paštomatas';
-        $trackingHtml = "<p>Siunta keliauja į pasirinktą paštomatą: <strong>{$locTitle}</strong>.</p>";
+    $deliveryHtml = '';
+    
+    // 1. Gauname adresą ir pristatymo metodą
+    $address = !empty($order['customer_address']) ? htmlspecialchars($order['customer_address']) : '';
+    $deliveryMethod = !empty($order['delivery_method']) ? strtolower($order['delivery_method']) : 'address';
+    
+    // Nustatome, ar tai paštomatas, ar namų adresas (galite prisitaikyti pagal savo reikšmes)
+    $isLocker = (strpos($deliveryMethod, 'locker') !== false || strpos($deliveryMethod, 'terminal') !== false);
+    
+    if (!empty($address)) {
+        if ($isLocker) {
+            $deliveryHtml .= "<p>Siunta keliauja į pasirinktą paštomatą: <strong>{$address}</strong>.</p>";
+        } else {
+            $deliveryHtml .= "<p>Pristatymo adresas: <strong>{$address}</strong>.</p>";
+        }
     }
 
+    // 2. Tikriname, ar yra sekimo numeris (naudojame tracking_number stulpelį)
+    $trackingNumber = !empty($order['tracking_number']) ? htmlspecialchars($order['tracking_number']) : '';
+
+    if (!empty($trackingNumber)) {
+        $deliveryHtml .= "<p style='background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0; color: #166534; margin-top: 15px;'>
+                            Jūsų siuntos sekimo numeris: <strong>{$trackingNumber}</strong>
+                          </p>";
+    }
+
+    // 3. Formuojame el. laišką
     $subject = "Jūsų užsakymas #{$order['id']} išsiųstas! 🚀";
-    $content = "<p>Sveiki, {$order['customer_name']},</p>
+    $content = "<p>Sveiki, " . htmlspecialchars($order['customer_name']) . ",</p>
                 <p>Geros žinios – jūsų užsakymas jau supakuotas ir perduotas kurjerių tarnybai.</p>
-                {$trackingHtml}
-                <p>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>";
+                {$deliveryHtml}
+                <p style='margin-top: 15px;'>Prekės jus pasieks artimiausiu metu (dažniausiai per 1-2 d.d.).</p>";
 
     $html = getEmailTemplate("Siunta jau kelyje", $content, "https://cukrinukas.lt/account.php", "Mano užsakymai");
 
+    // 4. Siunčiame laiškus ir atnaujiname statusą
     if (sendEmail($order['customer_email'], $subject, $html)) {
         sendEmail('labas@cukrinukas.lt', $subject, $html); // Kopija administratoriui
-        $pdo->prepare("UPDATE orders SET email_shipped_sent = 1 WHERE id = ?")->execute([$order['id']]);
+        
+        $updateStmt = $pdo->prepare("UPDATE orders SET email_shipped_sent = 1 WHERE id = ?");
+        $updateStmt->execute([$order['id']]);
+        
         $log[] = "[SHIPPED] Išsiųstas patvirtinimas užsakymui #{$order['id']}";
     }
 }
