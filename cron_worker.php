@@ -242,7 +242,7 @@ try {
 
 $stmtShipped = $pdo->prepare("
     SELECT * FROM orders 
-    WHERE status = 'išsiųsta' 
+    WHERE status = 'siunčiama' 
     AND email_shipped_sent = 0
     LIMIT 10
 ");
