@@ -12,6 +12,7 @@ $currentMonthSales = 0;
 $salesGrowth = 0;
 $latestOrders = [];
 $lowStockItems = []; // Talpins ir prekes, ir variacijas
+$expiringItems = []; // Talpins prekes, kurių galiojimas eina į pabaigą
 $chartDataRaw = [];
 
 // Apibrėžiame būsenas, kurios laikomos "sėkmingu pardavimu" statistikai
@@ -65,11 +66,10 @@ try {
     ")->fetchAll();
 
     // --- MAŽAS LIKUTIS (PREKĖS IR VARIACIJOS <= 2) ---
-    // Padidinau ribą iki 2, kad anksčiau pamatytumėte.
     $lowStockQuery = "
         (SELECT p.id, p.title, p.quantity, p.image_url, 'simple' as type 
          FROM products p 
-         WHERE p.quantity <= 2)
+         WHERE p.quantity <= 2 AND (SELECT COUNT(*) FROM product_variations WHERE product_id = p.id) = 0)
         UNION ALL
         (SELECT p.id, CONCAT(p.title, ' (', pv.name, ')') as title, pv.quantity, p.image_url, 'variation' as type 
          FROM product_variations pv 
@@ -79,6 +79,21 @@ try {
         LIMIT 10
     ";
     $lowStockItems = $pdo->query($lowStockQuery)->fetchAll();
+
+    // --- BAIGIASI GALIOJIMAS (< 1 MĖN) ---
+    $expiringQuery = "
+        (SELECT p.id, p.title, p.expiry_date, p.image_url, 'simple' as type 
+         FROM products p 
+         WHERE p.expiry_date IS NOT NULL AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 1 MONTH) AND (SELECT COUNT(*) FROM product_variations WHERE product_id = p.id) = 0)
+        UNION ALL
+        (SELECT p.id, CONCAT(p.title, ' (', pv.name, ')') as title, pv.expiry_date, p.image_url, 'variation' as type 
+         FROM product_variations pv 
+         JOIN products p ON pv.product_id = p.id 
+         WHERE pv.expiry_date IS NOT NULL AND pv.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 1 MONTH))
+        ORDER BY expiry_date ASC 
+        LIMIT 10
+    ";
+    $expiringItems = $pdo->query($expiringQuery)->fetchAll();
 
     // --- TOP PREKĖS (Pagal pardavimus iš sėkmingų užsakymų) ---
     $topProducts = $pdo->query("
@@ -232,6 +247,41 @@ if ($maxVal == 0) $maxVal = 1;
     </div>
 
     <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3>Naujausi užsakymai</h3>
+            <a href="?view=orders" class="btn secondary" style="font-size:12px;">Visi užsakymai</a>
+        </div>
+        <table style="font-size:13px; width:100%; text-align:left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom:2px solid #f3f4f6; color:#6b7280;">
+                    <th style="padding-bottom:8px;">ID</th>
+                    <th style="padding-bottom:8px;">Klientas</th>
+                    <th style="padding-bottom:8px;">Suma</th>
+                    <th style="padding-bottom:8px;">Statusas</th>
+                </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($latestOrders as $o): 
+                  $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($o['status']));
+              ?>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                  <td style="padding:12px 0;">#<?php echo (int)$o['id']; ?></td>
+                  <td style="padding:12px 0; font-weight:500;"><?php echo htmlspecialchars($o['customer_name']); ?></td>
+                  <td style="padding:12px 0;"><?php echo number_format((float)$o['total'], 2); ?> €</td>
+                  <td style="padding:12px 0;"><span class="status-badge <?php echo $statusClass; ?>"><?php echo ucfirst($o['status']); ?></span></td>
+                </tr>
+              <?php endforeach; ?>
+              <?php if (!$latestOrders): ?>
+                <tr><td colspan="4" class="muted" style="padding:20px 0; text-align:center;">Užsakymų dar nėra.</td></tr>
+              <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px;">
+    
+    <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h3>⚠️ Mažas likutis (≤ 2 vnt.)</h3>
             <a href="?view=products" class="btn secondary" style="font-size:11px; padding:4px 8px;">Visos prekės</a>
@@ -245,7 +295,7 @@ if ($maxVal == 0) $maxVal = 1;
                         <div style="font-weight:600; font-size:14px;"><?php echo htmlspecialchars($lp['title']); ?></div>
                         <div style="font-size:12px; color:#ef4444; font-weight:600;">Liko tik: <?php echo $lp['quantity']; ?> vnt.</div>
                     </div>
-                    <a href="?view=products&id=<?php echo $lp['id']; ?>&action=edit" class="btn" style="padding:4px 8px; font-size:11px;">Papildyti</a>
+                    <a href="?view=products" class="btn" style="padding:4px 8px; font-size:11px;">Papildyti</a>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -253,38 +303,37 @@ if ($maxVal == 0) $maxVal = 1;
             <div style="padding:20px; text-align:center; color:#10b981; font-weight:500;">Visų prekių likučiai pakankami! ✅</div>
         <?php endif; ?>
     </div>
-</div>
 
-<div class="grid grid-2">
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h3>Naujausi užsakymai</h3>
-            <a href="?view=orders" class="btn secondary" style="font-size:12px;">Visi užsakymai</a>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>⏳ Baigiasi galiojimas (< 1 mėn.)</h3>
         </div>
-        <table style="font-size:13px;">
-            <thead><tr><th>ID</th><th>Klientas</th><th>Suma</th><th>Statusas</th></tr></thead>
-            <tbody>
-              <?php foreach ($latestOrders as $o): 
-                  $statusClass = 'status-' . str_replace(' ', '.', mb_strtolower($o['status']));
-              ?>
-                <tr>
-                  <td>#<?php echo (int)$o['id']; ?></td>
-                  <td><?php echo htmlspecialchars($o['customer_name']); ?></td>
-                  <td><?php echo number_format((float)$o['total'], 2); ?> €</td>
-                  <td><span class="status-badge <?php echo $statusClass; ?>"><?php echo ucfirst($o['status']); ?></span></td>
-                </tr>
-              <?php endforeach; ?>
-              <?php if (!$latestOrders): ?>
-                <tr><td colspan="4" class="muted">Užsakymų dar nėra.</td></tr>
-              <?php endif; ?>
-            </tbody>
-        </table>
+        <?php if ($expiringItems): ?>
+            <div style="margin-top:10px;">
+                <?php foreach ($expiringItems as $ep): 
+                    $isExpired = strtotime($ep['expiry_date']) < strtotime(date('Y-m-d'));
+                    $color = $isExpired ? '#ef4444' : '#d97706';
+                    $text = $isExpired ? 'Nebegalioja (' . $ep['expiry_date'] . ')' : 'Galioja iki: ' . $ep['expiry_date'];
+                ?>
+                <div class="product-list-item">
+                    <img src="<?php echo htmlspecialchars($ep['image_url'] ?: '/uploads/no-image.png'); ?>" class="list-img">
+                    <div style="flex:1;">
+                        <div style="font-weight:600; font-size:14px;"><?php echo htmlspecialchars($ep['title']); ?></div>
+                        <div style="font-size:12px; color:<?php echo $color; ?>; font-weight:600;"><?php echo htmlspecialchars($text); ?></div>
+                    </div>
+                    <a href="?view=products" class="btn" style="padding:4px 8px; font-size:11px; background:#10b981; border-color:#10b981; color:#fff;">Atnaujinti</a>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <div style="padding:20px; text-align:center; color:#10b981; font-weight:500;">Nėra besibaigiančio galiojimo prekių! ✅</div>
+        <?php endif; ?>
     </div>
 
     <div class="card">
         <h3>🏆 Perkamiausios prekės</h3>
         <?php if ($topProducts): ?>
-            <div>
+            <div style="margin-top:10px;">
                 <?php foreach ($topProducts as $tp): ?>
                 <div class="product-list-item">
                     <img src="<?php echo htmlspecialchars($tp['image_url'] ?: '/uploads/no-image.png'); ?>" class="list-img">
@@ -297,7 +346,8 @@ if ($maxVal == 0) $maxVal = 1;
                 <?php endforeach; ?>
             </div>
         <?php else: ?>
-            <div class="muted">Statistikos dar nėra.</div>
+            <div class="muted" style="padding:20px; text-align:center;">Statistikos dar nėra.</div>
         <?php endif; ?>
     </div>
+
 </div>
