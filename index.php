@@ -635,8 +635,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         height: 54px;
         border-radius: 14px;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        align-items: center; justify-content: center;
         flex-shrink: 0;
         box-shadow: var(--shadow-sm);
     }
@@ -821,6 +820,89 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
+    /* ATNAUJINIMO BANERIS (INFO SECTION) */
+    .update-notice-section {
+        margin: 20px 0 60px;
+    }
+    .update-banner {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 24px;
+        padding: 40px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    }
+    .update-banner::before {
+        content: '';
+        position: absolute;
+        top: -100px; right: -100px;
+        width: 300px; height: 300px;
+        background: radial-gradient(circle, rgba(37, 99, 235, 0.2) 0%, transparent 70%);
+    }
+    .update-banner-content {
+        flex: 1;
+        position: relative;
+        z-index: 2;
+    }
+    .update-banner-tag {
+        display: inline-block;
+        background: var(--accent);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 16px;
+    }
+    .update-banner h2 {
+        margin: 0 0 12px;
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+    }
+    .update-banner p {
+        margin: 0;
+        font-size: 16px;
+        color: #94a3b8;
+        line-height: 1.6;
+        max-width: 600px;
+    }
+    .update-banner-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 220px;
+        position: relative;
+        z-index: 2;
+    }
+    .btn-update {
+        background: #fff;
+        color: #0f172a;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-weight: 700;
+        text-align: center;
+        transition: all 0.3s;
+    }
+    .btn-update:hover {
+        background: var(--accent);
+        color: #fff;
+        transform: translateY(-2px);
+    }
+    .update-reward-hint {
+        font-size: 12px;
+        color: #64748b;
+        text-align: center;
+        font-style: italic;
+    }
+
     /* MODERN NEWS BLOCK (COMPACT) */
     .modern-news-section { margin-bottom: 40px; }
     .modern-news-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px; }
@@ -982,7 +1064,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         background: 
             linear-gradient(to bottom, var(--bg) 0%, transparent 15%, transparent 85%, var(--bg) 100%),
             linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
-        padding: 40px 20px 80px; /* Sumažintas viršutinis padding (nuo 80px iki 40px) */
+        padding: 40px 20px 80px;
         position: relative;
         overflow: hidden;
         margin-bottom: 60px;
@@ -994,7 +1076,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         position: absolute;
         top: -50px; right: -50px;
         width: 300px; height: 300px;
-        background: rgba(255,255,255,0.6);
+        background: radial-gradient(circle, rgba(255,255,255,0.6) 0%, transparent 70%);
         border-radius: 50%;
         filter: blur(40px);
         pointer-events: none;
@@ -1004,7 +1086,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         position: absolute;
         bottom: -50px; left: 5%;
         width: 350px; height: 350px;
-        background: rgba(255,255,255,0.4);
+        background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%);
         border-radius: 50%;
         filter: blur(60px);
         pointer-events: none;
@@ -1115,6 +1197,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
         .lifestyle-block { padding: 0 20px 60px; }
         .lifestyle-all-card { left: 10px; right: 10px; bottom: -20px; justify-content: center; }
+        .update-banner { flex-direction: column; text-align: center; }
+        .update-banner-actions { width: 100%; }
     }
     @media (max-width: 768px) {
         .glass-card.support-mini { display: none !important; }
@@ -1353,6 +1437,20 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
                     <span>Atrasti daugiau skonių</span>
                 </div>
             </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-shell update-notice-section">
+      <div class="update-banner">
+        <div class="update-banner-content">
+          <span class="update-banner-tag">Svarbi informacija</span>
+          <h2>Tobulėjame kartu su jumis!</h2>
+          <p>Mūsų parduotuvė šiuo metu yra aktyviai atnaujinama. Pastebėjote klaidą, turite idėjų, nerandate norimos prekės ar trūksta naujo recepto? Parašykite mums! Už naudingas įžvalgas bei pasidalinimą savo receptais ar naujienomis atsidėkosime smulkiu apdovanojimu.</p>
+        </div>
+        <div class="update-banner-actions">
+          <a href="/contact.php" class="btn-update">Susisiekti su mumis</a>
+          <span class="update-reward-hint">* Jūsų indėlis mums labai svarbus</span>
         </div>
       </div>
     </section>
