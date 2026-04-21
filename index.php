@@ -820,89 +820,178 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         font-weight: 500;
     }
 
-    /* ATNAUJINIMO BANERIS (INFO SECTION) */
-    .update-notice-section {
-        margin: 20px 0 60px;
-    }
-    .update-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border-radius: 24px;
-        padding: 40px;
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 32px;
+    /* FULLSCREEN ATNAUJINIMO BLOKAS */
+    .update-block {
+        width: 100%;
+        background: 
+            linear-gradient(to bottom, var(--bg) 0%, transparent 10%, transparent 90%, var(--bg) 100%),
+            linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 100%);
+        padding: 80px 20px;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+        margin-bottom: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
-    .update-banner::before {
+    .update-block::before {
         content: '';
         position: absolute;
-        top: -100px; right: -100px;
-        width: 300px; height: 300px;
-        background: radial-gradient(circle, rgba(37, 99, 235, 0.2) 0%, transparent 70%);
+        top: -50px; left: -50px;
+        width: 350px; height: 350px;
+        background: rgba(255,255,255,0.7);
+        border-radius: 50%;
+        filter: blur(50px);
+        pointer-events: none;
     }
-    .update-banner-content {
-        flex: 1;
+    .update-block::after {
+        content: '';
+        position: absolute;
+        bottom: -50px; right: 5%;
+        width: 400px; height: 400px;
+        background: rgba(37, 99, 235, 0.08);
+        border-radius: 50%;
+        filter: blur(60px);
+        pointer-events: none;
+    }
+    .update-block-inner {
+        width: 100%;
+        max-width: 1200px;
         position: relative;
         z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
-    .update-banner-tag {
+    .update-header {
+        text-align: center;
+        margin-bottom: 48px;
+        max-width: 700px;
+    }
+    .update-tag {
         display: inline-block;
-        background: var(--accent);
-        color: #fff;
-        padding: 6px 14px;
+        background: #93c5fd;
+        color: #1e3a8a;
+        padding: 6px 16px;
         border-radius: 99px;
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 16px;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.1);
     }
-    .update-banner h2 {
-        margin: 0 0 12px;
-        font-size: 28px;
+    .update-header h2 {
+        font-size: clamp(28px, 5vw, 40px);
         font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 16px;
         letter-spacing: -0.02em;
+        line-height: 1.2;
     }
-    .update-banner p {
-        margin: 0;
+    .update-header p {
         font-size: 16px;
-        color: #94a3b8;
+        color: #475467;
         line-height: 1.6;
-        max-width: 600px;
+        margin: 0;
     }
-    .update-banner-actions {
+    .update-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 24px;
+        width: 100%;
+        margin-bottom: 48px;
+    }
+    .update-card {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 32px 24px;
+        text-align: center;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        min-width: 220px;
-        position: relative;
-        z-index: 2;
+        align-items: center;
     }
-    .btn-update {
+    .update-card:hover {
+        transform: translateY(-8px);
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.08);
+        border-color: #fff;
+    }
+    .update-card-icon {
+        width: 60px;
+        height: 60px;
         background: #fff;
-        color: #0f172a;
-        padding: 14px 24px;
-        border-radius: 12px;
-        font-weight: 700;
-        text-align: center;
-        transition: all 0.3s;
+        color: var(--accent);
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
     }
-    .btn-update:hover {
+    .update-card-icon svg {
+        width: 28px;
+        height: 28px;
+        stroke-width: 1.5;
+    }
+    .update-card h3 {
+        font-size: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 12px;
+    }
+    .update-card p {
+        font-size: 14px;
+        color: #475467;
+        margin: 0;
+        line-height: 1.6;
+    }
+    .update-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+    .btn-update-main {
         background: var(--accent);
         color: #fff;
+        padding: 16px 44px;
+        border-radius: 99px;
+        font-weight: 700;
+        font-size: 16px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);
+    }
+    .btn-update-main:hover {
         transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35);
+        background: var(--accent-hover);
+        color: #fff;
     }
-    .update-reward-hint {
-        font-size: 12px;
-        color: #64748b;
-        text-align: center;
-        font-style: italic;
+    .update-reward-text {
+        font-size: 14px;
+        color: #475467;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.7);
+        padding: 8px 20px;
+        border-radius: 99px;
+        border: 1px solid rgba(255, 255, 255, 0.9);
     }
-
+    .update-reward-text svg {
+        width: 18px;
+        height: 18px;
+        color: #eab308;
+    }
+      
     /* MODERN NEWS BLOCK (COMPACT) */
     .modern-news-section { margin-bottom: 40px; }
     .modern-news-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px; }
@@ -1441,16 +1530,64 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell update-notice-section">
-      <div class="update-banner">
-        <div class="update-banner-content">
-          <span class="update-banner-tag">Svarbi informacija</span>
+    <section class="update-block">
+      <div class="update-block-inner">
+        <div class="update-header">
+          <span class="update-tag">Svarbi informacija</span>
           <h2>Tobulėjame kartu su jumis!</h2>
-          <p>Mūsų parduotuvė šiuo metu yra aktyviai atnaujinama. Pastebėjote klaidą, turite idėjų, nerandate norimos prekės ar trūksta naujo recepto? Parašykite mums! Už naudingas įžvalgas bei pasidalinimą savo receptais ar naujienomis atsidėkosime smulkiu apdovanojimu.</p>
+          <p>Mūsų parduotuvė šiuo metu yra aktyviai atnaujinama. Norime sukurti kuo geresnę ir patogesnę erdvę jums, todėl kviečiame prisidėti prie Cukrinuko tobulinimo.</p>
         </div>
-        <div class="update-banner-actions">
-          <a href="/contact.php" class="btn-update">Susisiekti su mumis</a>
-          <span class="update-reward-hint">* Jūsų indėlis mums labai svarbus</span>
+
+        <div class="update-grid">
+          <div class="update-card">
+            <div class="update-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3>Pastebėjote klaidą?</h3>
+            <p>Radote neveikiančią nuorodą, netikslumą ar sistemos klaidą? Praneškite mums.</p>
+          </div>
+
+          <div class="update-card">
+            <div class="update-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <h3>Turite idėjų?</h3>
+            <p>Žinote, kaip galėtume patobulinti dizainą ar naršymą? Laukiame jūsų pasiūlymų.</p>
+          </div>
+
+          <div class="update-card">
+            <div class="update-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+            </div>
+            <h3>Trūksta prekių?</h3>
+            <p>Nerandate reikiamų pleistrų, priemonių ar mėgstamo užkandžio? Pasakykite ko pasigendate.</p>
+          </div>
+
+          <div class="update-card">
+            <div class="update-card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <h3>Dalinkitės patirtimi</h3>
+            <p>Turite sveiką receptą ar naudingą straipsnį? Pasidalinkite su bendruomene!</p>
+          </div>
+        </div>
+
+        <div class="update-actions">
+          <a href="/contact.php" class="btn-update-main">Susisiekti su mumis</a>
+          <span class="update-reward-text">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd" />
+            </svg>
+            Už naudingas įžvalgas ir pagalbą atsidėkosime smulkiu apdovanojimu!
+          </span>
         </div>
       </div>
     </section>
