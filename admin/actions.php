@@ -168,8 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $price = (float)($_POST['price'] ?? 0);
         $salePrice = isset($_POST['sale_price']) && $_POST['sale_price'] !== '' ? (float)$_POST['sale_price'] : null;
         $qty = (int)($_POST['quantity'] ?? 0);
+        $expiryDate = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
         $metaTags = trim($_POST['meta_tags'] ?? '');
-        $deliveryTime = trim($_POST['delivery_time'] ?? '1-3 d.d.'); // Naujas kintamasis
+        $deliveryTime = trim($_POST['delivery_time'] ?? '1-3 d.d.');
         
         $isFeatured = isset($_POST['is_featured']) ? true : false;
         
@@ -181,17 +182,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($id) {
                 // Update PRODUCTS
-                $stmt = $pdo->prepare('UPDATE products SET category_id=?, title=?, subtitle=?, description=?, ribbon_text=?, price=?, sale_price=?, quantity=?, meta_tags=?, delivery_time=? WHERE id=?');
-                $stmt->execute([$primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null, $price, $salePrice, $qty, $metaTags ?: null, $deliveryTime, $id]);
+                $stmt = $pdo->prepare('UPDATE products SET category_id=?, title=?, subtitle=?, description=?, ribbon_text=?, price=?, sale_price=?, quantity=?, expiry_date=?, meta_tags=?, delivery_time=? WHERE id=?');
+                $stmt->execute([$primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null, $price, $salePrice, $qty, $expiryDate, $metaTags ?: null, $deliveryTime, $id]);
                 $productId = $id;
                 $msg = 'Prekė atnaujinta';
             } else {
                 // Create PRODUCTS
-                $stmt = $pdo->prepare('INSERT INTO products (category_id, title, subtitle, description, ribbon_text, image_url, price, sale_price, quantity, meta_tags, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $stmt = $pdo->prepare('INSERT INTO products (category_id, title, subtitle, description, ribbon_text, image_url, price, sale_price, quantity, expiry_date, meta_tags, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 $stmt->execute([
                     $primaryCatId, $title, $subtitle ?: null, $description, $ribbon ?: null,
                     'https://placehold.co/600x400?text=Preke', 
-                    $price, $salePrice, $qty, $metaTags ?: null, $deliveryTime
+                    $price, $salePrice, $qty, $expiryDate, $metaTags ?: null, $deliveryTime
                 ]);
                 $productId = (int)$pdo->lastInsertId();
                 $msg = 'Prekė sukurta';
@@ -268,8 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $postedVariations = $_POST['variations'] ?? [];
             
             if (is_array($postedVariations)) {
-                // ATNAUJINTA UŽKLAUSA SU TRACK_PRICE ir TRACK_STOCK
-                $insertVar = $pdo->prepare('INSERT INTO product_variations (product_id, group_name, name, price_delta, quantity, image_id, track_price, track_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                $insertVar = $pdo->prepare('INSERT INTO product_variations (product_id, group_name, name, price_delta, quantity, image_id, track_price, track_stock, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 
                 foreach ($postedVariations as $group) {
                     $groupName = trim($group['group_name'] ?? '');
@@ -282,12 +282,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $delta = isset($item['price']) && $item['price'] !== '' ? (float)$item['price'] : 0;
                             $vQty = isset($item['qty']) && $item['qty'] !== '' ? (int)$item['qty'] : 0;
                             $vImgId = !empty($item['image_id']) ? (int)$item['image_id'] : null;
+                            $vExpiry = !empty($item['expiry_date']) ? $item['expiry_date'] : null;
                             
-                            // Tikriname, ar pažymėti checkbox'ai
                             $trackPrice = isset($item['track_price']) ? 1 : 0;
                             $trackStock = isset($item['track_stock']) ? 1 : 0;
                             
-                            $insertVar->execute([$productId, $groupName, $vName, $delta, $vQty, $vImgId, $trackPrice, $trackStock]);
+                            $insertVar->execute([$productId, $groupName, $vName, $delta, $vQty, $vImgId, $trackPrice, $trackStock, $vExpiry]);
                         }
                     }
                 }
@@ -297,6 +297,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         } catch (Exception $e) {
             redirectWithMsg('products', 'Klaida saugant prekę: ' . $e->getMessage(), 'error');
+        }
+    }
+    
+    // --- LIKUČIŲ IR GALIOJIMO PAPILDYMAS IŠ MODALO ---
+    if ($action === 'restock_product') {
+        $productId = (int)($_POST['product_id'] ?? 0);
+        if (!$productId) redirectWithMsg('products', 'Nenurodyta prekė', 'error');
+
+        try {
+            $pdo->beginTransaction();
+
+            if (isset($_POST['restock_main'])) {
+                $addQty = (int)($_POST['restock_main']['add_qty'] ?? 0);
+                $expiry = !empty($_POST['restock_main']['expiry_date']) ? $_POST['restock_main']['expiry_date'] : null;
+                
+                $sql = "UPDATE products SET quantity = quantity + ?, expiry_date = ? WHERE id = ?";
+                $pdo->prepare($sql)->execute([$addQty, $expiry, $productId]);
+            }
+
+            if (isset($_POST['restock_var']) && is_array($_POST['restock_var'])) {
+                $stmt = $pdo->prepare("UPDATE product_variations SET quantity = quantity + ?, expiry_date = ? WHERE id = ? AND product_id = ?");
+                foreach ($_POST['restock_var'] as $vId => $vData) {
+                    $addQty = (int)($vData['add_qty'] ?? 0);
+                    $expiry = !empty($vData['expiry_date']) ? $vData['expiry_date'] : null;
+                    
+                    $stmt->execute([$addQty, $expiry, (int)$vId, $productId]);
+                }
+            }
+
+            $pdo->commit();
+            redirectWithMsg('products', 'Likučiai ir galiojimai sėkmingai atnaujinti.');
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            redirectWithMsg('products', 'Klaida atnaujinant likučius: ' . $e->getMessage(), 'error');
         }
     }
 
