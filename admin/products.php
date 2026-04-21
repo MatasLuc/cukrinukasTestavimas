@@ -43,11 +43,14 @@ $fProds = $pdo->query('
     ORDER BY fp.position ASC
 ')->fetchAll(PDO::FETCH_ASSOC);
 
-// Pagrindinė prekių užklausa
+// Pagrindinė prekių užklausa (Atnaujinta su likučiais ir galiojimu)
 $sql = "
     SELECT p.*, c.name AS category_name,
            (SELECT path FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
-           (SELECT COUNT(*) FROM featured_products WHERE product_id = p.id) as is_featured_flag
+           (SELECT COUNT(*) FROM featured_products WHERE product_id = p.id) as is_featured_flag,
+           COALESCE((SELECT SUM(quantity) FROM product_variations WHERE product_id = p.id), p.quantity) AS total_quantity,
+           (SELECT MIN(expiry_date) FROM product_variations WHERE product_id = p.id AND expiry_date IS NOT NULL) AS var_min_expiry,
+           (SELECT COUNT(*) FROM product_variations WHERE product_id = p.id) AS var_count
     FROM products p 
     LEFT JOIN categories c ON c.id = p.category_id 
     $whereSQL
@@ -70,7 +73,7 @@ foreach ($products as &$p) {
     $attrsStmt->execute([$p['id']]);
     $p['attributes'] = $attrsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Variacijos (su track_price ir track_stock)
+    // Variacijos (su track_price, track_stock, expiry_date)
     $varsStmt = $pdo->prepare("SELECT * FROM product_variations WHERE product_id = ? ORDER BY id ASC");
     $varsStmt->execute([$p['id']]);
     $p['variations'] = $varsStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -158,6 +161,11 @@ foreach ($allCats as $c) {
         padding: 6px; cursor: pointer; border-top: 1px solid #eee; margin-top: 4px; 
     }
     .cis-remove:hover { background: #fef2f2; }
+
+    /* Modalo Stiliai (Sandėlio papildymui) */
+    .modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px); }
+    .modal-overlay.active { display:flex; }
+    .modal-content { background:#fff; padding:25px; border-radius:8px; width:550px; max-width:90vw; max-height:90vh; overflow-y:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
 
     /* Kiti stiliai */
     .cat-box { border: 1px solid #d1d5db; border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto; background: #fff; }
@@ -262,13 +270,14 @@ foreach ($allCats as $c) {
                     <th>Pavadinimas</th>
                     <th>Kategorija</th>
                     <th>Kaina</th>
+                    <th>Galiojimas</th>
                     <th>Likutis</th>
                     <th style="text-align:right; padding-right:20px;">Veiksmai</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if(empty($products)): ?>
-                    <tr><td colspan="7" style="padding:20px; text-align:center; color:#999;">Prekių nerasta.</td></tr>
+                    <tr><td colspan="8" style="padding:20px; text-align:center; color:#999;">Prekių nerasta.</td></tr>
                 <?php endif; ?>
 
                 <?php foreach ($products as $p): ?>
@@ -292,14 +301,27 @@ foreach ($allCats as $c) {
                                 <div style="font-weight:600;"><?php echo number_format($p['price'], 2); ?> €</div>
                             <?php endif; ?>
                         </td>
+                        <td style="font-size:13px;">
+                            <?php
+                            if ($p['var_count'] > 0) {
+                                echo $p['var_min_expiry'] ? htmlspecialchars($p['var_min_expiry']) . ' <small style="color:#888;">(var.)</small>' : '-';
+                            } else {
+                                echo $p['expiry_date'] ? htmlspecialchars($p['expiry_date']) : '-';
+                            }
+                            ?>
+                        </td>
                         <td>
-                            <?php if($p['quantity'] > 0): ?>
-                                <span class="stock-badge in-stock"><?php echo $p['quantity']; ?> vnt.</span>
+                            <?php if($p['total_quantity'] > 0): ?>
+                                <span class="stock-badge in-stock"><?php echo $p['total_quantity']; ?> vnt.</span>
                             <?php else: ?>
                                 <span class="stock-badge out-of-stock">0 vnt.</span>
                             <?php endif; ?>
                         </td>
-                        <td style="text-align:right; padding-right:20px;">
+                        <td style="text-align:right; padding-right:20px; display:flex; gap:5px; justify-content:flex-end;">
+                            <button type="button" class="btn" style="padding:4px 10px; font-size:12px; background:#10b981; border-color:#10b981;" 
+                                onclick='openRestockModal(<?php echo htmlspecialchars(json_encode($p, JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_TAG|JSON_HEX_AMP), ENT_QUOTES, "UTF-8"); ?>)' title="Papildyti sandėlį">
+                                + Papildyti
+                            </button>
                             <button type="button" class="btn secondary" style="padding:4px 10px; font-size:12px;" 
                                 onclick='editProduct(<?php echo htmlspecialchars(json_encode($p, JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_TAG|JSON_HEX_AMP), ENT_QUOTES, "UTF-8"); ?>)'>
                                 Redaguoti
@@ -372,9 +394,15 @@ foreach ($allCats as $c) {
                         <label>Akcijos kaina (€)</label>
                         <input type="number" step="0.01" name="sale_price" id="p_sale_price" class="form-control">
                     </div>
+                    
                     <div class="input-group">
                         <label>Bendras likutis (Jei nenaudojamos variacijos) *</label>
                         <input type="number" name="quantity" id="p_quantity" class="form-control" value="0" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Galiojimo laikas (Jei nenaudojamos variacijos)</label>
+                        <input type="date" name="expiry_date" id="p_expiry_date" class="form-control">
                     </div>
                     
                     <div class="input-group">
@@ -387,6 +415,11 @@ foreach ($allCats as $c) {
                         </select>
                     </div>
 
+                    <div class="input-group">
+                        <label>Etiketė (Ribbon)</label>
+                        <input name="ribbon_text" id="p_ribbon" class="form-control" placeholder="pvz. Naujiena">
+                    </div>
+
                     <div class="full-width input-group">
                         <label>Išsamus aprašymas</label>
                         <div class="rich-editor-wrapper">
@@ -395,7 +428,8 @@ foreach ($allCats as $c) {
                             <textarea name="description" id="p_description" hidden></textarea>
                         </div>
                     </div>
-                    <div class="input-group">
+                    
+                    <div class="full-width input-group">
                         <label>Kategorijos (galima kelias)</label>
                         <div class="cat-box">
                             <?php foreach ($catTree as $branch): ?>
@@ -412,10 +446,7 @@ foreach ($allCats as $c) {
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <div class="input-group">
-                        <label>Etiketė (Ribbon)</label>
-                        <input name="ribbon_text" id="p_ribbon" class="form-control" placeholder="pvz. Naujiena">
-                    </div>
+                    
                     <div class="full-width input-group">
                         <label style="display:flex; align-items:center; gap:8px;">
                             <input type="checkbox" name="is_featured" id="p_featured" value="1">
@@ -438,15 +469,14 @@ foreach ($allCats as $c) {
                             <div id="existingImgContainer" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;"></div>
                         </div>
                     </div>
-                    </div>
+                </div>
             </div>
 
             <div id="tab-specs" class="tab-content" style="padding:0;">
-                
                 <div style="margin-bottom:30px; border-bottom:1px dashed #eee; padding-bottom:20px;">
                     <div style="margin-bottom:15px;">
                         <label style="font-size:16px; color:#111;">Variacijos (Grupavimas)</label>
-                        <p class="muted" style="font-size:12px;">Sukurkite grupes (pvz. "Dydis") ir pridėkite joms reikšmes. Galite pasirinkti, ar variacija keičia kainą ir ar sekamas jos likutis.</p>
+                        <p class="muted" style="font-size:12px;">Sukurkite grupes (pvz. "Dydis") ir pridėkite joms reikšmes. Galite pasirinkti, ar variacija keičia kainą ir ar sekamas jos likutis bei galiojimas.</p>
                     </div>
 
                     <div id="variationsWrapper"></div>
@@ -481,6 +511,27 @@ foreach ($allCats as $c) {
             </div>
         </div>
     </form>
+</div>
+
+<div id="restockModal" class="modal-overlay">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            <h3 style="margin:0; color:#111;" id="restock_title">Papildyti sandėlį</h3>
+            <button type="button" onclick="closeRestockModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#666;">&times;</button>
+        </div>
+        <form method="post" action="/admin.php?view=products">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="action" value="restock_product">
+            <input type="hidden" name="product_id" id="restock_product_id">
+            
+            <div id="restock_body" style="margin-bottom: 20px;"></div>
+            
+            <div style="text-align:right;">
+                <button type="button" class="btn secondary" onclick="closeRestockModal()">Atšaukti</button>
+                <button type="submit" class="btn" style="background:#10b981; border-color:#10b981;">Išsaugoti likučius</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -546,8 +597,7 @@ foreach ($allCats as $c) {
                 <input type="text" name="variations[${groupId}][group_name]" class="form-control" placeholder="Grupės pavadinimas (pvz. Dydis)" value="${groupName.replace(/"/g, '&quot;')}" style="width:70%; font-weight:bold;">
                 <button type="button" class="del-btn" onclick="this.closest('.var-group').remove()">Ištrinti grupę</button>
             </div>
-            <div class="var-group-body" id="group_body_${groupId}">
-            </div>
+            <div class="var-group-body" id="group_body_${groupId}"></div>
             <div style="padding:0 15px 15px 15px; text-align:right;">
                 <button type="button" class="btn secondary" style="font-size:11px;" onclick="addVariationRow('${groupId}')">+ Pridėti reikšmę</button>
             </div>
@@ -555,14 +605,14 @@ foreach ($allCats as $c) {
         wrapper.appendChild(groupDiv);
 
         if(items && items.length > 0) {
-            items.forEach(item => addVariationRow(groupId, item.name, item.price_delta, item.quantity, item.image_id, item.track_price, item.track_stock));
+            items.forEach(item => addVariationRow(groupId, item.name, item.price_delta, item.quantity, item.image_id, item.track_price, item.track_stock, item.expiry_date));
         } else {
             addVariationRow(groupId);
         }
     }
     
-    // ATNAUJINTA FUNKCIJA SU CHECKBOXAIS IR LOGIKA
-    window.addVariationRow = function(groupId, name='', price='', qty='', imageId='', trackPrice=0, trackStock=0) {
+    // ATNAUJINTA FUNKCIJA SU CHECKBOXAIS IR GALIOJIMO DATA
+    window.addVariationRow = function(groupId, name='', price='', qty='', imageId='', trackPrice=0, trackStock=0, expiryDate='') {
         const body = document.getElementById('group_body_' + groupId);
         const rowId = Date.now() + Math.floor(Math.random()*1000);
         
@@ -601,9 +651,11 @@ foreach ($allCats as $c) {
         const qtyDisabled = (trackStock == 1) ? '' : 'disabled';
         const qtyStyle = (trackStock == 1) ? '' : 'opacity:0.5;';
 
+        const safeDate = expiryDate || '';
+
         const row = document.createElement('div');
         row.className = 'var-row';
-        row.style.alignItems = "flex-start"; // Kad checkboxai gražiai lygiuotųsi
+        row.style.alignItems = "flex-start";
         row.innerHTML = `
             <div style="flex:2;">
                 <label style="font-size:10px; color:#999; text-transform:uppercase; display:block; margin-bottom:2px;">Reikšmė</label>
@@ -627,6 +679,11 @@ foreach ($allCats as $c) {
                  </label>
                 <input type="number" name="variations[${groupId}][items][${rowId}][qty]" class="form-control" placeholder="Vnt." value="${qty}" ${qtyDisabled} style="${qtyStyle}">
             </div>
+
+            <div style="flex:1;">
+                <label style="font-size:10px; color:#999; text-transform:uppercase; display:block; margin-bottom:2px;">Galioja iki</label>
+                <input type="date" name="variations[${groupId}][items][${rowId}][expiry_date]" class="form-control" value="${safeDate}">
+            </div>
             
             <div style="flex:1.5;">
                  <label style="font-size:10px; color:#999; text-transform:uppercase; display:block; margin-bottom:2px;">Nuotrauka</label>
@@ -643,7 +700,6 @@ foreach ($allCats as $c) {
         body.appendChild(row);
     }
     
-    // Pagalbinė funkcija inputų įjungimui/išjungimui
     window.toggleInput = function(checkbox) {
         const input = checkbox.closest('div').querySelector('input[type="number"]');
         if(checkbox.checked) {
@@ -661,7 +717,6 @@ foreach ($allCats as $c) {
     window.toggleCisDropdown = function(trigger) {
         const dropdown = trigger.nextElementSibling;
         const isOpen = dropdown.classList.contains('open');
-        // Close others
         document.querySelectorAll('.cis-dropdown').forEach(d => d.classList.remove('open'));
         if(!isOpen) dropdown.classList.add('open');
     }
@@ -673,14 +728,12 @@ foreach ($allCats as $c) {
         
         input.value = id;
         
-        // Update trigger visuals
         if(id && path) {
             trigger.innerHTML = `<img src="${path}"><span>Pakeisti</span>`;
         } else {
             trigger.innerHTML = `<span>Pasirinkti foto</span>`;
         }
         
-        // Update selected state in dropdown
         wrapper.querySelectorAll('.cis-item').forEach(i => i.classList.remove('selected'));
         if(item.classList.contains('cis-item')) {
             item.classList.add('selected');
@@ -738,7 +791,6 @@ foreach ($allCats as $c) {
     window.editProduct = function(data) {
         resetForm(false); 
         
-        // Išsaugome nuotraukas globaliai
         window.currentProductAllImages = data.all_images || [];
         
         // 1. Basic Info
@@ -751,7 +803,10 @@ foreach ($allCats as $c) {
         document.getElementById('p_sale_price').value = data.sale_price||'';
         document.getElementById('p_quantity').value = data.quantity;
         
-        // Set delivery time
+        if(document.getElementById('p_expiry_date')) {
+            document.getElementById('p_expiry_date').value = data.expiry_date || '';
+        }
+        
         document.getElementById('p_delivery_time').value = data.delivery_time || '1-3 d.d.';
 
         if(data.is_featured_flag > 0) document.getElementById('p_featured').checked = true;
@@ -816,19 +871,17 @@ foreach ($allCats as $c) {
         // 4. SEO
         document.getElementById('p_meta_tags').value = data.meta_tags||'';
         
-        // UI Updates
         document.getElementById('formTitle').innerText = 'Redaguoti prekę: ' + data.title;
         document.getElementById('submitBtn').innerText = 'Išsaugoti pakeitimus';
         document.getElementById('cancelEditBtn').style.display = 'inline-block';
         
-        // Scroll
         document.getElementById('productFormSection').scrollIntoView({behavior: 'smooth'});
     }
 
     window.resetForm = function(scroll = true) {
         document.getElementById('mainProductForm').reset();
         document.getElementById('productId').value = '';
-        window.currentProductAllImages = []; // Resetuojam nuotraukas
+        window.currentProductAllImages = [];
 
         document.getElementById('descEditor').innerHTML = '';
         document.getElementById('attributesContainer').innerHTML = '';
@@ -850,6 +903,58 @@ foreach ($allCats as $c) {
         if(scroll) document.getElementById('productFormSection').scrollIntoView({behavior: 'smooth'});
     }
     
+    // --- RESTOCK MODAL LOGIC ---
+    window.openRestockModal = function(data) {
+        document.getElementById('restock_product_id').value = data.id;
+        document.getElementById('restock_title').innerText = 'Papildyti: ' + data.title;
+        
+        let html = '';
+        if (data.variations && data.variations.length > 0) {
+            html += '<p style="font-size:14px; margin-bottom:15px;">Ši prekė turi variacijų. Įveskite <b>pridedamą</b> kiekį ir atnaujinkite galiojimą norimoms variacijoms.</p>';
+            data.variations.forEach(v => {
+                html += `
+                <div style="border:1px solid #e5e7eb; padding:12px; margin-bottom:10px; border-radius:6px; display:flex; gap:15px; align-items:center; background:#f9fafb;">
+                    <div style="flex:2;">
+                        <strong style="font-size:14px; color:#111;">${v.group_name}: ${v.name}</strong><br>
+                        <span style="font-size:12px; color:#6b7280;">Esamas likutis: <b>${v.quantity}</b></span>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:11px; font-weight:600; color:#4b5563; display:block; margin-bottom:4px;">Pridėti kiekį (+)</label>
+                        <input type="number" name="restock_var[${v.id}][add_qty]" class="form-control" placeholder="0" style="padding:6px 10px;">
+                    </div>
+                    <div style="flex:1.5;">
+                        <label style="font-size:11px; font-weight:600; color:#4b5563; display:block; margin-bottom:4px;">Naujas galiojimas</label>
+                        <input type="date" name="restock_var[${v.id}][expiry_date]" class="form-control" value="${v.expiry_date || ''}" style="padding:6px 10px;">
+                    </div>
+                </div>`;
+            });
+        } else {
+            html += `
+            <p style="font-size:14px; margin-bottom:15px;">Įveskite <b>pridedamą</b> kiekį ir atnaujinkite galiojimą.</p>
+            <div style="border:1px solid #e5e7eb; padding:15px; margin-bottom:10px; border-radius:6px; display:flex; gap:15px; align-items:center; background:#f9fafb;">
+                <div style="flex:2;">
+                    <span style="font-size:13px; color:#6b7280;">Esamas likutis: <b>${data.quantity}</b></span>
+                </div>
+                <div style="flex:1.5;">
+                    <label style="font-size:11px; font-weight:600; color:#4b5563; display:block; margin-bottom:4px;">Pridėti kiekį (+)</label>
+                    <input type="number" name="restock_main[add_qty]" class="form-control" placeholder="0" style="padding:6px 10px;">
+                </div>
+                <div style="flex:2;">
+                    <label style="font-size:11px; font-weight:600; color:#4b5563; display:block; margin-bottom:4px;">Naujas galiojimas</label>
+                    <input type="date" name="restock_main[expiry_date]" class="form-control" value="${data.expiry_date || ''}" style="padding:6px 10px;">
+                </div>
+            </div>`;
+        }
+        
+        document.getElementById('restock_body').innerHTML = html;
+        document.getElementById('restockModal').classList.add('active');
+    }
+
+    window.closeRestockModal = function() {
+        document.getElementById('restockModal').classList.remove('active');
+        document.getElementById('restock_body').innerHTML = '';
+    }
+    
     // Bulk & Search
     window.toggleAll = function(s) { document.querySelectorAll('.prod-check').forEach(c=>c.checked=s.checked); updateBulkUI(); }
     window.updateBulkUI = function() {
@@ -857,5 +962,5 @@ foreach ($allCats as $c) {
         document.getElementById('selectedCount').innerText = n;
         document.getElementById('bulkActionsPanel').classList.toggle('visible', n>0);
     }
-    window.submitBulkDelete = function() { if(confirm('Trinti?')) document.getElementById('productsListForm').submit(); }
+    window.submitBulkDelete = function() { if(confirm('Trinti pasirinktas prekes?')) document.getElementById('productsListForm').submit(); }
 </script>
