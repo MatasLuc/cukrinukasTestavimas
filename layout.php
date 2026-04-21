@@ -576,8 +576,8 @@ HTML;
 
 function renderHeader(PDO $pdo, string $active = '', array $meta = []): void {
     // Meta duomenų paruošimas su numatytosiomis reikšmėmis
-    $metaTitle = $meta['title'] ?? 'Cukrinukas.lt – diabeto priemonės ir žinios';
-    $metaDescRaw = strip_tags($meta['description'] ?? 'Gliukometrai, sensoriai, juostelės, mažo GI užkandžiai ir patarimai gyvenimui su diabetu.');
+    $metaTitle = $meta['title'] ?? 'Cukrinukas.lt – diabeto priemonės, patarimai sergantiems diabetu';
+    $metaDescRaw = strip_tags($meta['description'] ?? 'Ieškote priemonių diabetui? Patarimai sergantiems, priemonės diabetui, apsauginiai pleistrai sensorių apsaugai, šaltkrepšiai insulinui. Užsukite ir išsirinkite!');
     $metaImage = $meta['image'] ?? 'https://cukrinukas.lt/uploads/default_social.jpg';
     $metaUrl = $meta['url'] ?? "https://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 
