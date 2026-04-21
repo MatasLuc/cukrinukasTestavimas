@@ -1533,7 +1533,6 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     <section class="update-block">
       <div class="update-block-inner">
         <div class="update-header">
-          <span class="update-tag">Svarbi informacija</span>
           <h2>Tobulėjame kartu su jumis!</h2>
           <p>Mūsų parduotuvė šiuo metu yra aktyviai atnaujinama. Norime sukurti kuo geresnę ir patogesnę erdvę jums, todėl kviečiame prisidėti prie Cukrinuko tobulinimo.</p>
         </div>
