@@ -205,7 +205,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* PAGRINDINIS KONTEINERIS VISIEMS */
     .page-shell { display:flex; flex-direction:column; align-items:center; width:100%; overflow-x:hidden; }
     .section-shell {
-        width: 100%; max-width: 1200px; margin: 0 auto 40px; padding: 0 20px;
+        width: 100%; max-width: 1200px; margin: 0 auto 24px; padding: 0 20px;
     }
 
     /* BENDRI ELEMENTAI */
@@ -238,7 +238,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .section-head h2 { margin:0; font-size:26px; color:#0f172a; letter-spacing:-0.01em; }
 
     /* HERO */
-    .hero { width:100%; margin-bottom:48px; position:relative; background:var(--accent); color:#fff; overflow:hidden; }
+    .hero { width:100%; margin-bottom:24px; position:relative; background:var(--accent); color:#fff; overflow:hidden; }
     .hero::after { content:""; position:absolute; inset:0; background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.2), transparent 45%), linear-gradient(120deg, rgba(37,99,235,0.4), rgba(15,23,42,0.6)); z-index:1; }
     .hero-media { position:absolute; inset:0; z-index:0; }
     .media-embed { width:100%; height:100%; background:var(--accent); }
@@ -254,7 +254,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .glass-card a { font-weight:700; text-decoration:none; color:#fff; }
 
     /* SVETAINĖS AKCENTAI - SEAMLESS COMPACT */
-    .promo-section { margin-bottom: 20px; }
+    .promo-section { margin-bottom: 16px; }
     .promo-grid-seamless {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -322,7 +322,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     }
 
     /* NAUJOVIŠKA STORE SEKCIA */
-    .modern-store-section { margin-bottom: 40px; }
+    .modern-store-section { margin-bottom: 24px; }
     
     .modern-store-header { 
         display: flex; 
@@ -528,34 +528,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .community-block {
         width: 100%;
         background: 
-            linear-gradient(to bottom, var(--bg) 0%, transparent 15%, transparent 85%, var(--bg) 100%),
+            linear-gradient(to bottom, var(--bg) 0%, transparent 10%, transparent 90%, var(--bg) 100%),
+            radial-gradient(circle at 100% 0%, rgba(255,255,255,0.6) 0%, transparent 35%),
+            radial-gradient(circle at 5% 100%, rgba(255,255,255,0.4) 0%, transparent 40%),
             linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
-        padding: 80px 20px;
+        padding: 40px 20px;
         position: relative;
         overflow: hidden;
         margin-bottom: 0;
         display: flex;
         justify-content: center;
-    }
-    .community-block::before {
-        content: '';
-        position: absolute;
-        top: -50px; right: -50px;
-        width: 300px; height: 300px;
-        background: rgba(255,255,255,0.6);
-        border-radius: 50%;
-        filter: blur(40px);
-        pointer-events: none;
-    }
-    .community-block::after {
-        content: '';
-        position: absolute;
-        bottom: -50px; left: 5%;
-        width: 350px; height: 350px;
-        background: rgba(255,255,255,0.4);
-        border-radius: 50%;
-        filter: blur(60px);
-        pointer-events: none;
     }
     .community-block-inner {
         width: 100%;
@@ -658,8 +640,8 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     /* SKANIAM IR PATOGIAM GYVENIMUI (Fullscreen) */
     .lifestyle-block {
         width: 100%;
-        background: #f7f7fb;
-        padding: 0 20px 80px;
+        background: var(--bg);
+        padding: 20px 20px 40px;
         position: relative;
         margin-bottom: 0;
         display: flex;
@@ -825,34 +807,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         width: 100%;
         background: 
             linear-gradient(to bottom, var(--bg) 0%, transparent 10%, transparent 90%, var(--bg) 100%),
+            radial-gradient(circle at 0% 0%, rgba(255,255,255,0.7) 0%, transparent 40%),
+            radial-gradient(circle at 100% 100%, rgba(37, 99, 235, 0.08) 0%, transparent 50%),
             linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 100%);
-        padding: 80px 20px;
+        padding: 40px 20px;
         position: relative;
         overflow: hidden;
-        margin-bottom: 40px;
+        margin-bottom: 0;
         display: flex;
         justify-content: center;
         align-items: center;
-    }
-    .update-block::before {
-        content: '';
-        position: absolute;
-        top: -50px; left: -50px;
-        width: 350px; height: 350px;
-        background: rgba(255,255,255,0.7);
-        border-radius: 50%;
-        filter: blur(50px);
-        pointer-events: none;
-    }
-    .update-block::after {
-        content: '';
-        position: absolute;
-        bottom: -50px; right: 5%;
-        width: 400px; height: 400px;
-        background: rgba(37, 99, 235, 0.08);
-        border-radius: 50%;
-        filter: blur(60px);
-        pointer-events: none;
     }
     .update-block-inner {
         width: 100%;
@@ -993,7 +957,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     }
       
     /* MODERN NEWS BLOCK (COMPACT) */
-    .modern-news-section { margin-bottom: 40px; }
+    .modern-news-section { margin-bottom: 24px; }
     .modern-news-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px; }
     .modern-news-header h2 { font-size: clamp(22px, 4vw, 28px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; text-transform: uppercase; }
     .modern-news-header .pill { border-radius: 99px; font-weight: 600; padding: 8px 16px; background: var(--accent-light); color: var(--accent); border: none; font-size: 13px; }
@@ -1066,7 +1030,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .modern-news-card:hover .modern-news-readmore svg { transform: translateX(4px); }
 
     /* MODERN TESTIMONIALS */
-    .modern-testimonials { margin-bottom: 60px; }
+    .modern-testimonials { margin-bottom: 40px; }
     .modern-testimonials-header { text-align: center; margin-bottom: 40px; }
     .modern-testimonials-header h2 { font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em; text-transform: uppercase; }
     
@@ -1151,34 +1115,16 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     .free-shipping-block {
         width: 100%;
         background: 
-            linear-gradient(to bottom, var(--bg) 0%, transparent 15%, transparent 85%, var(--bg) 100%),
+            linear-gradient(to bottom, var(--bg) 0%, transparent 10%, transparent 90%, var(--bg) 100%),
+            radial-gradient(circle at 100% 0%, rgba(255,255,255,0.7) 0%, transparent 35%),
+            radial-gradient(circle at 0% 100%, rgba(255,255,255,0.5) 0%, transparent 40%),
             linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
-        padding: 40px 20px 80px;
+        padding: 40px 20px;
         position: relative;
         overflow: hidden;
-        margin-bottom: 60px;
+        margin-bottom: 40px;
         display: flex;
         justify-content: center;
-    }
-    .free-shipping-block::before {
-        content: '';
-        position: absolute;
-        top: -50px; right: -50px;
-        width: 300px; height: 300px;
-        background: radial-gradient(circle, rgba(255,255,255,0.6) 0%, transparent 70%);
-        border-radius: 50%;
-        filter: blur(40px);
-        pointer-events: none;
-    }
-    .free-shipping-block::after {
-        content: '';
-        position: absolute;
-        bottom: -50px; left: 5%;
-        width: 350px; height: 350px;
-        background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%);
-        border-radius: 50%;
-        filter: blur(60px);
-        pointer-events: none;
     }
     .fs-modern-wrapper {
         width: 100%;
@@ -1284,7 +1230,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
         .lifestyle-inner { grid-template-columns: 1fr; gap: 40px; }
         .lifestyle-card { top: -20px; left: 10px; right: 10px; max-width: none; }
-        .lifestyle-block { padding: 0 20px 60px; }
+        .lifestyle-block { padding: 0 20px 40px; }
         .lifestyle-all-card { left: 10px; right: 10px; bottom: -20px; justify-content: center; }
         .update-banner { flex-direction: column; text-align: center; }
         .update-banner-actions { width: 100%; }
@@ -1300,7 +1246,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         a.promo-card-seamless:not(:last-child)::after { display: none; }
         a.promo-card-seamless { border-bottom: 1px solid var(--border); }
         a.promo-card-seamless:last-child { border-bottom: none; }
-        .community-block { padding: 60px 20px; }
+        .community-block { padding: 40px 20px; }
     }
   </style>
 </head>
