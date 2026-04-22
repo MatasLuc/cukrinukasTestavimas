@@ -1491,7 +1491,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               </svg>
             </div>
             <h3>Pastebėjote klaidą?</h3>
-            <p>Radote neveikiančią nuorodą, netikslumą ar sistemos klaidą? Praneškite mums.</p>
+            <p>Radote neveikiančią nuorodą, netikslumą ar kitokią klaidą? Praneškite mums.</p>
           </div>
 
           <div class="update-card">
@@ -1501,7 +1501,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               </svg>
             </div>
             <h3>Turite idėjų?</h3>
-            <p>Žinote, kaip galėtume patobulinti dizainą ar naršymą? Laukiame jūsų pasiūlymų.</p>
+            <p>Žinote, kaip galėtume patobulinti svetainę ir padaryti ją patogesne? Laukiame jūsų pasiūlymų.</p>
           </div>
 
           <div class="update-card">
@@ -1521,7 +1521,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
               </svg>
             </div>
             <h3>Dalinkitės patirtimi</h3>
-            <p>Turite sveiką receptą ar naudingą straipsnį? Pasidalinkite su bendruomene!</p>
+            <p>Žinote puikų receptą ar naudingą straipsnį? Pasidalinkite su bendruomene!</p>
           </div>
         </div>
 
