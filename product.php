@@ -9,6 +9,21 @@ ensureProductsTable($pdo);
 ensureCategoriesTable($pdo);
 ensureCartTables($pdo);
 ensureSavedContentTables($pdo);
+
+// Automatinis atsiliepimų lentelės sukūrimas, jei jos nėra
+$pdo->exec("
+    CREATE TABLE IF NOT EXISTS product_reviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT NOT NULL,
+        user_id INT NOT NULL,
+        rating INT NOT NULL DEFAULT 5,
+        comment TEXT NOT NULL,
+        admin_reply TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_prod (product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+");
+
 tryAutoLogin($pdo);
 
 if (function_exists('ensureProductRelations')) {
@@ -78,11 +93,12 @@ $related = $relStmt->fetchAll();
 
 $isFreeShippingGift = in_array($id, $freeShippingIds, true);
 
-// POST logika (Įdėjimas į krepšelį)
+// POST logika (Krepšelis, atsiliepimai, norų sąrašas)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
+    $action = $_POST['action'] ?? '';
     
-    if (($_POST['action'] ?? '') === 'wishlist') {
+    if ($action === 'wishlist') {
         if (empty($_SESSION['user_id'])) {
             header('Location: /login.php');
             exit;
@@ -90,70 +106,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         saveItemForUser($pdo, (int)$_SESSION['user_id'], 'product', $id);
         header('Location: /saved.php');
         exit;
-    }
-
-    $qty = max(1, (int) ($_POST['quantity'] ?? 1));
-    $postedVariations = $_POST['variations'] ?? [];
-    $cartVariations = [];
-    $canAddToCart = true;
-    
-    if (isset($_POST['variation_id']) && !empty($_POST['variation_id'])) {
-        $postedVariations['default'] = $_POST['variation_id'];
-    }
-
-    if (!empty($groupedVariations)) {
-        foreach ($groupedVariations as $grpName => $vars) {
-            if (empty($postedVariations[$grpName])) {
-                $error = "Pasirinkite: " . htmlspecialchars($grpName);
-                $canAddToCart = false;
-                break;
+    } elseif ($action === 'add_review') {
+        if (empty($_SESSION['user_id'])) {
+            $error = "Turite prisijungti, kad paliktumėte atsiliepimą.";
+        } else {
+            $rating = max(1, min(5, (int)($_POST['rating'] ?? 5)));
+            $comment = trim($_POST['comment'] ?? '');
+            if (empty($comment)) {
+                $error = "Atsiliepimo tekstas negali būti tuščias.";
+            } else {
+                $stmtRev = $pdo->prepare("INSERT INTO product_reviews (product_id, user_id, rating, comment) VALUES (?, ?, ?, ?)");
+                $stmtRev->execute([$id, $_SESSION['user_id'], $rating, $comment]);
+                header("Location: " . $_SERVER['REQUEST_URI'] . "#reviews");
+                exit;
             }
         }
+    } elseif ($action === 'admin_reply' && !empty($_SESSION['is_admin'])) {
+        $reviewId = (int)($_POST['review_id'] ?? 0);
+        $reply = trim($_POST['admin_reply'] ?? '');
+        $stmtRep = $pdo->prepare("UPDATE product_reviews SET admin_reply = ? WHERE id = ? AND product_id = ?");
+        $stmtRep->execute([$reply !== '' ? $reply : null, $reviewId, $id]);
+        header("Location: " . $_SERVER['REQUEST_URI'] . "#reviews");
+        exit;
+    } else {
+        // Įdėjimas į krepšelį
+        $qty = max(1, (int) ($_POST['quantity'] ?? 1));
+        $postedVariations = $_POST['variations'] ?? [];
+        $cartVariations = [];
+        $canAddToCart = true;
+        
+        if (isset($_POST['variation_id']) && !empty($_POST['variation_id'])) {
+            $postedVariations['default'] = $_POST['variation_id'];
+        }
 
-        if ($canAddToCart) {
-            foreach ($postedVariations as $group => $varId) {
-                $varId = (int)$varId;
-                if ($varId && isset($variationMap[$varId])) {
-                    $sel = $variationMap[$varId];
-                    if ((int)$sel['track_stock'] === 1 && (int)$sel['quantity'] < $qty) {
-                        $error = "Atsiprašome, pasirinkimo '" . htmlspecialchars($sel['name']) . "' šiuo metu neturime pakankamai.";
-                        $canAddToCart = false;
-                        break;
-                    }
-
-                    $cartVariations[] = [
-                        'id' => $varId,
-                        'group' => $sel['group_name'],
-                        'name' => $sel['name'],
-                        'delta' => (float)$sel['price_delta'],
-                    ];
+        if (!empty($groupedVariations)) {
+            foreach ($groupedVariations as $grpName => $vars) {
+                if (empty($postedVariations[$grpName])) {
+                    $error = "Pasirinkite: " . htmlspecialchars($grpName);
+                    $canAddToCart = false;
+                    break;
                 }
             }
+
+            if ($canAddToCart) {
+                foreach ($postedVariations as $group => $varId) {
+                    $varId = (int)$varId;
+                    if ($varId && isset($variationMap[$varId])) {
+                        $sel = $variationMap[$varId];
+                        if ((int)$sel['track_stock'] === 1 && (int)$sel['quantity'] < $qty) {
+                            $error = "Atsiprašome, pasirinkimo '" . htmlspecialchars($sel['name']) . "' šiuo metu neturime pakankamai.";
+                            $canAddToCart = false;
+                            break;
+                        }
+
+                        $cartVariations[] = [
+                            'id' => $varId,
+                            'group' => $sel['group_name'],
+                            'name' => $sel['name'],
+                            'delta' => (float)$sel['price_delta'],
+                        ];
+                    }
+                }
+            }
+        } else {
+            if ((int)$product['quantity'] < $qty) {
+                $error = "Atsiprašome, prekė išparduota arba neturime pageidaujamo kiekio.";
+                $canAddToCart = false;
+            }
         }
-    } else {
-        if ((int)$product['quantity'] < $qty) {
-            $error = "Atsiprašome, prekė išparduota arba neturime pageidaujamo kiekio.";
-            $canAddToCart = false;
+
+        if ($canAddToCart && empty($error)) {
+            usort($cartVariations, function($a, $b) {
+                return $a['id'] <=> $b['id'];
+            });
+
+            $variationSignature = !empty($cartVariations) ? md5(json_encode($cartVariations)) : 'default';
+            $cartKey = $id . '_' . $variationSignature;
+
+            $_SESSION['cart'][$cartKey] = ($_SESSION['cart'][$cartKey] ?? 0) + $qty;
+            
+            if (!empty($cartVariations)) {
+                $_SESSION['cart_variations'][$cartKey] = $cartVariations; 
+            }
+
+            header('Location: /cart.php');
+            exit;
         }
     }
+}
 
-    if ($canAddToCart) {
-        usort($cartVariations, function($a, $b) {
-            return $a['id'] <=> $b['id'];
-        });
+// Atsiliepimų užklausa
+$revStmt = $pdo->prepare('
+    SELECT r.*, (SELECT email FROM users WHERE id = r.user_id LIMIT 1) as user_email
+    FROM product_reviews r 
+    WHERE r.product_id = ? 
+    ORDER BY r.created_at DESC
+');
+$revStmt->execute([$id]);
+$reviews = $revStmt->fetchAll();
 
-        $variationSignature = !empty($cartVariations) ? md5(json_encode($cartVariations)) : 'default';
-        $cartKey = $id . '_' . $variationSignature;
-
-        $_SESSION['cart'][$cartKey] = ($_SESSION['cart'][$cartKey] ?? 0) + $qty;
-        
-        if (!empty($cartVariations)) {
-            $_SESSION['cart_variations'][$cartKey] = $cartVariations; 
-        }
-
-        header('Location: /cart.php');
-        exit;
+$avgRating = 0;
+$reviewCount = count($reviews);
+if ($reviewCount > 0) {
+    $sum = 0;
+    foreach($reviews as $rev) {
+        $sum += (int)$rev['rating'];
     }
+    $avgRating = round($sum / $reviewCount, 1);
 }
 
 // Kainos
@@ -194,13 +253,78 @@ $meta = [
     ],
     "description": "<?php echo htmlspecialchars($cleanDescription); ?>",
     "sku": "<?php echo $id; ?>",
+    "brand": {
+      "@type": "Brand",
+      "name": "Cukrinukas"
+    },
     "offers": {
       "@type": "Offer",
       "url": "<?php echo $canonicalUrl; ?>",
       "priceCurrency": "EUR",
       "price": "<?php echo number_format($priceDisplay['current'], 2, '.', ''); ?>",
-      "availability": "<?php echo $hasAnyStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'; ?>"
+      "availability": "<?php echo $hasAnyStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'; ?>",
+      "hasMerchantReturnPolicy": {
+        "@type": "MerchantReturnPolicy",
+        "applicableCountry": "LT",
+        "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+        "merchantReturnDays": 14,
+        "returnMethod": "https://schema.org/ReturnByMail",
+        "returnFees": "https://schema.org/ReturnShippingFees"
+      },
+      "shippingDetails": {
+        "@type": "OfferShippingDetails",
+        "shippingDestination": {
+          "@type": "DefinedRegion",
+          "addressCountry": "LT"
+        },
+        "deliveryTime": {
+          "@type": "ShippingDeliveryTime",
+          "handlingTime": {
+            "@type": "QuantitativeValue",
+            "minValue": 0,
+            "maxValue": 1,
+            "unitCode": "d"
+          },
+          "transitTime": {
+            "@type": "QuantitativeValue",
+            "minValue": 1,
+            "maxValue": 3,
+            "unitCode": "d"
+          }
+        }
+      }
     }
+    <?php if ($reviewCount > 0): ?>
+    ,
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "<?php echo number_format($avgRating, 1, '.', ''); ?>",
+      "reviewCount": "<?php echo $reviewCount; ?>"
+    },
+    "review": [
+      <?php foreach($reviews as $i => $rev): 
+          $revAuthor = 'Pirkėjas';
+          if (!empty($rev['user_email'])) {
+              $revAuthor = ucfirst(explode('@', $rev['user_email'])[0]);
+          }
+      ?>
+      {
+        "@type": "Review",
+        "author": {
+          "@type": "Person",
+          "name": "<?php echo htmlspecialchars($revAuthor); ?>"
+        },
+        "datePublished": "<?php echo date('Y-m-d', strtotime($rev['created_at'])); ?>",
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": "<?php echo $rev['rating']; ?>",
+          "bestRating": "5"
+        },
+        "reviewBody": "<?php echo htmlspecialchars(strip_tags($rev['comment'])); ?>"
+      }<?php echo ($i < $reviewCount - 1) ? ',' : ''; ?>
+      <?php endforeach; ?>
+    ]
+    <?php endif; ?>
   }
   </script>
 
@@ -265,6 +389,27 @@ $meta = [
     .rel-img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; margin-bottom: 10px; }
     .rel-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--text-main); }
     .rel-price { font-weight: 700; color: var(--text-main); }
+    
+    /* Atsiliepimų stiliai */
+    .reviews-section { margin-top: 40px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .review-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .review-item:last-child { border-bottom: none; }
+    .review-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .review-author { font-weight: 600; color: var(--text-main); }
+    .review-date { font-size: 12px; color: var(--text-muted); }
+    .stars { color: #fbbf24; font-size: 16px; letter-spacing: 2px; }
+    .review-comment { color: var(--text-main); line-height: 1.5; font-size: 15px; margin-top: 10px; }
+    .admin-reply { background: #f8fafc; border-left: 3px solid var(--accent); padding: 14px 16px; margin-top: 14px; border-radius: 0 8px 8px 0; font-size: 14px; color: var(--text-muted); }
+    .admin-reply-header { font-weight: 600; color: var(--accent); margin-bottom: 6px; display: block; }
+    .review-form { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
+    .review-form textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 8px; min-height: 100px; font-family: inherit; margin-bottom: 14px; font-size:15px; }
+    .review-form select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; font-size:15px; width: 100%; max-width:300px; }
+    .reply-form { margin-top: 16px; display: flex; gap: 8px; }
+    .reply-form input { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size:14px; }
+    .reply-form button { padding: 10px 16px; background: var(--text-main); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size:14px; font-weight:600;}
+    .login-prompt { background: var(--accent-light); color: var(--accent-hover); padding: 20px; border-radius: 8px; text-align: center; font-weight: 500; }
+    .login-prompt a { text-decoration: underline; font-weight: 700; color: var(--accent); }
+
     @media (max-width: 900px) { .product-grid { display: flex; flex-direction: column; gap: 24px; } .left-col { display: contents; } .content-card { width: 100%; } .buy-box { width: 100%; } }
   </style>
 </head>
@@ -439,6 +584,73 @@ $meta = [
                 <div class="info-item"><span>🚀</span> Pristatymas per <?php echo htmlspecialchars($product['delivery_time'] ?? '1-3 d.d.'); ?></div>
             </div>
         </form>
+    </div>
+
+    <div class="reviews-section" id="reviews">
+        <h2 style="margin-top:0; margin-bottom: 24px; font-size:24px;">Atsiliepimai (<?php echo $reviewCount; ?>) <?php if($reviewCount > 0) echo '<span style="color:#fbbf24;">⭐ ' . number_format($avgRating, 1) . '</span>'; ?></h2>
+        
+        <?php if ($reviewCount > 0): ?>
+            <div class="reviews-list">
+                <?php foreach($reviews as $rev): 
+                    $revAuthor = 'Pirkėjas';
+                    if (!empty($rev['user_email'])) {
+                        $revAuthor = ucfirst(explode('@', $rev['user_email'])[0]);
+                    }
+                    $stars = str_repeat('★', (int)$rev['rating']) . str_repeat('☆', 5 - (int)$rev['rating']);
+                ?>
+                    <div class="review-item">
+                        <div class="review-header">
+                            <span class="review-author"><?php echo htmlspecialchars($revAuthor); ?></span>
+                            <span class="review-date"><?php echo date('Y-m-d', strtotime($rev['created_at'])); ?></span>
+                        </div>
+                        <div class="stars"><?php echo $stars; ?></div>
+                        <div class="review-comment"><?php echo nl2br(htmlspecialchars($rev['comment'])); ?></div>
+                        
+                        <?php if (!empty($rev['admin_reply'])): ?>
+                            <div class="admin-reply">
+                                <span class="admin-reply-header">Parduotuvės atsakymas:</span>
+                                <?php echo nl2br(htmlspecialchars($rev['admin_reply'])); ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($_SESSION['is_admin'])): ?>
+                            <form method="post" class="reply-form">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="action" value="admin_reply">
+                                <input type="hidden" name="review_id" value="<?php echo $rev['id']; ?>">
+                                <input type="text" name="admin_reply" placeholder="Atsakyti į atsiliepimą..." value="<?php echo htmlspecialchars($rev['admin_reply'] ?? ''); ?>">
+                                <button type="submit">Išsaugoti</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p style="color: var(--text-muted); font-size: 15px;">Kol kas atsiliepimų nėra. Būkite pirmas!</p>
+        <?php endif; ?>
+
+        <div class="review-form">
+            <h3 style="margin-top:0;">Palikite atsiliepimą</h3>
+            <?php if (!empty($_SESSION['user_id'])): ?>
+                <form method="post">
+                    <?php echo csrfField(); ?>
+                    <input type="hidden" name="action" value="add_review">
+                    <select name="rating" required>
+                        <option value="5">⭐⭐⭐⭐⭐ - Puiku!</option>
+                        <option value="4">⭐⭐⭐⭐ - Gerai</option>
+                        <option value="3">⭐⭐⭐ - Vidutiniškai</option>
+                        <option value="2">⭐⭐ - Prastai</option>
+                        <option value="1">⭐ - Labai prastai</option>
+                    </select>
+                    <textarea name="comment" placeholder="Jūsų atsiliepimas apie prekę..." required></textarea>
+                    <button type="submit" class="btn-add" style="width: auto; padding: 0 32px;">Siųsti atsiliepimą</button>
+                </form>
+            <?php else: ?>
+                <div class="login-prompt">
+                    Norėdami palikti atsiliepimą, prašome <a href="/login.php?redirect=<?php echo urlencode($_SERVER['REQUEST_URI']); ?>">prisijungti prie savo paskyros</a>.
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <?php if ($related): ?>
