@@ -179,9 +179,9 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cukrinukas.lt – diabeto priemonės ir naujienos</title>
+  <title>Cukrinukas.lt – diabeto priemonės, patarimai sergantiems diabetu</title>
   <?php echo headerStyles($headerShadowIntensity ?? null); ?>
-  <meta name="description" content="Cukrinukas.lt rasite gliukometrus, sensoriai, juosteles, mažo GI užkandžius ir patarimus gyvenimui su diabetu.">
+  <meta name="description" content="Ieškote priemonių diabetui? Patarimai sergantiems, priemonės diabetui, apsauginiai pleistrai sensorių apsaugai, šaltkrepšiai insulinui. Užsukite ir išsirinkite!">
   <link rel="icon" type="image/svg+xml" href="<?php echo $faviconSvg; ?>">
   
   <style>
