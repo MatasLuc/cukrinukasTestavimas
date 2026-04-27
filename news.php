@@ -27,11 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['news_id'])) {
     exit;
 }
 
-// 1. Gauname kategorijas
+// 1. Gauname kategorijas (įtraukiame tik matomas ir publikuotas naujienas)
 $activeCategories = $pdo->query("
     SELECT c.id, c.name, COUNT(r.news_id) as count 
     FROM news_categories c 
     JOIN news_category_relations r ON r.category_id = c.id 
+    JOIN news n ON n.id = r.news_id
+    WHERE n.is_visible = 1 AND n.publish_date <= NOW()
     GROUP BY c.id 
     HAVING count > 0 
     ORDER BY c.name ASC
@@ -45,8 +47,11 @@ $sql = 'SELECT n.id, n.title, n.image_url, n.body, n.summary, n.is_featured, n.c
 $params = [];
 
 if ($selectedCatId) {
-    $sql .= 'JOIN news_category_relations r ON n.id = r.news_id WHERE r.category_id = ? ';
+    $sql .= 'JOIN news_category_relations r ON n.id = r.news_id 
+             WHERE r.category_id = ? AND n.is_visible = 1 AND n.publish_date <= NOW() ';
     $params[] = $selectedCatId;
+} else {
+    $sql .= 'WHERE n.is_visible = 1 AND n.publish_date <= NOW() ';
 }
 
 $sql .= 'ORDER BY n.created_at DESC';

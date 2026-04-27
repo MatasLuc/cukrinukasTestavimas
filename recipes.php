@@ -23,11 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipe_id'])) {
     exit;
 }
 
-// 1. Gauname kategorijas
+// 1. Gauname kategorijas (įtraukiame tik matomus ir publikuotus receptus)
 $activeCategories = $pdo->query("
     SELECT c.id, c.name, COUNT(r.recipe_id) as count 
     FROM recipe_categories c 
     JOIN recipe_category_relations r ON r.category_id = c.id 
+    JOIN recipes rec ON rec.id = r.recipe_id
+    WHERE rec.is_visible = 1 AND rec.publish_date <= NOW()
     GROUP BY c.id 
     HAVING count > 0 
     ORDER BY c.name ASC
@@ -41,8 +43,11 @@ $sql = 'SELECT r.id, r.title, r.image_url, r.summary, r.body, r.created_at, r.vi
 $params = [];
 
 if ($selectedCatId) {
-    $sql .= 'JOIN recipe_category_relations rel ON r.id = rel.recipe_id WHERE rel.category_id = ? ';
+    $sql .= 'JOIN recipe_category_relations rel ON r.id = rel.recipe_id 
+             WHERE rel.category_id = ? AND r.is_visible = 1 AND r.publish_date <= NOW() ';
     $params[] = $selectedCatId;
+} else {
+    $sql .= 'WHERE r.is_visible = 1 AND r.publish_date <= NOW() ';
 }
 
 $sql .= 'ORDER BY r.created_at DESC';

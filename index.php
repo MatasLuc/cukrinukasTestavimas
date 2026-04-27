@@ -138,8 +138,8 @@ $supportBand = [
     'card_cta_url' => $siteContent['support_card_cta_url'] ?? '/contact.php',
 ];
 
-// DB Data
-$featuredNews = $pdo->query('SELECT id, title, image_url, body, summary, created_at FROM news WHERE is_featured = 1 ORDER BY created_at DESC LIMIT 4')->fetchAll();
+// DB Data (Įtraukiame tik matomas ir publikuotas naujienas)
+$featuredNews = $pdo->query('SELECT id, title, image_url, body, summary, created_at FROM news WHERE is_featured = 1 AND is_visible = 1 AND publish_date <= NOW() ORDER BY created_at DESC LIMIT 4')->fetchAll();
 $featuredIds = getFeaturedProductIds($pdo);
 $featuredProducts = [];
 if ($featuredIds) {
@@ -157,8 +157,8 @@ if ($featuredIds) {
 $categories = $pdo->query('SELECT id, name, slug FROM categories ORDER BY name ASC')->fetchAll();
 $freeShippingOffers = getFreeShippingProducts($pdo);
 
-// Gauname patį naujausią receptą
-$latestRecipe = $pdo->query('SELECT id, title, image_url FROM recipes ORDER BY created_at DESC LIMIT 1')->fetch();
+// Gauname patį naujausią receptą (tik matomą ir publikuotą)
+$latestRecipe = $pdo->query('SELECT id, title, image_url FROM recipes WHERE is_visible = 1 AND publish_date <= NOW() ORDER BY created_at DESC LIMIT 1')->fetch();
 
 // Styles variables
 $heroClass = $heroMedia['type'] === 'color' ? 'hero hero--color' : 'hero hero--media';
