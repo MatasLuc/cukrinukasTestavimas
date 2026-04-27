@@ -16,6 +16,11 @@ if (!function_exists('redirectWithMsg')) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
+    // PATIKRA: Ar nebuvo viršytas PHP post_max_size limitas (jei viršyta, $_POST lieka tuščias)
+    if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+        redirectWithMsg('products', "Įkeliami failai per dideli. Bendras limitas serveryje: " . ini_get('post_max_size'), 'error');
+    }
+    
     // CSRF apsauga
     if (function_exists('validateCsrfToken')) {
         validateCsrfToken();
@@ -221,7 +226,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Images
             if (!empty($_FILES['images']['name'][0])) {
-                if (function_exists('storeUploads')) {
+                $hasValidUploads = false;
+                $uploadError = false;
+                
+                // Patikrinam ar joks failas neviršijo upload limito
+                foreach ($_FILES['images']['error'] as $error) {
+                    if ($error === UPLOAD_ERR_OK) {
+                        $hasValidUploads = true;
+                    } elseif ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+                        $uploadError = true;
+                    }
+                }
+                
+                if ($uploadError) {
+                    throw new \Exception('Viena ar kelios nuotraukos viršija leistiną failo dydį (' . ini_get('upload_max_filesize') . ').');
+                }
+                
+                if ($hasValidUploads && function_exists('storeUploads')) {
                     storeUploads($pdo, $productId, $_FILES['images']);
                 }
             }
@@ -295,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             redirectWithMsg('products', $msg);
         
-        } catch (Exception $e) {
+        } catch (\Throwable $e) { // Sugaus ir PHP klaidas (pvz ValueError, jei storeUploads lužtų)
             redirectWithMsg('products', 'Klaida saugant prekę: ' . $e->getMessage(), 'error');
         }
     }
@@ -328,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
             redirectWithMsg('products', 'Likučiai ir galiojimai sėkmingai atnaujinti.');
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $pdo->rollBack();
             redirectWithMsg('products', 'Klaida atnaujinant likučius: ' . $e->getMessage(), 'error');
         }
@@ -371,34 +392,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'order_status') {
         $orderId = (int)($_POST['order_id'] ?? 0);
         $status = trim($_POST['status'] ?? '');
-        $trackingNumber = trim($_POST['tracking_number'] ?? ''); // PAIMAME TRACKING KODĄ
+        $trackingNumber = trim($_POST['tracking_number'] ?? ''); 
         
-        // Išplečiame leidžiamų statusų sąrašą
         $allowed = ["laukiama", "laukiama apmokėjimo", "apdorojama", "siunčiama", "įvykdyta", "apmokėta", "atšaukta", "atmesta"];
         
         if ($orderId && in_array($status, $allowed, true)) {
-            
-            // Jei statusas keičiamas į apmokėta/įvykdyta, paleidžiam pilną procesą
             if ($status === 'apmokėta' || $status === 'įvykdyta') {
-                require_once __DIR__ . '/../helpers.php'; // Užtikrinam, kad turim funkciją
+                require_once __DIR__ . '/../helpers.php';
                 approveOrder($pdo, $orderId);
                 
-                // Jei pasirinkta 'įvykdyta', papildomai dar atnaujinam statusą ir tracking (nes approveOrder nustato 'apmokėta')
                 if ($status === 'įvykdyta') {
                     $pdo->prepare('UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute(['įvykdyta', $trackingNumber, $orderId]);
                 } else {
-                    // Jei tik 'apmokėta', vis tiek išsaugome tracking, jei įvestas
                      $pdo->prepare('UPDATE orders SET tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute([$trackingNumber, $orderId]);
                 }
                 
                 redirectWithMsg('orders', 'Užsakymas patvirtintas, likučiai nurašyti.');
             } else {
-                // Kitiems statusams (pvz. išsiųsta, atšaukta)
-                
-                // 1. Atnaujiname statusą IR tracking numerį
                 $pdo->prepare('UPDATE orders SET status = ?, tracking_number = ?, updated_at = NOW() WHERE id = ?')->execute([$status, $trackingNumber, $orderId]);
 
-                // 2. Jei IŠSIŲSTA - siunčiame laišką klientui
                 if ($status === 'siunčiama') {
                     require_once __DIR__ . '/../order_functions.php';
                     if (function_exists('sendShippingConfirmationEmail')) {
@@ -406,7 +418,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     redirectWithMsg('orders', 'Užsakymas pažymėtas kaip išsiųstas, klientas informuotas.');
                 }
-
                 redirectWithMsg('orders', 'Užsakymo būsena atnaujinta');
             }
         }
@@ -455,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'move_menu_item') {
         $id = (int)$_POST['id'];
-        $direction = $_POST['direction']; // 'up' or 'down'
+        $direction = $_POST['direction'];
         
         $stmt = $pdo->prepare('SELECT id, parent_id, sort_order FROM navigation_items WHERE id = ?');
         $stmt->execute([$id]);
@@ -716,7 +727,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $until = null;
         
         if (isset($_POST['banned_until'])) {
-            $until = $_POST['banned_until']; // Jei ateina tiesiogiai data
+            $until = $_POST['banned_until'];
         } else {
              if ($duration === '24h') $until = date('Y-m-d H:i:s', strtotime('+24 hours'));
              elseif ($duration === '7d') $until = date('Y-m-d H:i:s', strtotime('+7 days'));
@@ -754,7 +765,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectWithMsg('content', 'Klaida trinant', 'error');
     }
 
-    // --- LAIŠKŲ SIUNTIMAS (ATNAUJINTA) ---
+    // --- LAIŠKŲ SIUNTIMAS ---
     if ($action === 'send_email') {
         require_once __DIR__ . '/../mailer.php';
 
@@ -767,33 +778,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirectWithMsg('emails', 'Užpildykite visus laukus (gavėjas, tema, žinutė)', 'error');
         }
 
-        // Tikriname, ar siunčiama VISIEMS
         if ($recipientInput === 'all') {
-            // Siunčiame masinį laišką
             $stmt = $pdo->query("SELECT email, name FROM users WHERE email IS NOT NULL AND email != ''");
             $allUsers = $stmt->fetchAll();
             $sentCount = 0;
 
             foreach ($allUsers as $user) {
-                // Generuojame laišką kiekvienam (kad būtų personalizuota antraštė, jei mailer.php tai naudoja, ir saugiau nuo spam filtrų)
                 $htmlBody = getEmailTemplate($subject, $content, 'https://cukrinukas.lt', 'Apsilankyti parduotuvėje');
-                
                 if (sendEmail($user['email'], $subject, $htmlBody)) {
                     $sentCount++;
                 }
             }
-
             redirectWithMsg('emails', "Laiškas išsiųstas $sentCount klientams iš " . count($allUsers) . "!");
 
         } elseif ($recipientInput === 'manual') {
-            // RANKINIS SIUNTIMAS
             if (!filter_var($manualEmail, FILTER_VALIDATE_EMAIL)) {
                 redirectWithMsg('emails', 'Neteisingas el. pašto formatas', 'error');
             }
 
             $htmlBody = getEmailTemplate($subject, $content, 'https://cukrinukas.lt', 'Apsilankyti parduotuvėje');
-            
-            // Siunčiame, nurodydami vardą tiesiog kaip el. paštą arba "Klientas"
             $sent = sendEmail($manualEmail, $subject, $htmlBody);
             
             if ($sent) {
@@ -803,7 +806,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
         } else {
-            // Siunčiame vienam registruotam klientui
             $recipientId = (int)$recipientInput;
             $stmt = $pdo->prepare("SELECT email, name FROM users WHERE id = ?");
             $stmt->execute([$recipientId]);
@@ -811,7 +813,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user) {
                 $htmlBody = getEmailTemplate($subject, $content, 'https://cukrinukas.lt', 'Apsilankyti parduotuvėje');
-                
                 $sent = sendEmail($user['email'], $subject, $htmlBody);
                 
                 if ($sent) {
