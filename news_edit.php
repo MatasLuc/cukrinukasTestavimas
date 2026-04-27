@@ -41,6 +41,11 @@ $body = $item['body'];
 $visibility = $item['visibility'];
 $isFeatured = $item['is_featured'];
 
+// Nauji kintamieji (pritaikome, jei MySQL grąžina NULL)
+$isVisible = $item['is_visible'] ?? 1;
+$publishDate = $item['publish_date'] ? date('Y-m-d\TH:i', strtotime($item['publish_date'])) : date('Y-m-d\TH:i');
+$seoKeywords = $item['seo_keywords'] ?? '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     $title = trim($_POST['title'] ?? '');
@@ -50,6 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = trim($_POST['body'] ?? '');
     $visibility = $_POST['visibility'] === 'members' ? 'members' : 'public';
     $isFeatured = isset($_POST['is_featured']) ? 1 : 0;
+    
+    // Naujų laukų nuskaitymas
+    $isVisible = isset($_POST['is_visible']) ? 1 : 0;
+    $publishDateInput = $_POST['publish_date'] ?? '';
+    $publishDateDb = $publishDateInput ? date('Y-m-d H:i:s', strtotime($publishDateInput)) : date('Y-m-d H:i:s');
+    $seoKeywords = trim($_POST['seo_keywords'] ?? '');
+
+    // Formos reikšmės atstatymui
+    if ($publishDateInput) {
+        $publishDate = date('Y-m-d\TH:i', strtotime($publishDateInput));
+    }
 
     if ($title === '' || $body === '' || $summary === '') {
         $errors[] = 'Užpildykite visus laukus.';
@@ -65,9 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Atnaujiname naujienos info
-            $stmt = $pdo->prepare('UPDATE news SET title = ?, summary = ?, author = ?, image_url = ?, body = ?, visibility = ?, is_featured = ? WHERE id = ?');
-            $stmt->execute([$title, $summary, $author, $imagePath, $body, $visibility, $isFeatured, $id]);
+            // 1. Atnaujiname naujienos info (pridėti is_visible, publish_date, seo_keywords)
+            $stmt = $pdo->prepare('UPDATE news SET title = ?, summary = ?, author = ?, image_url = ?, body = ?, visibility = ?, is_featured = ?, is_visible = ?, publish_date = ?, seo_keywords = ? WHERE id = ?');
+            $stmt->execute([$title, $summary, $author, $imagePath, $body, $visibility, $isFeatured, $isVisible, $publishDateDb, $seoKeywords, $id]);
 
             // 2. Atnaujiname kategorijas: Ištriname senas -> Įrašome naujas
             $pdo->prepare("DELETE FROM news_category_relations WHERE news_id = ?")->execute([$id]);
@@ -111,7 +127,7 @@ $safeBody = sanitizeHtml($body);
     .card { background: #fff; padding: 28px; border-radius: 16px; width: min(720px, 100%); box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
     
     label { display:block; margin:12px 0 5px; font-weight:600; }
-    input[type=text], select, textarea { width: 100%; padding: 10px; border:1px solid #ccc; border-radius:8px; background:#fbfbff; }
+    input[type=text], select, textarea, input[type=datetime-local] { width: 100%; padding: 10px; border:1px solid #ccc; border-radius:8px; background:#fbfbff; }
     
     .notice.success { background:#e6fffa; color:#047481; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #b2f5ea; }
     .notice.error { background:#fff5f5; color:red; padding:10px; border:1px solid red; border-radius:8px; }
@@ -142,6 +158,14 @@ $safeBody = sanitizeHtml($body);
       
       <form method="post" enctype="multipart/form-data" onsubmit="return syncBody();">
         <?php echo csrfField(); ?>
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding: 10px; background: #eef2ff; border-radius: 8px;">
+          <input type="checkbox" name="is_visible" value="1" <?= $isVisible ? 'checked' : '' ?> style="width:auto; transform: scale(1.2);"> 
+          <b>Įrašas aktyvus (matomas lankytojams)</b>
+        </label>
+
+        <label for="publish_date">Publikavimo data ir laikas (suplanuoti į priekį)</label>
+        <input id="publish_date" name="publish_date" type="datetime-local" value="<?= htmlspecialchars($publishDate) ?>">
         
         <label>Pavadinimas</label>
         <input name="title" type="text" value="<?= htmlspecialchars($title) ?>" required>
@@ -212,12 +236,15 @@ $safeBody = sanitizeHtml($body);
         <input type="file" id="inline-image-input" accept="image/*" style="display:none;">
         <textarea id="body" name="body" hidden><?= htmlspecialchars($body) ?></textarea>
 
+        <label for="seo_keywords">SEO Raktažodžiai (atskirti kableliais)</label>
+        <input id="seo_keywords" name="seo_keywords" type="text" value="<?= htmlspecialchars($seoKeywords) ?>" placeholder="diabetas, tyrimai, cukrus...">
+
         <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
             <input type="checkbox" name="is_featured" value="1" <?= $isFeatured ? 'checked' : '' ?> style="width:auto;"> 
             Išskirtinė naujiena (rodyti viršuje)
         </label>
 
-        <label>Matomumas</label>
+        <label>Prieigos lygis</label>
         <select name="visibility">
             <option value="public" <?= $visibility == 'public' ? 'selected' : '' ?>>Visiems</option>
             <option value="members" <?= $visibility == 'members' ? 'selected' : '' ?>>Tik registruotiems</option>

@@ -11,22 +11,22 @@ class ComposerStaticInite2f1afae69fe22093ff43efd03ab43b0
     );
 
     public static $prefixLengthsPsr4 = array (
-        's' =>
+        's' => 
         array (
             'setasign\\Fpdi\\' => 14,
         ),
-        'M' =>
+        'M' => 
         array (
             'Mijora\\Omniva\\' => 14,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'setasign\\Fpdi\\' =>
+        'setasign\\Fpdi\\' => 
         array (
             0 => __DIR__ . '/..' . '/setasign/fpdi/src',
         ),
-        'Mijora\\Omniva\\' =>
+        'Mijora\\Omniva\\' => 
         array (
             0 => __DIR__ . '/..' . '/mijora/omniva-api/src',
         ),

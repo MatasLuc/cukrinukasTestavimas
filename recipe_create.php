@@ -25,15 +25,31 @@ $selectedCatIds = [];
 $body = '';
 $visibility = 'public';
 
+// Nauji kintamieji
+$isVisible = 1;
+$publishDate = date('Y-m-d\TH:i');
+$seoKeywords = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     
     $title = trim($_POST['title'] ?? '');
-    $summary = trim($_POST['summary'] ?? ''); // Naujas laukas
+    $summary = trim($_POST['summary'] ?? '');
     $author = trim($_POST['author'] ?? '');
     $selectedCatIds = $_POST['categories'] ?? []; // Kategorijų masyvas
     $body = trim($_POST['body'] ?? '');
     $visibility = $_POST['visibility'] === 'members' ? 'members' : 'public';
+    
+    // Naujų laukų nuskaitymas
+    $isVisible = isset($_POST['is_visible']) ? 1 : 0;
+    $publishDateInput = $_POST['publish_date'] ?? '';
+    $publishDateDb = $publishDateInput ? date('Y-m-d H:i:s', strtotime($publishDateInput)) : date('Y-m-d H:i:s');
+    $seoKeywords = trim($_POST['seo_keywords'] ?? '');
+
+    // Formos reikšmės atstatymui (jei būtų klaidų)
+    if ($publishDateInput) {
+        $publishDate = date('Y-m-d\TH:i', strtotime($publishDateInput));
+    }
 
     if ($title === '' || $body === '' || $summary === '') {
         $errors[] = 'Užpildykite pavadinimą, santrauką ir aprašymą.';
@@ -49,9 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Įrašome receptą (su summary)
-            $stmt = $pdo->prepare('INSERT INTO recipes (title, summary, author, image_url, body, visibility) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$title, $summary, $author, $imagePath, $body, $visibility]);
+            // 1. Įrašome receptą su naujais laukais
+            $stmt = $pdo->prepare('INSERT INTO recipes (title, summary, author, image_url, body, visibility, is_visible, publish_date, seo_keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$title, $summary, $author, $imagePath, $body, $visibility, $isVisible, $publishDateDb, $seoKeywords]);
             $recipeId = $pdo->lastInsertId();
 
             // 2. Įrašome kategorijų ryšius
@@ -90,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .card { background: #fff; padding: 28px; border-radius: 16px; box-shadow: 0 14px 32px rgba(0,0,0,0.08); width: min(720px, 100%); }
     .card h1 { margin: 0 0 8px; font-size: 26px; }
     label { display: block; margin: 14px 0 6px; font-weight: 600; }
-    input[type=text], input[type=file], textarea, select { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #d7d7e2; background: #f9f9ff; font-size: 15px; }
+    input[type=text], input[type=file], textarea, select, input[type=datetime-local] { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #d7d7e2; background: #f9f9ff; font-size: 15px; }
     textarea { min-height: 100px; resize: vertical; }
     button[type=submit] { padding: 12px 18px; border-radius: 12px; border: none; background: #0b0b0b; color: #fff; font-weight: 600; cursor:pointer; margin-top: 14px; }
     .notice.error { background: #fff1f1; border: 1px solid #f3b7b7; color: #991b1b; padding:12px; border-radius:12px; margin-bottom:12px; }
@@ -127,6 +143,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form method="post" enctype="multipart/form-data" onsubmit="return syncBody();">
         <?php echo csrfField(); ?>
         
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding: 10px; background: #eef2ff; border-radius: 8px;">
+          <input type="checkbox" name="is_visible" value="1" <?php echo $isVisible ? 'checked' : ''; ?> style="width:auto; transform: scale(1.2);"> 
+          <b>Įrašas aktyvus (matomas lankytojams)</b>
+        </label>
+
+        <label for="publish_date">Publikavimo data ir laikas (suplanuoti į priekį)</label>
+        <input id="publish_date" name="publish_date" type="datetime-local" value="<?php echo $publishDate; ?>">
+
         <label for="title">Pavadinimas</label>
         <input id="title" name="title" type="text" required value="<?php echo htmlspecialchars($title); ?>">
 
@@ -194,6 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <input type="file" id="inline-image-input" accept="image/*" style="display:none;">
         <textarea id="body" name="body" hidden><?php echo htmlspecialchars($body); ?></textarea>
+
+        <label for="seo_keywords">SEO Raktažodžiai (atskirti kableliais)</label>
+        <input id="seo_keywords" name="seo_keywords" type="text" value="<?php echo htmlspecialchars($seoKeywords); ?>" placeholder="diabetas, receptai, mityba...">
 
         <label for="visibility">Matomumas</label>
         <select id="visibility" name="visibility">
