@@ -1360,7 +1360,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
 
     <section class="section-shell modern-store-section" id="parduotuve">
       <div class="modern-store-header">
-        <h2>Rekomenduojame!</h2>
+        <h2>REKOMENDUOJAME!</h2>
       </div>
 
       <div class="modern-store-grid">
@@ -1438,7 +1438,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     <section class="community-block" id="bendruomene">
       <div class="community-block-inner">
         <div class="community-content">
-          <h2>Prisijunkite prie Cukrinuko bendruomenės</h2>
+          <h2>PRISIJUNKITE PRIE CUKRINUKO BENDRUOMENĖS</h2>
           <p>Mes – ne tik parduotuvė. Kartu kuriame erdvę, kurioje dalinamės patirtimi, ieškome atsakymų ir palaikome vieni kitus. Prisijunkite prie diskusijų arba raskite bei parduokite diabeto priežiūros priemones mūsų turgelyje.</p>
           <div class="community-actions">
             <a href="/community.php" class="btn-community-main">Atrasti bendruomenę →</a>
@@ -1474,7 +1474,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     <section class="section-shell" style="margin-bottom: 40px;">
         <div class="section-head" style="flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px;">
             <h2 style="font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em;">
-                Atraskite <span style="color: var(--accent);">daugiau</span>
+                ATRASKITE <span style="color: var(--accent);">DAUGIAU</span>
             </h2>
             <p style="color: var(--muted); margin: 0; font-size: 16px;">Populiariausios prekių kategorijos</p>
         </div>
@@ -1606,7 +1606,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     <section class="update-block">
       <div class="update-block-inner">
         <div class="update-header">
-          <h2>Tobulėjame kartu su jumis!</h2>
+          <h2>TOBULĖJAME KARTU SU JUMIS!</h2>
           <p>Mūsų parduotuvė šiuo metu yra aktyviai atnaujinama. Norime sukurti kuo geresnę ir patogesnę erdvę jums, todėl kviečiame prisidėti prie Cukrinuko tobulinimo.</p>
         </div>
 
@@ -1708,7 +1708,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
               </svg>
             </div>
-            <h2 class="fs-modern-title">Nemokamas pristatymas</h2>
+            <h2 class="fs-modern-title">NEMOKAMAS PRISTATYMAS</h2>
             <p class="fs-modern-subtitle">Pridėkite bent vieną iš šių prekių į savo krepšelį ir mes pristatysime <strong>visą užsakymą</strong> visiškai nemokamai!</p>
           </div>
           
