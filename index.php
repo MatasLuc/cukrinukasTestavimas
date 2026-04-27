@@ -1225,6 +1225,61 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     
     .chips { display:flex; gap:8px; flex-wrap:wrap; }
 
+    /* ATRASKITE DAUGIAU / MOSAIC WIDGETS */
+    .grid-mosaic {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 24px;
+        grid-auto-rows: 220px;
+    }
+    .mosaic-half { grid-column: span 6; }
+    .mosaic-third { grid-column: span 4; }
+
+    .widget-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 32px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        text-decoration: none !important;
+        color: var(--text);
+        box-shadow: var(--shadow-sm);
+    }
+    .widget-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 12px 32px -8px rgba(37,99,235,0.15);
+        transform: translateY(-4px);
+    }
+    .icon-box {
+        width: 56px;
+        height: 56px;
+        background: var(--accent-light);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent);
+        transition: 0.3s;
+    }
+    .widget-card:hover .icon-box { background: var(--accent); color: #fff; transform: scale(1.1) rotate(-3deg); }
+    .widget-arrow {
+        position: absolute; top: 24px; right: 24px; width: 32px; height: 32px;
+        border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center;
+        justify-content: center; font-size: 14px; transition: 0.3s; color: var(--muted);
+        z-index: 5; background: #fff;
+    }
+    .widget-card:hover .widget-arrow { background: var(--accent); border-color: var(--accent); color: #fff; transform: rotate(-45deg); }
+    .widget-bg {
+        position: absolute; bottom: -20px; right: -20px; opacity: 0.03;
+        transform: scale(3); pointer-events: none; transition: 0.5s; color: var(--accent);
+    }
+    .widget-card:hover .widget-bg { opacity: 0.07; transform: scale(3.2) rotate(5deg); }
+
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
         .community-block-inner, .support-box { grid-template-columns: 1fr; gap:32px; }
@@ -1234,6 +1289,7 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
         .lifestyle-all-card { left: 10px; right: 10px; bottom: -20px; justify-content: center; }
         .update-banner { flex-direction: column; text-align: center; }
         .update-banner-actions { width: 100%; }
+        .grid-mosaic { display: flex; flex-direction: column; }
     }
     @media (max-width: 768px) {
         .glass-card.support-mini { display: none !important; }
@@ -1415,6 +1471,77 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
+    <section class="section-shell" style="margin-bottom: 40px;">
+        <div class="section-head" style="flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px;">
+            <h2 style="font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em;">
+                Atraskite <span style="color: var(--accent);">daugiau</span>
+            </h2>
+            <p style="color: var(--muted); margin: 0; font-size: 16px;">Populiariausios prekių kategorijos</p>
+        </div>
+
+        <div class="grid-mosaic">
+            <a href="/products.php?category=sensoriu-apsauga" class="widget-card mosaic-half">
+                <div class="widget-arrow">→</div>
+                <div class="icon-box" style="margin-bottom: 24px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </div>
+                <div>
+                    <h3 style="font-size: 20px; margin: 0 0 4px; font-weight: 700;">Apsauginiai pleistrai sensoriams</h3>
+                    <p style="color: var(--muted); margin: 0; font-size: 14px;">Platus apsauginių pleistrų sensoriams pasirinkimas.</p>
+                </div>
+            </a>
+
+            <a href="/products.php?category=saltkrepsiai" class="widget-card mosaic-half">
+                <div class="widget-arrow">→</div>
+                <div class="icon-box" style="margin-bottom: 24px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <div>
+                    <h3 style="font-size: 20px; margin: 0 0 4px; font-weight: 700;">Šaltkrepšiai</h3>
+                    <p style="color: var(--muted); margin: 0; font-size: 14px;">Patikima apsauga jūsų insulinui.</p>
+                </div>
+            </a>
+
+            <a href="/products.php?category=aksesuarai" class="widget-card mosaic-third">
+                <div class="widget-arrow">→</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
+                    <div>
+                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Aksesuarai</h3>
+                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Įvairūs aksesuarai skirti cukriniu diabetu sergantiems žmonėms.</p>
+                    </div>
+                    <div class="icon-box" style="width:40px; height:40px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                    </div>
+                </div>
+            </a>
+
+            <a href="/products.php?category=maistas-ir-papildai" class="widget-card mosaic-third">
+                <div class="widget-arrow">→</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
+                    <div>
+                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Maistas ir papildai</h3>
+                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Atraskite mūsų geriausius pasiūlymus, saldėsius ir dovanų rinkinius.</p>
+                    </div>
+                    <div class="icon-box" style="width:40px; height:40px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                </div>
+            </a>
+
+            <a href="/products.php?category=iparduotuve" class="widget-card mosaic-third" style="background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%); border-color: #bfdbfe;">
+                <div class="widget-arrow">→</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
+                    <div>
+                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Išpardavimas</h3>
+                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Paskutiniai vienetai, trumpesnis galiojimo laikas ir kiti puikūs pasiūlymai!</p>
+                    </div>
+                    <div class="icon-box" style="width:40px; height:40px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
     <section class="lifestyle-block">
       <div class="lifestyle-inner">
         <div class="lifestyle-content">
