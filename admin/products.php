@@ -239,7 +239,7 @@ foreach ($allCats as $c) {
             <input type="hidden" name="action" value="add_featured_by_name">
             <input name="featured_title" list="prodList" placeholder="Įveskite prekės pavadinimą..." class="form-control" style="width:250px; padding:6px 10px; font-size:13px; background:#fff;" required autocomplete="off">
             <datalist id="prodList">
-                <?php foreach($products as $p) echo "<option value='".htmlspecialchars($p['title'])."'>"; ?>
+                <?php foreach($products as $p) echo "<option value='".htmlspecialchars($p['title'], ENT_QUOTES)."'>"; ?>
             </datalist>
             <button class="btn secondary" style="padding:6px 12px; font-size:13px;">Pridėti</button>
         </form>
@@ -254,8 +254,8 @@ foreach ($allCats as $c) {
         <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
             <h3 style="margin:0;">Prekių sąrašas</h3>
             <div style="display:flex; gap:5px;">
-                <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Paieška..." class="form-control" style="width:200px; padding:6px 10px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.location.href='admin.php?view=products&search='+this.value;}">
-                <button type="button" class="btn secondary" onclick="window.location.href='admin.php?view=products&search='+document.querySelector('input[name=search]').value">Ieškoti</button>
+                <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Paieška..." class="form-control" style="width:200px; padding:6px 10px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); window.location.href='admin.php?view=products&search='+encodeURIComponent(this.value);}">
+                <button type="button" class="btn secondary" onclick="window.location.href='admin.php?view=products&search='+encodeURIComponent(document.querySelector('input[name=search]').value)">Ieškoti</button>
                 <?php if($search): ?>
                     <button type="button" class="btn secondary" style="color:red;" onclick="window.location.href='admin.php?view=products'">&times;</button>
                 <?php endif; ?>
@@ -458,7 +458,7 @@ foreach ($allCats as $c) {
                         <label style="font-size:14px; margin-bottom:10px; display:block;">Prekės nuotraukos</label>
                         
                         <div class="input-group">
-                            <label>Įkelti naujas nuotraukas</label>
+                            <label>Įkelti naujas nuotraukas (Rekomenduojama nedėti daugiau nei 10 MB vienu kartu)</label>
                             <input type="file" name="images[]" multiple accept="image/*" class="form-control" onchange="previewImages(this)">
                         </div>
                         
@@ -769,6 +769,19 @@ foreach ($allCats as $c) {
         const c = document.getElementById('imgPreview');
         c.innerHTML = '';
         if(input.files) {
+            let totalSize = 0;
+            // 16MB riba kaip pavyzdys
+            const maxMB = 16;
+            Array.from(input.files).forEach(f => {
+                totalSize += f.size;
+            });
+            
+            if (totalSize > maxMB * 1024 * 1024) {
+                alert('Pasirinktos nuotraukos per didelės! Maksimalus bendras dydis yra ' + maxMB + 'MB. Prašome sumažinti failų kiekį arba jų dydį.');
+                input.value = '';
+                return;
+            }
+
             Array.from(input.files).forEach(f => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
