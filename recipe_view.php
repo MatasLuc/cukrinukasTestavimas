@@ -24,6 +24,17 @@ if (!$recipe) {
     exit;
 }
 
+// Apsauga nuo paprastų lankytojų, jei įrašas paslėptas arba publikavimo data ateityje
+if (empty($_SESSION['is_admin'])) {
+    $isVisible = isset($recipe['is_visible']) ? (int)$recipe['is_visible'] : 1;
+    $publishDate = !empty($recipe['publish_date']) ? strtotime($recipe['publish_date']) : 0;
+    
+    if ($isVisible === 0 || ($publishDate > 0 && $publishDate > time())) {
+        header('Location: /');
+        exit;
+    }
+}
+
 // Kategorijos
 $catStmt = $pdo->prepare("
     SELECT c.name, c.id 
@@ -69,7 +80,8 @@ $authorName = !empty($recipe['author']) ? $recipe['author'] : 'Cukrinukas';
 $meta = [
     'title' => $recipe['title'] . ' | Receptai',
     'description' => $recipe['summary'] ?: mb_substr(strip_tags($recipe['body']), 0, 160),
-    'image' => 'https://cukrinukas.lt' . $recipe['image_url']
+    'image' => 'https://cukrinukas.lt' . $recipe['image_url'],
+    'keywords' => $recipe['seo_keywords'] ?? ''
 ];
 
 $currentRecipeUrl = 'https://cukrinukas.lt/receptas/' . slugify($recipe['title']) . '-' . $id;
@@ -257,6 +269,22 @@ $currentRecipeUrl = 'https://cukrinukas.lt/receptas/' . slugify($recipe['title']
       <article class="content-card">
         <?php if ($canViewFull): ?>
           <?php echo sanitizeHtml($recipe['body']); ?>
+          
+          <?php if (!empty($recipe['seo_keywords'])): ?>
+              <div style="margin-top: 24px; font-size: 14px; color: #6b6b7a; border-top: 1px solid var(--border); padding-top: 16px;">
+                  <strong>Žymės:</strong> 
+                  <?php 
+                      $tags = explode(',', $recipe['seo_keywords']);
+                      foreach($tags as $tag) {
+                          $tag = trim($tag);
+                          if($tag) {
+                              echo '<a href="/recipes.php?query=' . urlencode($tag) . '" style="color: var(--accent-blue, #2563eb); text-decoration: underline; margin-right: 8px;">#' . htmlspecialchars($tag) . '</a>';
+                          }
+                      }
+                  ?>
+              </div>
+          <?php endif; ?>
+
         <?php else: ?>
           <div style="text-align:center; padding:40px 20px;">
               <div style="font-size:48px; margin-bottom:16px;">🔒</div>
