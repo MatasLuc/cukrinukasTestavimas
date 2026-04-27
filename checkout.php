@@ -135,9 +135,22 @@ if (!empty($_SESSION['cart'])) {
                 }
 
                 $variationDelta = 0;
+                $variationId = null;
+                $vNames = [];
+                $variationName = null;
+
                 if (isset($_SESSION['cart_variations'][$cartKey]) && is_array($_SESSION['cart_variations'][$cartKey])) {
                     foreach ($_SESSION['cart_variations'][$cartKey] as $var) {
                         $variationDelta += (float)($var['delta'] ?? 0);
+                        if ($variationId === null && !empty($var['id'])) {
+                            $variationId = (int)$var['id'];
+                        }
+                        if (!empty($var['name'])) {
+                            $vNames[] = $var['name'];
+                        }
+                    }
+                    if (!empty($vNames)) {
+                        $variationName = implode(', ', $vNames);
                     }
                 }
 
@@ -151,6 +164,8 @@ if (!empty($_SESSION['cart'])) {
 
                 $productsInCart[] = [
                     'product_id' => $pId,
+                    'variation_id' => $variationId,
+                    'variation_name' => $variationName,
                     'price' => $finalPrice,
                     'qty' => $qty,
                     'type' => 'shop'
@@ -177,6 +192,8 @@ if (!empty($_SESSION['cart_community'])) {
 
             $productsInCart[] = [
                 'product_id' => $cp['id'],
+                'variation_id' => null,
+                'variation_name' => null,
                 'price' => $price,
                 'qty' => $qty,
                 'type' => 'community'
@@ -453,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             $orderId = $pdo->lastInsertId();
 
             // --- ĮRAŠYMAS Į ORDER_ITEMS ---
-            $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+            $stmtItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, variation_id, variation_name, quantity, price) VALUES (?, ?, ?, ?, ?, ?)");
             
             foreach ($productsInCart as $item) {
                 // Praleidžiame bendruomenės prekes, kad jos nesidubliuotų ir neiškreiptų pristatymo kainos
@@ -464,6 +481,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $stmtItem->execute([
                     $orderId, 
                     $item['product_id'], 
+                    $item['variation_id'] ?? null,
+                    $item['variation_name'] ?? null,
                     $item['qty'], 
                     $item['price']
                 ]);
