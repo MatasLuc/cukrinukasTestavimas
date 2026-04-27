@@ -113,14 +113,24 @@ function completeOrder($pdo, $orderId, $sendEmail = true, $realPaymentIntentId =
         $stmtUpdate = $pdo->prepare("UPDATE orders SET status = 'apmokėta' WHERE id = ?");
         $stmtUpdate->execute([$orderId]);
 
-        $stmtItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+        // PAIMAMI VARIACIJŲ DUOMENYS
+        $stmtItems = $pdo->prepare("SELECT product_id, variation_id, quantity FROM order_items WHERE order_id = ?");
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
         if ($items) {
             $stmtStock = $pdo->prepare("UPDATE products SET quantity = GREATEST(0, quantity - ?) WHERE id = ?");
+            // VARIACIJOS LIKUČIO MAŽINIMAS (jeigu seka likutį)
+            $stmtVarStock = $pdo->prepare("UPDATE product_variations SET quantity = GREATEST(0, quantity - ?) WHERE id = ? AND track_stock = 1");
+
             foreach ($items as $item) {
+                // Pagrindinis produktas
                 $stmtStock->execute([$item['quantity'], $item['product_id']]);
+                
+                // Variacijos produktas
+                if (!empty($item['variation_id'])) {
+                    $stmtVarStock->execute([$item['quantity'], $item['variation_id']]);
+                }
             }
         }
 
@@ -319,6 +329,12 @@ function sendOrderConfirmationEmail($orderId, $pdo, $communityOrders = []) {
         $itemsTotal = 0;
         foreach ($items as $item) {
             $title = htmlspecialchars($item['title'] ?? 'Prekė');
+            
+            // PRIKABINAMA VARIACIJA PRIE PAVADINIMO E-LAIŠKE
+            if (!empty($item['variation_name'])) {
+                $title .= " <br><span style='font-size:11px; color:#64748b;'>(" . htmlspecialchars($item['variation_name']) . ")</span>";
+            }
+
             $qty = $item['quantity'];
             $price = number_format($item['price'], 2);
             $totalItem = number_format($item['price'] * $qty, 2);
