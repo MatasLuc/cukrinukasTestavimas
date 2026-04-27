@@ -839,9 +839,12 @@ try {
                 data.items.forEach(item => {
                     const total  = (item.price * item.quantity).toFixed(2);
                     const imgUrl = item.image_url || 'https://placehold.co/100?text=Foto';
-                    const varInfo = item.variation_info
-                        ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">${item.variation_info}</div>`
+                    
+                    // PAKEITIMAS ČIA: item.variation_name atvaizdavimui
+                    const varInfo = item.variation_name
+                        ? `<div style="font-size:12px; color:#2563eb; margin-top:2px;">(${item.variation_name})</div>`
                         : '';
+                        
                     itemsContainer.insertAdjacentHTML('beforeend', `
                         <div class="item-row">
                             <img src="${imgUrl}" class="item-img" alt="">
