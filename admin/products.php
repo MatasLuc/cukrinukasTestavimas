@@ -81,6 +81,11 @@ foreach ($products as &$p) {
     $catsStmt = $pdo->prepare("SELECT category_id FROM product_category_relations WHERE product_id = ?");
     $catsStmt->execute([$p['id']]);
     $p['category_ids'] = $catsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    // Užkrauname susijusių prekių ID
+    $relStmt = $pdo->prepare("SELECT related_product_id FROM product_related WHERE product_id = ?");
+    $relStmt->execute([$p['id']]);
+    $p['related_product_ids'] = $relStmt->fetchAll(PDO::FETCH_COLUMN);
     
     $imgsStmt = $pdo->prepare("SELECT id, path, is_primary FROM product_images WHERE product_id = ? ORDER BY is_primary DESC, id ASC");
     $imgsStmt->execute([$p['id']]);
@@ -267,7 +272,7 @@ foreach ($allCats as $c) {
                 <tr style="background:#f9fafb; font-size:12px; text-transform:uppercase; color:#6b7280;">
                     <th class="checkbox-col"><input type="checkbox" onchange="toggleAll(this)"></th>
                     <th style="width:60px; padding-left:10px;">Foto</th>
-                    <th>Pavadinimas</th>
+                    <th >Pavadinimas</th>
                     <th>Kategorija</th>
                     <th>Kaina</th>
                     <th>Galiojimas</th>
@@ -883,6 +888,15 @@ foreach ($allCats as $c) {
 
         // 4. SEO
         document.getElementById('p_meta_tags').value = data.meta_tags||'';
+
+        // Susijusių prekių pažymėjimas
+        const relatedSelect = document.getElementById('p_related');
+        if (relatedSelect) {
+            const relatedIds = data.related_product_ids ? data.related_product_ids.map(String) : [];
+            Array.from(relatedSelect.options).forEach(opt => {
+                opt.selected = relatedIds.includes(opt.value);
+            });
+        }
         
         document.getElementById('formTitle').innerText = 'Redaguoti prekę: ' + data.title;
         document.getElementById('submitBtn').innerText = 'Išsaugoti pakeitimus';
@@ -907,6 +921,13 @@ foreach ($allCats as $c) {
         document.getElementById('existingImages').style.display = 'none';
         
         document.querySelectorAll('.cat-check').forEach(c => c.checked = false);
+
+        // Išvalome susijusių prekių select laukelį
+        const relatedSelect = document.getElementById('p_related');
+        if (relatedSelect) {
+            Array.from(relatedSelect.options).forEach(opt => opt.selected = false);
+        }
+
         document.getElementById('formTitle').innerText = '+ Pridėti naują prekę';
         document.getElementById('submitBtn').innerText = 'Sukurti prekę';
         document.getElementById('cancelEditBtn').style.display = 'none';
