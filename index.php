@@ -1225,60 +1225,125 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
     
     .chips { display:flex; gap:8px; flex-wrap:wrap; }
 
-    /* ATRASKITE DAUGIAU / MOSAIC WIDGETS */
+    /* ATRASKITE DAUGIAU / MODERN MOSAIC WIDGETS */
     .grid-mosaic {
         display: grid;
         grid-template-columns: repeat(12, 1fr);
         gap: 24px;
-        grid-auto-rows: 220px;
+        grid-auto-rows: 240px;
     }
     .mosaic-half { grid-column: span 6; }
     .mosaic-third { grid-column: span 4; }
 
     .widget-card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 24px;
+        background: #ffffff;
+        border-radius: 28px;
         padding: 32px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         position: relative;
         overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         text-decoration: none !important;
         color: var(--text);
-        box-shadow: var(--shadow-sm);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.04);
+        z-index: 1;
     }
+
+    .widget-card::before {
+        content: '';
+        position: absolute;
+        top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.04), transparent 60%);
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        z-index: -1;
+        pointer-events: none;
+    }
+
     .widget-card:hover {
-        border-color: var(--accent);
-        box-shadow: 0 12px 32px -8px rgba(37,99,235,0.15);
-        transform: translateY(-4px);
+        border-color: rgba(37, 99, 235, 0.2);
+        box-shadow: 0 20px 40px rgba(37,99,235,0.12);
+        transform: translateY(-8px);
     }
+    .widget-card:hover::before {
+        opacity: 1;
+    }
+
     .icon-box {
-        width: 56px;
-        height: 56px;
+        width: 64px;
+        height: 64px;
         background: var(--accent-light);
-        border-radius: 16px;
+        border-radius: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: var(--accent);
-        transition: 0.3s;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
     }
-    .widget-card:hover .icon-box { background: var(--accent); color: #fff; transform: scale(1.1) rotate(-3deg); }
+    .icon-box::after {
+        content: '';
+        position: absolute; inset: 0; border-radius: inherit;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+        opacity: 0; transition: opacity 0.4s ease;
+    }
+    .widget-card:hover .icon-box {
+        background: var(--accent);
+        color: #fff;
+        transform: scale(1.1) translateY(-4px);
+    }
+    .widget-card:hover .icon-box::after { opacity: 1; }
+
     .widget-arrow {
-        position: absolute; top: 24px; right: 24px; width: 32px; height: 32px;
-        border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center;
-        justify-content: center; font-size: 14px; transition: 0.3s; color: var(--muted);
-        z-index: 5; background: #fff;
+        position: absolute; top: 24px; right: 24px; width: 40px; height: 40px;
+        border-radius: 50%; border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        color: var(--text); z-index: 5; background: #fff;
     }
-    .widget-card:hover .widget-arrow { background: var(--accent); border-color: var(--accent); color: #fff; transform: rotate(-45deg); }
-    .widget-bg {
-        position: absolute; bottom: -20px; right: -20px; opacity: 0.03;
-        transform: scale(3); pointer-events: none; transition: 0.5s; color: var(--accent);
+    .widget-card:hover .widget-arrow {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        transform: rotate(-45deg) scale(1.1);
+        box-shadow: 0 8px 16px rgba(37, 99, 235, 0.25);
     }
-    .widget-card:hover .widget-bg { opacity: 0.07; transform: scale(3.2) rotate(5deg); }
+
+    .widget-bg-icon {
+        position: absolute; bottom: -30px; right: -30px;
+        width: 150px; height: 150px;
+        opacity: 0.03; transition: all 0.6s ease;
+        color: var(--accent); pointer-events: none;
+    }
+    .widget-card:hover .widget-bg-icon {
+        opacity: 0.08; transform: scale(1.2) rotate(-10deg);
+    }
+
+    .widget-content h3 {
+        font-size: 22px; font-weight: 800; margin: 0 0 8px;
+        letter-spacing: -0.01em; color: #0f172a;
+    }
+    .widget-content p {
+        color: #475467; margin: 0; font-size: 15px; line-height: 1.5;
+    }
+
+    .widget-card.sale-card {
+        background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+        border-color: #bfdbfe;
+    }
+    .widget-card.sale-card .icon-box {
+        background: #ef4444; color: #fff;
+    }
+    .widget-card.sale-card:hover .icon-box {
+        background: #dc2626; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+    }
+    .widget-card.sale-card:hover .widget-arrow {
+        background: #ef4444; border-color: #ef4444; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.25);
+    }
+    .widget-card.sale-card .widget-bg-icon { color: #ef4444; }
 
     /* MEDIA QUERIES */
     @media (max-width: 900px) {
@@ -1471,77 +1536,90 @@ $faviconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' view
       </div>
     </section>
 
-    <section class="section-shell" style="margin-bottom: 40px;">
-        <div class="section-head" style="flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px;">
-            <h2 style="font-size: clamp(26px, 5vw, 36px); font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em;">
-                ATRASKITE <span style="color: var(--accent);">DAUGIAU</span>
-            </h2>
-            <p style="color: var(--muted); margin: 0; font-size: 16px;">Populiariausios prekių kategorijos</p>
-        </div>
-
+    <section class="section-shell" style="margin-bottom: 60px;">
         <div class="grid-mosaic">
             <a href="/products.php?category=sensoriu-apsauga" class="widget-card mosaic-half">
-                <div class="widget-arrow">→</div>
-                <div class="icon-box" style="margin-bottom: 24px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                <div class="widget-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                 </div>
-                <div>
-                    <h3 style="font-size: 20px; margin: 0 0 4px; font-weight: 700;">Apsauginiai pleistrai sensoriams</h3>
-                    <p style="color: var(--muted); margin: 0; font-size: 14px;">Platus apsauginių pleistrų sensoriams pasirinkimas.</p>
+                <div class="widget-arrow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="icon-box" style="margin-bottom: auto;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </div>
+                <div class="widget-content" style="margin-top: 24px;">
+                    <h3>Apsauginiai pleistrai</h3>
+                    <p>Platus ir spalvingas apsauginių pleistrų sensoriams pasirinkimas.</p>
                 </div>
             </a>
 
             <a href="/products.php?category=saltkrepsiai" class="widget-card mosaic-half">
-                <div class="widget-arrow">→</div>
-                <div class="icon-box" style="margin-bottom: 24px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <div class="widget-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                 </div>
-                <div>
-                    <h3 style="font-size: 20px; margin: 0 0 4px; font-weight: 700;">Šaltkrepšiai</h3>
-                    <p style="color: var(--muted); margin: 0; font-size: 14px;">Patikima apsauga jūsų insulinui.</p>
+                <div class="widget-arrow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="icon-box" style="margin-bottom: auto;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <div class="widget-content" style="margin-top: 24px;">
+                    <h3>Šaltkrepšiai</h3>
+                    <p>Patikima ir stilinga apsauga jūsų insulinui kelionių metu.</p>
                 </div>
             </a>
 
             <a href="/products.php?category=aksesuarai" class="widget-card mosaic-third">
-                <div class="widget-arrow">→</div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
-                    <div>
-                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Aksesuarai</h3>
-                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Įvairūs aksesuarai skirti cukriniu diabetu sergantiems žmonėms.</p>
-                    </div>
-                    <div class="icon-box" style="width:40px; height:40px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                    </div>
+                <div class="widget-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                </div>
+                <div class="widget-arrow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="icon-box" style="margin-bottom: auto; width: 48px; height: 48px; border-radius: 14px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                </div>
+                <div class="widget-content" style="margin-top: 24px;">
+                    <h3 style="font-size: 18px;">Aksesuarai</h3>
+                    <p style="font-size: 14px;">Įvairūs priedai patogiam kasdieniam gyvenimui.</p>
                 </div>
             </a>
 
             <a href="/products.php?category=maistas-ir-papildai" class="widget-card mosaic-third">
-                <div class="widget-arrow">→</div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
-                    <div>
-                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Maistas ir papildai</h3>
-                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Atraskite mūsų geriausius pasiūlymus, saldėsius ir dovanų rinkinius.</p>
-                    </div>
-                    <div class="icon-box" style="width:40px; height:40px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                    </div>
+                <div class="widget-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div class="widget-arrow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="icon-box" style="margin-bottom: auto; width: 48px; height: 48px; border-radius: 14px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div class="widget-content" style="margin-top: 24px;">
+                    <h3 style="font-size: 18px;">Maistas ir papildai</h3>
+                    <p style="font-size: 14px;">Sveikesni saldėsiai ir dovanų rinkiniai be kaltės jausmo.</p>
                 </div>
             </a>
 
-            <a href="/products.php?category=iparduotuve" class="widget-card mosaic-third" style="background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%); border-color: #bfdbfe;">
-                <div class="widget-arrow">→</div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top: auto; width: 100%;">
-                    <div>
-                        <h3 style="font-size: 18px; margin: 0 0 4px; font-weight: 700;">Išpardavimas</h3>
-                        <p style="color: var(--muted); margin: 0; font-size: 13px;">Paskutiniai vienetai, trumpesnis galiojimo laikas ir kiti puikūs pasiūlymai!</p>
-                    </div>
-                    <div class="icon-box" style="width:40px; height:40px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                    </div>
+            <a href="/products.php?category=iparduotuve" class="widget-card mosaic-third sale-card">
+                <div class="widget-bg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                </div>
+                <div class="widget-arrow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="icon-box" style="margin-bottom: auto; width: 48px; height: 48px; border-radius: 14px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                </div>
+                <div class="widget-content" style="margin-top: 24px;">
+                    <h3 style="font-size: 18px; color: #dc2626;">Išpardavimas <span style="display:inline-block; background:#fee2e2; color:#b91c1c; font-size:10px; padding:2px 6px; border-radius:99px; vertical-align:middle; margin-left:6px; font-weight:800;">HOT</span></h3>
+                    <p style="font-size: 14px; color: #7f1d1d;">Paskutiniai vienetai ir kiti puikūs pasiūlymai!</p>
                 </div>
             </a>
         </div>
     </section>
+
     <section class="lifestyle-block">
       <div class="lifestyle-inner">
         <div class="lifestyle-content">
