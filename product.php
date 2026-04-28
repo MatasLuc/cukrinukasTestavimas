@@ -195,10 +195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Atsiliepimų užklausa
+// Atsiliepimų užklausa pritaikyta taip, kad paimtų vardą, jei jo nėra - el. paštą
 $revStmt = $pdo->prepare('
-    SELECT r.*, (SELECT email FROM users WHERE id = r.user_id LIMIT 1) as user_email
+    SELECT r.*, u.name as user_name, u.email as user_email
     FROM product_reviews r 
+    LEFT JOIN users u ON r.user_id = u.id
     WHERE r.product_id = ? 
     ORDER BY r.created_at DESC
 ');
@@ -304,7 +305,9 @@ $meta = [
     "review": [
       <?php foreach($reviews as $i => $rev): 
           $revAuthor = 'Pirkėjas';
-          if (!empty($rev['user_email'])) {
+          if (!empty($rev['user_name'])) {
+              $revAuthor = $rev['user_name'];
+          } elseif (!empty($rev['user_email'])) {
               $revAuthor = ucfirst(explode('@', $rev['user_email'])[0]);
           }
       ?>
@@ -390,27 +393,62 @@ $meta = [
     .rel-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--text-main); }
     .rel-price { font-weight: 700; color: var(--text-main); }
     
-    /* Atsiliepimų stiliai */
-    .reviews-section { margin-top: 40px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .review-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
-    .review-item:last-child { border-bottom: none; }
-    .review-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .review-author { font-weight: 600; color: var(--text-main); }
-    .review-date { font-size: 12px; color: var(--text-muted); }
-    .stars { color: #fbbf24; font-size: 16px; letter-spacing: 2px; }
-    .review-comment { color: var(--text-main); line-height: 1.5; font-size: 15px; margin-top: 10px; }
-    .admin-reply { background: #f8fafc; border-left: 3px solid var(--accent); padding: 14px 16px; margin-top: 14px; border-radius: 0 8px 8px 0; font-size: 14px; color: var(--text-muted); }
-    .admin-reply-header { font-weight: 600; color: var(--accent); margin-bottom: 6px; display: block; }
-    .review-form { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
-    .review-form textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 8px; min-height: 100px; font-family: inherit; margin-bottom: 14px; font-size:15px; }
-    .review-form select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; font-size:15px; width: 100%; max-width:300px; }
-    .reply-form { margin-top: 16px; display: flex; gap: 8px; }
-    .reply-form input { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size:14px; }
-    .reply-form button { padding: 10px 16px; background: var(--text-main); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size:14px; font-weight:600;}
-    .login-prompt { background: var(--accent-light); color: var(--accent-hover); padding: 20px; border-radius: 8px; text-align: center; font-weight: 500; }
+    /* Atsiliepimų stiliai (2 eilučių kompaktiškesnis dizainas) */
+    .reviews-section { margin-top: 60px; display: flex; flex-direction: column; gap: 32px; }
+    .reviews-header { text-align: center; margin-bottom: 8px; }
+    .reviews-header h2 { font-size: 32px; color: var(--text-main); margin: 0; font-weight: 800; letter-spacing: -0.02em; }
+    
+    .reviews-top-row { display: grid; grid-template-columns: 1fr 4fr; gap: 24px; align-items: stretch; }
+    
+    .reviews-summary { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; }
+    .summary-rating { font-size: 36px; font-weight: 800; color: var(--text-main); line-height: 1; margin-bottom: 8px; }
+    .summary-stars { display: flex; justify-content: center; gap: 4px; color: #fbbf24; margin-bottom: 8px; }
+    .summary-stars svg { width: 20px; height: 20px; fill: currentColor; }
+    .summary-count { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    
+    .review-form-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
+    .review-form-container h3 { margin-top: 0; margin-bottom: 12px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 8px;}
+    .review-form { display: flex; flex-direction: column; flex-grow: 1; }
+    .review-form textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; min-height: 60px; flex-grow: 1; font-family: inherit; margin-bottom: 12px; font-size: 14px; outline: none; transition: all 0.2s; background: var(--bg); resize: vertical; }
+    .review-form textarea:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px var(--accent-light); }
+    .review-form select { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; font-size: 14px; width: 100%; outline: none; transition: all 0.2s; background: var(--bg); cursor: pointer; }
+    .review-form select:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px var(--accent-light); }
+    .btn-submit-review { width: 100%; height: 40px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: auto; }
+    .btn-submit-review:hover { background: var(--accent-hover); }
+
+    .reviews-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; align-items: start; }
+    .review-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: box-shadow 0.2s; }
+    .review-item:hover { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+    .review-item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .review-author-info { display: flex; align-items: center; gap: 12px; }
+    .review-avatar { width: 48px; height: 48px; border-radius: 12px; background: var(--accent-light); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
+    .review-meta { display: flex; flex-direction: column; gap: 4px; }
+    .review-name { font-weight: 600; color: var(--text-main); font-size: 15px; }
+    .review-date { font-size: 13px; color: var(--text-muted); }
+    .review-stars { display: flex; gap: 2px; color: #fbbf24; }
+    .review-stars svg { width: 16px; height: 16px; fill: currentColor; }
+    .review-content { font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 0; margin-top: 0; }
+    
+    .admin-reply { margin-top: 20px; background: var(--bg); border-left: 4px solid var(--accent); padding: 16px; border-radius: 0 12px 12px 0; font-size: 14px; color: var(--text-main); }
+    .admin-reply-header { font-weight: 700; color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    
+    .reply-form { margin-top: 20px; display: flex; gap: 8px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .reply-form input { flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; background: var(--bg); }
+    .reply-form input:focus { border-color: var(--accent); background: #fff; }
+    .reply-form button { padding: 10px 20px; background: var(--text-main); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s; }
+    .reply-form button:hover { background: #000; }
+    
+    .login-prompt { background: var(--accent-light); color: var(--accent-hover); padding: 16px; border-radius: 10px; text-align: center; font-weight: 500; font-size: 14px; border: 1px dashed #bfdbfe; margin-top: auto; }
     .login-prompt a { text-decoration: underline; font-weight: 700; color: var(--accent); }
 
-    @media (max-width: 900px) { .product-grid { display: flex; flex-direction: column; gap: 24px; } .left-col { display: contents; } .content-card { width: 100%; } .buy-box { width: 100%; } }
+    @media (max-width: 900px) { 
+        .product-grid { display: flex; flex-direction: column; gap: 24px; } 
+        .left-col { display: contents; } 
+        .content-card { width: 100%; } 
+        .buy-box { width: 100%; } 
+        .reviews-top-row { grid-template-columns: 1fr; gap: 24px; }
+        .reviews-list { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -462,34 +500,19 @@ $meta = [
                     <div class="description">
                         <?php echo $product['description']; ?>
                     </div>
-                    
-                    <?php if (!empty($product['meta_tags'])): ?>
-                        <div style="margin-top: 15px; font-size: 13px; color: var(--text-muted);">
-                            <strong>Žymės:</strong> 
-                            <?php 
-                                $tags = explode(',', $product['meta_tags']);
-                                foreach($tags as $tag) {
-                                    $tag = trim($tag);
-                                    if($tag) {
-                                        echo '<a href="/products.php?query=' . urlencode($tag) . '" style="color: var(--accent); text-decoration: underline; margin-right: 8px;">#' . htmlspecialchars($tag) . '</a>';
-                                    }
-                                }
-                            ?>
-                        </div>
-                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($attributes): ?>
                 <div class="content-card content-specs">
-                    <h3>Techninė specifikacija</h3>
-                    <div class="specs-list">
-                        <?php foreach ($attributes as $attr): ?>
-                            <div class="spec-item">
+                    <?php foreach ($attributes as $attr): ?>
+                        <h3><?php echo htmlspecialchars($attr['label']); ?></h3>
+                        <div class="specs-list" style="margin-bottom: 20px;">
+                            <div class="spec-item" style="border-bottom: none; padding-top: 0; padding-bottom: 0;">
                                 <div class="spec-value"><?php echo $attr['value']; ?></div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -564,7 +587,7 @@ $meta = [
             <?php endif; ?>
 
             <div class="action-row">
-                <input type="number" id="qtyInput" name="quantity" value="1" min="1" class="qty-input">
+                <input type="number" id="qtyInput" name="quantity" value="1" min="1" <?php echo empty($groupedVariations) ? 'max="' . (int)$product['quantity'] . '"' : ''; ?> class="qty-input">
                 
                 <button type="submit" id="addToCartBtn" class="btn-add" <?php echo ($hasAnyStock) ? '' : 'disabled'; ?>>
                     <?php echo ($hasAnyStock) ? 'Į krepšelį' : 'Išparduota'; ?>
@@ -586,72 +609,6 @@ $meta = [
         </form>
     </div>
 
-    <div class="reviews-section" id="reviews">
-        <h2 style="margin-top:0; margin-bottom: 24px; font-size:24px;">Atsiliepimai (<?php echo $reviewCount; ?>) <?php if($reviewCount > 0) echo '<span style="color:#fbbf24;">⭐ ' . number_format($avgRating, 1) . '</span>'; ?></h2>
-        
-        <?php if ($reviewCount > 0): ?>
-            <div class="reviews-list">
-                <?php foreach($reviews as $rev): 
-                    $revAuthor = 'Pirkėjas';
-                    if (!empty($rev['user_email'])) {
-                        $revAuthor = ucfirst(explode('@', $rev['user_email'])[0]);
-                    }
-                    $stars = str_repeat('★', (int)$rev['rating']) . str_repeat('☆', 5 - (int)$rev['rating']);
-                ?>
-                    <div class="review-item">
-                        <div class="review-header">
-                            <span class="review-author"><?php echo htmlspecialchars($revAuthor); ?></span>
-                            <span class="review-date"><?php echo date('Y-m-d', strtotime($rev['created_at'])); ?></span>
-                        </div>
-                        <div class="stars"><?php echo $stars; ?></div>
-                        <div class="review-comment"><?php echo nl2br(htmlspecialchars($rev['comment'])); ?></div>
-                        
-                        <?php if (!empty($rev['admin_reply'])): ?>
-                            <div class="admin-reply">
-                                <span class="admin-reply-header">Parduotuvės atsakymas:</span>
-                                <?php echo nl2br(htmlspecialchars($rev['admin_reply'])); ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if (!empty($_SESSION['is_admin'])): ?>
-                            <form method="post" class="reply-form">
-                                <?php echo csrfField(); ?>
-                                <input type="hidden" name="action" value="admin_reply">
-                                <input type="hidden" name="review_id" value="<?php echo $rev['id']; ?>">
-                                <input type="text" name="admin_reply" placeholder="Atsakyti į atsiliepimą..." value="<?php echo htmlspecialchars($rev['admin_reply'] ?? ''); ?>">
-                                <button type="submit">Išsaugoti</button>
-                            </form>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php else: ?>
-            <p style="color: var(--text-muted); font-size: 15px;">Kol kas atsiliepimų nėra. Būkite pirmas!</p>
-        <?php endif; ?>
-
-        <div class="review-form">
-            <h3 style="margin-top:0;">Palikite atsiliepimą</h3>
-            <?php if (!empty($_SESSION['user_id'])): ?>
-                <form method="post">
-                    <?php echo csrfField(); ?>
-                    <input type="hidden" name="action" value="add_review">
-                    <select name="rating" required>
-                        <option value="5">⭐⭐⭐⭐⭐ - Puiku!</option>
-                        <option value="4">⭐⭐⭐⭐ - Gerai</option>
-                        <option value="3">⭐⭐⭐ - Vidutiniškai</option>
-                        <option value="2">⭐⭐ - Prastai</option>
-                        <option value="1">⭐ - Labai prastai</option>
-                    </select>
-                    <textarea name="comment" placeholder="Jūsų atsiliepimas apie prekę..." required></textarea>
-                    <button type="submit" class="btn-add" style="width: auto; padding: 0 32px;">Siųsti atsiliepimą</button>
-                </form>
-            <?php else: ?>
-                <div class="login-prompt">
-                    Norėdami palikti atsiliepimą, prašome <a href="/login.php?redirect=<?php echo urlencode($_SERVER['REQUEST_URI']); ?>">prisijungti prie savo paskyros</a>.
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
 
     <?php if ($related): ?>
         <div class="related-section">
@@ -673,6 +630,133 @@ $meta = [
                     </a>
                 <?php endforeach; ?>
             </div>
+        </div>
+    <?php endif; ?>
+    
+    <div class="reviews-section" id="reviews">
+        <div class="reviews-header">
+            <h2>Atsiliepimai</h2>
+        </div>
+
+        <div class="reviews-top-row">
+            <?php if ($reviewCount > 0): ?>
+                <div class="reviews-summary">
+                    <div class="summary-rating"><?php echo number_format($avgRating, 1); ?></div>
+                    <div class="summary-stars">
+                        <?php for($i=1; $i<=5; $i++): ?>
+                            <?php if($i <= round($avgRating)): ?>
+                                <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                            <?php else: ?>
+                                <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                    </div>
+                    <div class="summary-count">Paremta <?php echo $reviewCount; ?> atsiliepim<?php echo ($reviewCount % 10 == 1 && $reviewCount % 100 != 11) ? 'u' : 'ais'; ?></div>
+                </div>
+            <?php else: ?>
+                <div class="reviews-summary empty-summary">
+                    <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 12px auto; color: #cbd5e1;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <p style="font-size: 14px; margin: 0; color: var(--text-muted);">Kol kas atsiliepimų nėra.<br>Būkite pirmi įvertinę šią prekę!</p>
+                </div>
+            <?php endif; ?>
+
+            <div class="review-form-container">
+                <h3>Palikite atsiliepimą</h3>
+                <?php if (!empty($_SESSION['user_id'])): ?>
+                    <form method="post" class="review-form">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="action" value="add_review">
+                        <select name="rating" required>
+                            <option value="5">⭐⭐⭐⭐⭐ - Puiku!</option>
+                            <option value="4">⭐⭐⭐⭐ - Gerai</option>
+                            <option value="3">⭐⭐⭐ - Vidutiniškai</option>
+                            <option value="2">⭐⭐ - Prastai</option>
+                            <option value="1">⭐ - Labai prastai</option>
+                        </select>
+                        <textarea name="comment" placeholder="Jūsų atsiliepimas apie prekę..." required></textarea>
+                        <button type="submit" class="btn-submit-review">Siųsti atsiliepimą</button>
+                    </form>
+                <?php else: ?>
+                    <div class="login-prompt">
+                        Norėdami palikti atsiliepimą, prašome <a href="/login.php?redirect=<?php echo urlencode($_SERVER['REQUEST_URI']); ?>">prisijungti prie paskyros</a>.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if ($reviewCount > 0): ?>
+        <div class="reviews-list">
+            <?php foreach($reviews as $rev): 
+                $revAuthor = 'Pirkėjas';
+                if (!empty($rev['user_name'])) {
+                    $revAuthor = $rev['user_name'];
+                } elseif (!empty($rev['user_email'])) {
+                    $revAuthor = ucfirst(explode('@', $rev['user_email'])[0]);
+                }
+                $initial = mb_substr(trim($revAuthor), 0, 1);
+                if (!$initial) $initial = 'P';
+            ?>
+                <div class="review-item">
+                    <div class="review-item-header">
+                        <div class="review-author-info">
+                            <div class="review-avatar"><?php echo htmlspecialchars(mb_strtoupper($initial)); ?></div>
+                            <div class="review-meta">
+                                <span class="review-name"><?php echo htmlspecialchars($revAuthor); ?></span>
+                                <span class="review-date"><?php echo date('Y-m-d', strtotime($rev['created_at'])); ?></span>
+                            </div>
+                        </div>
+                        <div class="review-stars">
+                            <?php for($i=1; $i<=5; $i++): ?>
+                                <?php if($i <= (int)$rev['rating']): ?>
+                                    <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                <?php else: ?>
+                                    <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                <?php endif; ?>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+                    
+                    <p class="review-content">
+                        <?php echo nl2br(htmlspecialchars($rev['comment'])); ?>
+                    </p>
+                    
+                    <?php if (!empty($rev['admin_reply'])): ?>
+                        <div class="admin-reply">
+                            <span class="admin-reply-header">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
+                                Parduotuvės atsakymas
+                            </span>
+                            <?php echo nl2br(htmlspecialchars($rev['admin_reply'])); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($_SESSION['is_admin'])): ?>
+                        <form method="post" class="reply-form">
+                            <?php echo csrfField(); ?>
+                            <input type="hidden" name="action" value="admin_reply">
+                            <input type="hidden" name="review_id" value="<?php echo $rev['id']; ?>">
+                            <input type="text" name="admin_reply" placeholder="Atsakyti į atsiliepimą..." value="<?php echo htmlspecialchars($rev['admin_reply'] ?? ''); ?>">
+                            <button type="submit">Išsaugoti</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <?php if (!empty($product['meta_tags'])): ?>
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-muted); text-align: center;">
+            <strong>Žymės:</strong>
+            <?php
+                $tags = explode(',', $product['meta_tags']);
+                foreach($tags as $tag) {
+                    $tag = trim($tag);
+                    if($tag) {
+                        echo '<a href="/products.php?query=' . urlencode($tag) . '" style="color: var(--accent); text-decoration: underline; margin-right: 8px;">#' . htmlspecialchars($tag) . '</a>';
+                    }
+                }
+            ?>
         </div>
     <?php endif; ?>
 
@@ -786,6 +870,18 @@ $meta = [
             qtyInput.max = 0; 
         }
     }
+
+    // Apsauga nuo per didelio skaičiaus įvedimo rankiniu būdu
+    document.getElementById('qtyInput').addEventListener('input', function() {
+        if (this.max) {
+            let maxVal = parseInt(this.max);
+            let val = parseInt(this.value);
+            if (val > maxVal) {
+                this.value = maxVal;
+            }
+        }
+    });
+
   </script>
 </body>
 </html>
