@@ -33,11 +33,11 @@ $faqCategories = [
         ],
         [
             'q' => 'Kokius pristatymo būdus siūlote?',
-            'a' => 'Prekes pristatome į LP Express, Omniva ir DPD paštomatus bei per DPD kurjerį tiesiai į namus.'
+            'a' => 'Prekes pristatome į LP Express ir Omniva paštomatus bei per kurjerį tiesiai į namus.'
         ],
         [
             'q' => 'Kiek kainuoja pristatymas?',
-            'a' => 'Pristatymas į paštomatus kainuoja 2.99 €, kurjeriu – 4.99 €. Užsakymams virš 50 € taikome nemokamą pristatymą.'
+            'a' => 'Pristatymas į paštomatus kainuoja 2.99 €, kurjeriu – 4.99 €. Užsakymams virš 30 € taikome nemokamą pristatymą.'
         ],
         [
             'q' => 'Ar siunčiate prekes į užsienį?',
@@ -55,7 +55,7 @@ $faqCategories = [
         ],
         [
             'q' => 'Ar prekėms taikoma garantija?',
-            'a' => 'Taip, visiems elektroniniams prietaisams (pvz., gliukomačiams) taikoma 24 mėn. gamintojo garantija.'
+            'a' => 'Taip, visiems elektroniniams prietaisams taikoma 24 mėn. gamintojo garantija.'
         ],
     ],
     '👤 Paskyra ir kita' => [
