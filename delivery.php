@@ -11,18 +11,18 @@ tryAutoLogin($pdo);
 $deliveryMethods = [
     [
         'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
-        'title' => 'LP Express / Omniva / DPD paštomatai',
-        'desc' => 'Patogiausias būdas atsiimti prekes. Pristatymas per 1–3 darbo dienas į jūsų pasirinktą paštomatą visoje Lietuvoje. Kaina: 2.99 € (nemokamai nuo 50 €).'
+        'title' => 'LP Express ir Omniva paštomatai',
+        'desc' => 'Patogiausias būdas atsiimti prekes jums tinkamu laiku. Siunta paštomatą pasiekia per 1–2 darbo dienas. Kaina: 2.99 € (nemokamai užsakymams nuo 30 €).'
     ],
     [
         'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
-        'title' => 'DPD Kurjeris į namus',
-        'desc' => 'Siuntą kurjeris pristatys tiesiai jūsų nurodytu adresu (į namus ar darbovietę). Prieš atvykdamas kurjeris informuos SMS žinute. Pristatymas per 1–2 darbo dienas. Kaina: 4.99 €.'
+        'title' => 'Kurjeris į namus ar biurą',
+        'desc' => 'LP Express arba Omniva kurjeris siuntą pristatys tiesiai jūsų nurodytu adresu į rankas. Prieš atvykdamas kurjeris susisieks su jumis telefonu. Kaina: 4.99 € (nemokamai nuo 30 €).'
     ],
     [
-        'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="16" rx="2"/><path d="M4 11h16"/><path d="M8 21v-2"/><path d="M16 21v-2"/></svg>',
-        'title' => 'Autobusų siuntos',
-        'desc' => 'Skubus pristatymas tą pačią arba kitą dieną į didžiųjų miestų autobusų stotis. Siuntą reikia atsiimti siuntų skyriuje. Kaina: 5.50 €.'
+        'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+        'title' => 'Kaip gauti nemokamą pristatymą?',
+        'desc' => 'Pristatymas nieko nekainuoja krepšeliui pasiekus 30 € arba įsidėjus prekę, pažymėtą „Nemokamas pristatymas“. P.S. Sekite mus socialiniuose tinkluose – švenčių proga ten kartais pasidaliname slaptais kodais! 🎁'
     ]
 ];
 ?>
@@ -119,7 +119,7 @@ $deliveryMethods = [
       <div class="hero-content">
         <div class="pill">🚚 Greitas ir patogus</div>
         <h1>Pristatymo informacija</h1>
-        <p>Pasirūpiname, kad diabeto priežiūros priemonės jus pasiektų saugiai ir greitai. Žemiau rasite visus galimus pristatymo būdus.</p>
+        <p>Pasirūpiname, kad jūsų užsakymas pasiektų jus saugiai. Mėgaukitės nemokamu pristatymu užsakymams nuo 30 €!</p>
       </div>
       <div class="hero-icon" style="font-size: 100px; opacity: 0.8; line-height: 1;">
           📦
